@@ -1,0 +1,32 @@
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE
+*.code-workspace
+.vscode/
+.idea/
+.idea/workspace.xml
+**/.idea/workspace.xml
+*.iml
+
+# Binary files
+*.dll
+*.dylib
+*.exe
+*.exe~
+*.so
+
+# Testing file
+*.test
+*.tmp
+
+# Ignore Third party packages
+bin/*
+src/*
+pkg/*
