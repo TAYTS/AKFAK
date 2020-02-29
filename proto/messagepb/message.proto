@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package proto.messagepb;
+
+option go_package = "proto/messagepb";
+
+import "proto/recordpb/record.proto";
+
+message MessageRequest { recordpb.Record record = 1; }
+message MessageResponse { string result = 1; }
+
+message MessageBatchRequest { recordpb.RecordBatch records = 1; }
+message MessageBatchResponse { string result = 1; }
+
+service MessageService {
+  rpc Message(stream MessageRequest) returns (stream MessageResponse) {}
+  rpc MessageBatch(stream MessageBatchRequest)
+      returns (stream MessageBatchResponse) {};
+}

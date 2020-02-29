@@ -1,0 +1,56 @@
+syntax = "proto3";
+
+package proto.recordpb;
+
+option go_package = "proto/recordpb";
+
+message Header {
+  int32 headerKeyLength = 1;
+  string headerKey = 2;
+  int32 headerValueLength = 3;
+  bytes Value = 4;
+}
+
+message Record {
+  int32 length = 1;     // varint in original implementation
+  int32 attributes = 2; // int8 in original implementation
+  /* attributes
+      bit 0~7: unused
+  */
+
+  int32 timestampDelta = 3;
+  int32 offsetDelta = 4; // varint in original implementation
+  int32 keyLength = 5;   // varint in original implementation
+  bytes key = 6;
+  int32 valueLen = 7; // varint in original implementation
+  bytes value = 8;
+  repeated Header Headers = 9;
+}
+
+message RecordBatch {
+  int64 baseOffset = 1;
+  int32 batchLength = 2;
+  int32 partitionLeaderEpoch = 3;
+  int32 magic = 4; // int8 in original implementation (current magic value is 2)
+  int32 crc = 5;
+  int32 attributes = 6; // int16 in original implementation
+  /* attributes
+      bit 0~2:
+          0: no compression
+          1: gzip
+          2: snappy
+          3: lz4
+          4: zstd
+      bit 3: timestampType
+      bit 4: isTransactional (0 means not transactional)
+      bit 5: isControlBatch (0 means not a control batch)
+      bit 6~15: unused
+  */
+  int32 lastOffsetDelta = 7;
+  int64 firstTimestamp = 8;
+  int64 maxTimestamp = 9;
+  int64 producerId = 10;
+  int32 producerEpoch = 11; // int16 in original implementation
+  int32 baseSequence = 12;
+  repeated Record records = 13;
+}
