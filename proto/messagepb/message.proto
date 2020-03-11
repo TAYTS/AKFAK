@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package proto.messagepb;
 
-option go_package = "proto/messagepb";
+option go_package = "AKFAK/proto/messagepb";
 
 import "proto/recordpb/record.proto";
 
