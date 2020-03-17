@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package proto.recordpb;
 
-option go_package = "proto/recordpb";
+option go_package = "AKFAK/proto/recordpb";
 
 message Header {
   int32 headerKeyLength = 1;
