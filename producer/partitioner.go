@@ -22,26 +22,26 @@ type AtomicCounter struct {
 }
 
 // returns the updated value
-func (a AtomicCounter) increment() {
+func (a *AtomicCounter) increment() {
 	a.mux.Lock()
 	defer a.mux.Unlock()
 	a.counter = a.counter + 1
 }
 
-func (a AtomicCounter) set(Integer int) {
+func (a *AtomicCounter) set(Integer int) {
 	a.mux.Lock()
 	defer a.mux.Unlock()
 	a.counter = Integer
 }
 
-func (a AtomicCounter) getCount() int {
+func (a *AtomicCounter) getCount() int {
 	a.mux.Lock()
 	defer a.mux.Unlock()
 	return a.counter
 }
 
 // where cluster.partitionsForTopic(topic) gives an empty list or a list from the Map of the topic
-func (r RoundRobinPartitioner) getPartition (topic string, cluster Cluster) int {
+func (r *RoundRobinPartitioner) getPartition (topic string, cluster Cluster) int {
 	var partitions []PartitionInfo = cluster.partitionsForTopic(topic)
 	var availablePartitions []PartitionInfo = cluster.availablePartitionsForTopic(topic)
 	numPartitions := len(partitions)
@@ -57,7 +57,7 @@ func (r RoundRobinPartitioner) getPartition (topic string, cluster Cluster) int 
 	}
 }
 
-func (r RoundRobinPartitioner) getNextValue(topic string) int {
+func (r *RoundRobinPartitioner) getNextValue(topic string) int {
 	// check if topic in topicCounterMap. If yes, getCount the current counter value and increment it.
 	// Otherwise, add it to the concurrent map and return the initialised value of 0.
 	var counter AtomicCounter
@@ -78,5 +78,8 @@ func (r RoundRobinPartitioner) getNextValue(topic string) int {
 
 func main() {
 	//var r RoundRobinPartitioner
+	//var counter AtomicCounter
+	//counter.increment()
+	//fmt.Println(counter.getCount())
 }
 
