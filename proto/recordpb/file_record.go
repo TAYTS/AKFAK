@@ -96,6 +96,17 @@ func (fileRcd *FileRecord) WriteToFile(rcdBatch *RecordBatch) error {
 	return nil
 }
 
+// CloseFile close the file
+func (fileRcd *FileRecord) CloseFile(rcdBatch *RecordBatch) error {
+	if fileRcd.file != nil {
+		if err := fileRcd.file.Close(); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 ///////////////////////////////////
 // 		   Private Methods		 //
 ///////////////////////////////////
