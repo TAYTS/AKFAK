@@ -3,11 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"time"
-	"io"
+	"strconv"
 
 	messagepb "AKFAK/proto/messagepb"
+	metadatapb "AKFAK/proto/metadatapb"
 	recordpb "AKFAK/proto/recordpb"
 	"google.golang.org/grpc"
 )
@@ -24,10 +26,18 @@ type ProducerRecord struct {
 
 // round-robin returns an integer to tell the producer which partition to send to
 func decidePartition() int {
-	return 1
+	return 50051
 }
 
+// implementation modelled after doSend(...) in Kafka's Java implementation of KafkaProducer
+// send sends message to different partitions in a round-robin fashion
 func send(producer messagepb.MessageServiceClient) {
+
+	// make sure metadata for topic is available
+	// serialize fields in record
+	// fill in fields in record
+	// send to broker
+
 	fmt.Println("Starting to send message...")
 
 	// Create stream by invoking the client
@@ -81,20 +91,20 @@ func send(producer messagepb.MessageServiceClient) {
 	waitc := make(chan struct{})
 
 	// send messages to broker
-	go func(){
-		for _, msg := range msgs{
+	go func() {
+		for _, msg := range msgs {
 			fmt.Printf("Sending message: %v\n", msg)
 			stream.Send(msg)
-			time.Sleep(1000* time.Millisecond)
+			time.Sleep(1000 * time.Millisecond)
 		}
 		stream.CloseSend()
 	}()
 
 	// receive messages from broker
-	go func () {
+	go func() {
 		for {
 			res, err := stream.Recv()
-			if err == io.EOF{
+			if err == io.EOF {
 				break
 			}
 			if err != nil {
@@ -110,17 +120,37 @@ func send(producer messagepb.MessageServiceClient) {
 	<-waitc
 }
 
+// wait for cluster metadata including partitions for the given topic to be available
+func getMetadata(producer metadatapb.MetadataServiceClient, topicNames []string) *metadatapb.MetadataResponse {
+
+	req := &metadatapb.MetadataRequest{
+		TopicNames: topicNames,
+	}
+
+	res, err := producer.GetMetadata(context.Background(), req)
+	if err != nil {
+		log.Fatalf("could not get metadata. error: %v", err)
+	}
+
+	log.Print("received metadata: ", res)
+
+	return res
+
+}
 
 func main() {
 	// Set up a connection to the chosen broker chosen via round-robin
-	address := "0.0.0.0:50051"
+	address := "0.0.0.0:" + strconv.Itoa(decidePartition())
 	conn, err := grpc.Dial(address, grpc.WithInsecure(), grpc.WithBlock())
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
 	}
 	defer conn.Close()
 
-	prod := messagepb.NewMessageServiceClient(conn)
 
-	send(prod)
+	// msgProd := messagepb.NewMessageServiceClient(conn)
+	metadataProd := metadatapb.NewMetadataServiceClient(conn)
+	
+	// send(prod)
+	getMetadata(metadataProd, []string{"topic1","topic2"})
 }
