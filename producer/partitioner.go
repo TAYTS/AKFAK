@@ -41,7 +41,7 @@ func (a AtomicCounter) getCount() int {
 }
 
 // where cluster.partitionsForTopic(topic) gives an empty list or a list from the Map of the topic
-func (r RoundRobinPartitioner) getPartition (topic string, key []byte, value []byte, cluster Cluster) int {
+func (r RoundRobinPartitioner) getPartition (topic string, cluster Cluster) int {
 	var partitions []PartitionInfo = cluster.partitionsForTopic(topic)
 	var availablePartitions []PartitionInfo = cluster.availablePartitionsForTopic(topic)
 	numPartitions := len(partitions)
