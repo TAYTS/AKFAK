@@ -4,12 +4,6 @@ package proto.recordpb;
 
 option go_package = "AKFAK/proto/recordpb";
 
-message Header {
-  int32 headerKeyLength = 1;
-  string headerKey = 2;
-  int32 headerValueLength = 3;
-  bytes value = 4;
-}
 
 message Record {
   int32 length = 1;     // varint in original implementation
@@ -24,7 +18,6 @@ message Record {
   bytes key = 6;
   int32 valueLen = 7; // varint in original implementation
   bytes value = 8;
-  repeated Header Headers = 9;
 }
 
 message RecordBatch {

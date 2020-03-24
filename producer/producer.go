@@ -22,28 +22,8 @@ type ProducerRecord struct {
 	timestamp int64		// timestamp of the record in ms since epoch. If null, assign current time in ms
 	key       []byte		// the key that will be included in the record
 	value     []byte		// the record contents
-	headers   []Header	// the headers that will be included in the record
 }
 
-// Header is required in Record
-type Header struct {
-	key		string
-	value	[]byte
-}
-
-// changes []Header to []*recordpb.Header
-func headersToRecordHeaders(headers []Header) []*recordpb.Header{
-	recordheaders := []*recordpb.Header{}
-	for _, header := range headers{
-		recordheaders = append(recordheaders, &recordpb.Header{
-								HeaderKeyLength:   int32(len(header.key)),
-								HeaderKey:         header.key,
-								HeaderValueLength: int32(len(header.value)),
-								Value:             header.value,
-								})
-	}
-	return recordheaders
-}
 
 // getCurrentTimeinMs return current unix time in ms
 func getCurrentTimeinMs() int64{
@@ -73,7 +53,6 @@ func producerRecordsToRecordBatch(pRecords []ProducerRecord) *recordpb.RecordBat
 						Key:            pRecord.key,
 						ValueLen:       int32(len(pRecord.value)),
 						Value:          pRecord.value,
-						Headers:		headersToRecordHeaders(pRecord.headers),
 					})
 	}
 	
