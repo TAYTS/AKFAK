@@ -7,61 +7,56 @@ option go_package = "AKFAK/proto/metadatapb";
 
 // https://kafka.apache.org/protocol#The_Messages_Metadata
 
-message MetadataRequest { 
-    repeated string topicNames = 1;
-    /* 
-    topicName tells us the topics to produce metadata for. 
-    If empty, the request will yield metadata for all topics 
-    */
-}
-  
-message MetadataResponse {
-    repeated Broker brokers = 1;
-    repeated Topic topics = 2;
-}
-  
-message Broker {
-    int32 nodeID = 1;
-    string host = 2;
-    int32 port = 3;
-}
-  
-message Topic { 
-    int32 errorCode = 1; // int16 in original implementation
-    string name = 2;
-    repeated Partition partitions = 3;
-}
-  
-message Partition {
-    int32 errorCode = 1; // int16 in original implementation
-    int32 partitionIndex = 2;
-    int32 leaderID = 3; 
-    /* 
-    leader represents the node id for the kafka broker current acting as the leader
-    for this partition. If no leader exists because system is in the middle of a 
-    leader election, this id will be -1
-    */
-    repeated int32 replicaNodes = 4; 
-    // set of alive nodes that current act as slaves for the leader for this partition
-    repeated int32 isrNodes = 5; 
-    // set subset of replicas that in sync with leader of partition
+message MetadataRequest {
+  repeated string topicNames = 1;
+  /*
+  topicName tells us the topics to produce metadata for.
+  If empty, the request will yield metadata for all topics
+  */
 }
 
+message MetadataResponse {
+  repeated Broker brokers = 1;
+  repeated Topic topics = 2;
+}
+
+message Broker {
+  int32 nodeID = 1;
+  string host = 2;
+  int32 port = 3;
+}
+
+message Topic {
+  int32 errorCode = 1; // int16 in original implementation
+  string name = 2;
+  repeated Partition partitions = 3;
+}
+
+message Partition {
+  int32 errorCode = 1; // int16 in original implementation
+  int32 partitionIndex = 2;
+  int32 leaderID = 3;
+  /*
+  leader represents the node id for the kafka broker current acting as the
+  leader for this partition. If no leader exists because system is in the middle
+  of a leader election, this id will be -1
+  */
+  repeated int32 replicaNodes = 4;
+  // set of alive nodes that current act as slaves for the leader for this
+  // partition
+  repeated int32 isrNodes = 5;
+  // set subset of replicas that in sync with leader of partition
+}
 
 // The request message containing the user's name.
-message HelloRequest {
-    string name = 1;
-}
+message HelloRequest { string name = 1; }
 
 // The response message containing the greetings
-message HelloReply {
-    string message = 1;
-}
+message HelloReply { string message = 1; }
 
 service MetadataService {
-    rpc GetMetadata(MetadataRequest) returns (MetadataResponse) {}
-    
-    // == Test to see if gRPC works; REMOVE LATER == 
-    rpc SayHello (HelloRequest) returns (HelloReply) {}
-}
+  rpc GetMetadata(MetadataRequest) returns (MetadataResponse) {}
 
+  // == Test to see if gRPC works; REMOVE LATER ==
+  rpc SayHello(HelloRequest) returns (HelloReply) {}
+}

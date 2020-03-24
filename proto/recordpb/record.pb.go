@@ -154,12 +154,23 @@ func (m *Record) GetOffsetDelta() int32 {
 }
 
 type RecordBatch struct {
-	BaseOffset           int64     `protobuf:"varint,1,opt,name=baseOffset,proto3" json:"baseOffset,omitempty"`
-	BatchLength          int32     `protobuf:"varint,2,opt,name=batchLength,proto3" json:"batchLength,omitempty"`
-	PartitionLeaderEpoch int32     `protobuf:"varint,3,opt,name=partitionLeaderEpoch,proto3" json:"partitionLeaderEpoch,omitempty"`
-	Magic                int32     `protobuf:"varint,4,opt,name=magic,proto3" json:"magic,omitempty"`
-	Crc                  int32     `protobuf:"varint,5,opt,name=crc,proto3" json:"crc,omitempty"`
-	Attributes           int32     `protobuf:"varint,6,opt,name=attributes,proto3" json:"attributes,omitempty"`
+	BaseOffset           int64  `protobuf:"varint,1,opt,name=baseOffset,proto3" json:"baseOffset,omitempty"`
+	BatchLength          []byte `protobuf:"bytes,2,opt,name=batchLength,proto3" json:"batchLength,omitempty"`
+	PartitionLeaderEpoch int32  `protobuf:"varint,3,opt,name=partitionLeaderEpoch,proto3" json:"partitionLeaderEpoch,omitempty"`
+	Magic                int32  `protobuf:"varint,4,opt,name=magic,proto3" json:"magic,omitempty"`
+	Crc                  int32  `protobuf:"varint,5,opt,name=crc,proto3" json:"crc,omitempty"`
+	Attributes           int32  `protobuf:"varint,6,opt,name=attributes,proto3" json:"attributes,omitempty"`
+	// attributes
+	//bit 0~2:
+	//0: no compression
+	//1: gzip
+	//2: snappy
+	//3: lz4
+	//4: zstd
+	//bit 3: timestampType
+	//bit 4: isTransactional (0 means not transactional)
+	//bit 5: isControlBatch (0 means not a control batch)
+	//bit 6~15: unused
 	LastOffsetDelta      int32     `protobuf:"varint,7,opt,name=lastOffsetDelta,proto3" json:"lastOffsetDelta,omitempty"`
 	FirstTimestamp       int64     `protobuf:"varint,8,opt,name=firstTimestamp,proto3" json:"firstTimestamp,omitempty"`
 	MaxTimestamp         int64     `protobuf:"varint,9,opt,name=maxTimestamp,proto3" json:"maxTimestamp,omitempty"`
@@ -204,11 +215,11 @@ func (m *RecordBatch) GetBaseOffset() int64 {
 	return 0
 }
 
-func (m *RecordBatch) GetBatchLength() int32 {
+func (m *RecordBatch) GetBatchLength() []byte {
 	if m != nil {
 		return m.BatchLength
 	}
-	return 0
+	return nil
 }
 
 func (m *RecordBatch) GetPartitionLeaderEpoch() int32 {
