@@ -43,8 +43,8 @@ func (*messageServer) MessageBatch(stream messagepb.MessageService_MessageBatchS
 	}
 }
 
-func (*metadataServer) GetMetadata(ctx context.Context, req *metadatapb.MetadataRequest) (*metadatapb.MetadataResponse, error) {
-	fmt.Printf("GetMetadata function was invoked with %v\n", req)
+func (*metadataServer) WaitOnMetadata(ctx context.Context, req *metadatapb.MetadataRequest) (*metadatapb.MetadataResponse, error) {
+	fmt.Printf("WaitOnMetadata function was invoked with %v\n", req)
 
 	//topicNames := req.GetTopicNames()
 
