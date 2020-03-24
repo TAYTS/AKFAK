@@ -8,7 +8,7 @@ message Header {
   int32 headerKeyLength = 1;
   string headerKey = 2;
   int32 headerValueLength = 3;
-  bytes Value = 4;
+  bytes value = 4;
 }
 
 message Record {
@@ -28,11 +28,11 @@ message Record {
 }
 
 message RecordBatch {
-  int64 baseOffset = 1;
-  bytes batchLength = 2; // 4 bytes
+  int64 baseOffset = 1; // used in log compression
+  bytes batchLength = 2; // int32; equivalent to []byte with size 4
   int32 partitionLeaderEpoch = 3;
-  int32 magic = 4; // int8 in original implementation (current magic value is 2)
-  int32 crc = 5;
+  int32 magic = 4; // int8 in original implementation (for kafka version check, current magic value is 2)
+  int32 crc = 5;  // to make sure msg not corrupted
   int32 attributes = 6; // int16 in original implementation
   /* attributes
       bit 0~2:
@@ -46,11 +46,11 @@ message RecordBatch {
       bit 5: isControlBatch (0 means not a control batch)
       bit 6~15: unused
   */
-  int32 lastOffsetDelta = 7;
-  int64 firstTimestamp = 8;
-  int64 maxTimestamp = 9;
-  int64 producerId = 10;
-  int32 producerEpoch = 11; // int16 in original implementation
-  int32 baseSequence = 12;
-  repeated Record records = 13;
+  int32 lastOffsetDelta = 7;   // last offset delta of record
+  int64 firstTimestamp = 8;    // time when record batch is first instantiated
+  int64 maxTimestamp = 9;      // time when last record is added
+  int64 producerId = 10;       // uuid of producer
+  int32 producerEpoch = 11;    // int16 in original implementation
+  int32 baseSequence = 12;     //
+  repeated Record records = 13; //
 }
