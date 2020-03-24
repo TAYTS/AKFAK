@@ -11,13 +11,8 @@ message Record {
   /* attributes
       bit 0~7: unused
   */
-
   int32 timestampDelta = 3;
   int32 offsetDelta = 4; // varint in original implementation
-  int32 keyLength = 5;   // varint in original implementation
-  bytes key = 6;
-  int32 valueLen = 7; // varint in original implementation
-  bytes value = 8;
 }
 
 message RecordBatch {
