@@ -97,7 +97,7 @@ func (fileRcd *FileRecord) WriteToFile(rcdBatch *RecordBatch) error {
 }
 
 // CloseFile close the file
-func (fileRcd *FileRecord) CloseFile(rcdBatch *RecordBatch) error {
+func (fileRcd *FileRecord) CloseFile() error {
 	if fileRcd.file != nil {
 		if err := fileRcd.file.Close(); err != nil {
 			return err
