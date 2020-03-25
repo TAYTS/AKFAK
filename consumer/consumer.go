@@ -5,7 +5,7 @@ import (
     "log"
     "os"
     "time"
-    "github.com/Shopify/sarama"
+    "consumer/common"
 	"consumer/consumergroup"
 	"consumer/config"
 )

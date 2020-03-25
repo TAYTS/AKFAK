@@ -1,4 +1,3 @@
-package consumergroup
 
 import (
 	"errors"
@@ -6,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Shopify/sarama"
+	"consumer/common"
 	"github.com/wvanbergen/kazoo-go"
 )
 
