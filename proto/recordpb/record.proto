@@ -4,13 +4,6 @@ package proto.recordpb;
 
 option go_package = "AKFAK/proto/recordpb";
 
-message Header {
-  int32 headerKeyLength = 1;
-  string headerKey = 2;
-  int32 headerValueLength = 3;
-  bytes value = 4;
-}
-
 message Record {
   int32 length = 1;     // varint in original implementation
   int32 attributes = 2; // int8 in original implementation
@@ -19,6 +12,8 @@ message Record {
   */
   int32 timestampDelta = 3;
   int32 offsetDelta = 4; // varint in original implementation
+  int32 valueLen = 5; // varint in original implementation
+  bytes value = 6; // message contents
 }
 
 message RecordBatch {
@@ -43,8 +38,5 @@ message RecordBatch {
   int32 lastOffsetDelta = 7;
   int64 firstTimestamp = 8;
   int64 maxTimestamp = 9;
-  int64 producerId = 10;
-  int32 producerEpoch = 11; // int16 in original implementation
-  int32 baseSequence = 12;
-  repeated Record records = 13;
+  repeated Record records = 10;
 }
