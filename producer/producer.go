@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"time"
+	"strconv"
 	
 	messagepb "AKFAK/proto/messagepb"
 	metadatapb "AKFAK/proto/metadatapb"
@@ -18,18 +19,16 @@ import (
 // ProducerRecord will be used to instantiate a record
 type ProducerRecord struct {
 	topic     string	// topic the record will be appended to
-	partition int		// partition to which the record should be sent
 	timestamp int64		// timestamp of the record in ms since epoch. If null, assign current time in ms
-	key       []byte		// the key that will be included in the record
 	value     []byte		// the record contents
 }
-
 
 // getCurrentTimeinMs return current unix time in ms
 func getCurrentTimeinMs() int64{
 	return time.Now().UnixNano() / int64(time.Millisecond)
 }
 
+// converts records from struct ProducerRecords to RecordBatch
 func producerRecordsToRecordBatch(pRecords []ProducerRecord) *recordpb.RecordBatch {
 
 	recordBatch := recordpb.InitialiseEmptyRecordBatch() 
@@ -39,9 +38,7 @@ func producerRecordsToRecordBatch(pRecords []ProducerRecord) *recordpb.RecordBat
 	for _, pRecord := range pRecords {
 		// assign current time in ms if record.timestamp is nil (0)
 		if pRecord.timestamp == 0 {
-			timestamp := getCurrentTimeinMs()
-		} else {
-			timestamp := pRecord.timestamp
+			pRecord.timestamp = getCurrentTimeinMs()
 		}
 		// append record to record batch
 		recordBatch.AppendRecord(&recordpb.Record{
@@ -49,8 +46,6 @@ func producerRecordsToRecordBatch(pRecords []ProducerRecord) *recordpb.RecordBat
 						Attributes:     0,
 						TimestampDelta: int32(getCurrentTimeinMs()-pRecord.timestamp), // current time-record.timestamp
 						OffsetDelta:    1,
-						KeyLength:      int32(len(pRecord.key)),
-						Key:            pRecord.key,
 						ValueLen:       int32(len(pRecord.value)),
 						Value:          pRecord.value,
 					})
@@ -60,20 +55,42 @@ func producerRecordsToRecordBatch(pRecords []ProducerRecord) *recordpb.RecordBat
 	recordBatch.MaxTimestamp = getCurrentTimeinMs()
 	recordBatch.Magic = 2
 	recordBatch.LastOffsetDelta = 1 // still unsure about this
-	recordBatch.ProducerId = 1 // still unsure about this
 	
 	return recordBatch
 }
 
-// Send sends message to different partitions in a round-robin fashion
-func Send(msgProducer messagepb.MessageServiceClient, metadataProd metadatapb.MetadataServiceClient, records []ProducerRecord) {
+// Send takes records and sends to partition decided by round-robin
+func Send(metadataProd metadatapb.MetadataServiceClient, records []ProducerRecord) {
 
-	// cluster := cluster.getCluster() // TODO: get cluster from broker
-	partitioner := RoundRobinPartitioner{}
-	partition := partitioner.getPartition(record.topic, cluster) // TODO: realised nowhere to indicate partition in record
-		
+	// all records in a recordbatch should have the same topic
+	topic := records[0].topic
+
+	// get brokers for topic
+	brokersAddr := getBrokersForTopic(metadataProd, topic)
+	brokersConnection := make(map[int]messagepb.MessageServiceClient)
+
+	// create connection to all brokers for that topic
+	for i, addr := range brokersAddr {
+		conn, err := grpc.Dial(addr, grpc.WithInsecure(), grpc.WithBlock())
+		if err != nil {
+			log.Fatalf("did not connect: %v", err)
+		}
+		msgProd := messagepb.NewMessageServiceClient(conn)
+		brokersConnection[i] = msgProd
+		defer conn.Close()
+	}
+
+
+	// TODO: obtain cluster from broker
+	// cluster := cluster.getCluster()
+
+	// compute partition to send to
+	// partitioner := RoundRobinPartitioner{}
+	// partition := partitioner.getPartition(topic, cluster)
+	partition := 0
+
 	// Create stream by invoking the client
-	stream, err := msgProducer.MessageBatch(context.Background())
+	stream, err := brokersConnection[partition].MessageBatch(context.Background())
 	
 	if err != nil {
 		log.Fatalf("Error while creating stream: %v", err)
@@ -118,10 +135,10 @@ func Send(msgProducer messagepb.MessageServiceClient, metadataProd metadatapb.Me
 
 // wait for cluster metadata including partitions for the given topic 
 // and partition (if specified, 0 if no preference) to be available
-func waitOnMetadata(producer metadatapb.MetadataServiceClient, partition int, topicNames []string, maxWaitMs time.Duration) *metadatapb.MetadataResponse {
+func waitOnMetadata(producer metadatapb.MetadataServiceClient, partition int, topicName string, maxWaitMs time.Duration) *metadatapb.MetadataResponse {
 
 	req := &metadatapb.MetadataRequest{
-		TopicNames: topicNames,
+		TopicName: topicName,
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), maxWaitMs)
@@ -132,7 +149,7 @@ func waitOnMetadata(producer metadatapb.MetadataServiceClient, partition int, to
 		statusErr, ok := status.FromError(err)
 		if ok {
 			if statusErr.Code() == codes.DeadlineExceeded {
-				fmt.Println("Metadata not received for topics %v after %d ms", topicNames, maxWaitMs)
+				fmt.Println("Metadata not received for topics %v after %d ms", topicName, maxWaitMs)
 			} else {
 				fmt.Printf("Unexpected error: %v", statusErr)
 			}
@@ -146,20 +163,46 @@ func waitOnMetadata(producer metadatapb.MetadataServiceClient, partition int, to
 	return res
 }
 
-func main() {
-	// Set up a connection to the chosen broker chosen via round-robin
-	address := "0.0.0.0:50051"
-	conn, err := grpc.Dial(address, grpc.WithInsecure(), grpc.WithBlock())
+
+func getBrokersForTopic(producer metadatapb.MetadataServiceClient, topic string) map[int]string {
+	fmt.Println("in get brokers for topic")
 	
+	brokers := make(map[int]string)
+
+	// get metadata on topic
+	metadata := waitOnMetadata(producer, 0, topic, 3000*time.Millisecond)
+	
+	// get addresses of other brokers having partitions of topic in request
+	for i, broker := range metadata.GetBrokers() {
+		brokers[i] = broker.GetHost() + strconv.Itoa(int(broker.GetPort()))
+	}
+
+	fmt.Println(brokers)
+	return brokers
+}
+
+func main() {
+	// Set up a connection to a broker
+	fmt.Println("running producer.go...")
+	broker0 := "0.0.0.0:50051"
+	conn, err := grpc.Dial(broker0, grpc.WithInsecure(), grpc.WithBlock())
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
 	}
 	defer conn.Close()
-
-	// msgProd := messagepb.NewMessageServiceClient(conn)
+	
+	// create a metadataclient
 	metadataProd := metadatapb.NewMetadataServiceClient(conn)
+	
+	records := []ProducerRecord{
+		ProducerRecord {
+			topic: "topic1",
+			timestamp: getCurrentTimeinMs(),
+			value: []byte("this is the message content"),
+		},
+	}
 
-	// === test functions ===
-	// Send(prod)
-	waitOnMetadata(metadataProd, 0, []string{"topic1", "topic2"}, 3000*time.Millisecond)
+	fmt.Println("sending message")
+
+	Send(metadataProd, records)
 }
