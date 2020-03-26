@@ -6,7 +6,11 @@ option go_package = "AKFAK/proto/messagepb";
 
 import "proto/recordpb/record.proto";
 
-message MessageBatchRequest { recordpb.RecordBatch records = 1; }
+message MessageBatchRequest { 
+  recordpb.RecordBatch records = 1; 
+  string topicName = 2;
+}
+
 message MessageBatchResponse { string result = 1; }
 
 service MessageService {
