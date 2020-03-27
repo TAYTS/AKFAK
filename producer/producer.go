@@ -59,6 +59,40 @@ func producerRecordsToRecordBatch(pRecords []ProducerRecord) *recordpb.RecordBat
 	return recordBatch
 }
 
+func dialBrokers(brokersAddr map[int]string) map[int]messagepb.MessageService_MessageBatchClient{
+	opts := grpc.WithInsecure()
+	time.Sleep(time.Second)
+	brokersConnections := make(map[int]messagepb.MessageService_MessageBatchClient)
+
+	for i, addr := range brokersAddr {
+		fmt.Printf("Dialing %v\n", addr)
+		waitc := make(chan struct{})
+		go func() {
+			for {
+				cSock, err := grpc.Dial(addr, opts)
+				if err != nil {
+					fmt.Printf("Error did not connect: %v\n", err)
+					continue
+				}
+				cRPC := messagepb.NewMessageServiceClient(cSock)
+				// Create stream by invoking the client
+				stream, err := cRPC.MessageBatch(context.Background())
+				if err != nil {
+					fmt.Printf("Error while creating stream: %v\n", err)
+					continue
+				}
+				brokersConnections[i] = stream
+				break
+			}
+			close(waitc)
+		}()
+		<-waitc
+	}
+
+	return brokersConnections
+}
+
+
 // Send takes records and sends to partition decided by round-robin
 func Send(metadataProd metadatapb.MetadataServiceClient, records []ProducerRecord) {
 
@@ -67,19 +101,9 @@ func Send(metadataProd metadatapb.MetadataServiceClient, records []ProducerRecor
 
 	// get brokers for topic
 	brokersAddr := getBrokersForTopic(metadataProd, topic)
-	brokersConnection := make(map[int]messagepb.MessageServiceClient)
 
 	// create connection to all brokers for that topic
-	for i, addr := range brokersAddr {
-		conn, err := grpc.Dial(addr, grpc.WithInsecure(), grpc.WithBlock())
-		if err != nil {
-			log.Fatalf("did not connect: %v", err)
-		}
-		msgProd := messagepb.NewMessageServiceClient(conn)
-		brokersConnection[i] = msgProd
-		defer conn.Close()
-	}
-
+	brokersConnections := dialBrokers(brokersAddr)
 
 	// TODO: obtain cluster from broker
 	// cluster := cluster.getCluster()
@@ -89,34 +113,28 @@ func Send(metadataProd metadatapb.MetadataServiceClient, records []ProducerRecor
 	// partition := partitioner.getPartition(topic, cluster)
 	partition := 0
 
-	// Create stream by invoking the client
-	stream, err := brokersConnection[partition].MessageBatch(context.Background())
-	
-	if err != nil {
-		log.Fatalf("Error while creating stream: %v", err)
-		return
-	}
-
 	recordBatch := producerRecordsToRecordBatch(records)
 	msg := &messagepb.MessageBatchRequest{
 		Records:	recordBatch,
 	}
+	requests := []*messagepb.MessageBatchRequest{msg}
 
 	waitc := make(chan struct{})
 
 	// send messages to broker
 	go func() {
-		fmt.Printf("Sending message: %v\n", msg)
-		stream.Send(msg)
-		time.Sleep(1000 * time.Millisecond)
-		
-		stream.CloseSend()
+		for _, req := range requests {
+			fmt.Printf("Sending message: %v\n", msg)
+			brokersConnections[partition].Send(req)
+			time.Sleep(1000 * time.Millisecond)
+		}
+		brokersConnections[partition].CloseSend()
 	}()
 
 	// receive messages from broker
 	go func() {
 		for {
-			res, err := stream.Recv()
+			res, err := brokersConnections[partition].Recv()
 			if err == io.EOF {
 				break
 			}
@@ -132,6 +150,7 @@ func Send(metadataProd metadatapb.MetadataServiceClient, records []ProducerRecor
 	//block until everything is done
 	<-waitc
 }
+
 
 // wait for cluster metadata including partitions for the given topic 
 // and partition (if specified, 0 if no preference) to be available

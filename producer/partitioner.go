@@ -76,10 +76,10 @@ func (r *RoundRobinPartitioner) getNextValue(topic string) int {
 	return counter.getCount()
 }
 
-func main() {
-	//var r RoundRobinPartitioner
-	//var counter AtomicCounter
-	//counter.increment()
-	//fmt.Println(counter.getCount())
-}
+// func main() {
+// 	//var r RoundRobinPartitioner
+// 	//var counter AtomicCounter
+// 	//counter.increment()
+// 	//fmt.Println(counter.getCount())
+// }
 
