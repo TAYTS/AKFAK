@@ -22,9 +22,11 @@ func (n *Node) AdminClientNewTopic(ctx context.Context, req *adminpb.AdminClient
 			Response: adminpb.Response_FAIL}, nil
 	}
 
+	// store the partition leader and isr
 	partitionLeader := make(map[int]int)
 	partitionISR := make(map[int][]int)
 
+	// send request to each broker to create the partition
 	for brokerID, req := range newPartitionReqMap {
 		res, err := n.peerCon[brokerID].AdminClientNewPartition(context.Background(), req)
 		if err != nil && res.GetResponse() == adminpb.Response_FAIL {
@@ -34,6 +36,7 @@ func (n *Node) AdminClientNewTopic(ctx context.Context, req *adminpb.AdminClient
 				Response: adminpb.Response_FAIL}, err
 		}
 
+		// update the partition leader and isr mapping
 		for _, partID := range req.GetPartitionID() {
 			partIDInt := int(partID)
 			if _, exist := partitionLeader[partIDInt]; !exist {
@@ -47,6 +50,12 @@ func (n *Node) AdminClientNewTopic(ctx context.Context, req *adminpb.AdminClient
 			partitionISR[partIDInt] = append(partitionISR[partIDInt], brokerID)
 		}
 	}
+
+	// update ZK with the leader and isr
+
+	// send LeaderAndIsrRequest to every live replica
+
+	// send UpdateMetadata request to every live broker
 
 	// response
 	return &adminpb.AdminClientNewTopicResponse{
@@ -66,4 +75,16 @@ func (*Node) AdminClientNewPartition(ctx context.Context, req *adminpb.AdminClie
 	}
 
 	return &adminpb.AdminClientNewPartitionResponse{Response: adminpb.Response_SUCCESS}, nil
+}
+
+// LeaderAndIsr update the state of the local replica
+func (*Node) LeaderAndIsr(ctx context.Context, req *adminpb.LeaderAndIsrRequest) (*adminpb.LeaderAndIsrResponse, error) {
+	// TODO: Add update the leader and isr handler function
+	return &adminpb.LeaderAndIsrResponse{Response: adminpb.Response_SUCCESS}, nil
+}
+
+// UpdateMetadata update the Metadata state of the broker
+func (*Node) UpdateMetadata(ctx context.Context, req *adminpb.UpdateMetadatRequest) (*adminpb.UpdateMetadataResponse, error) {
+	// TODO: Add update metatdata handler function
+	return &adminpb.UpdateMetadataResponse{Response: adminpb.Response_SUCCESS}, nil
 }
