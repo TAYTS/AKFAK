@@ -237,12 +237,308 @@ func (m *AdminClientNewPartitionResponse) GetResponse() Response {
 	return Response_SUCCESS
 }
 
+type LeaderAndIsrPartitionState struct {
+	TopicName            string   `protobuf:"bytes,1,opt,name=topicName,proto3" json:"topicName,omitempty"`
+	PartitionIndex       int32    `protobuf:"varint,2,opt,name=partitionIndex,proto3" json:"partitionIndex,omitempty"`
+	Leader               int32    `protobuf:"varint,3,opt,name=leader,proto3" json:"leader,omitempty"`
+	Isr                  []int32  `protobuf:"varint,4,rep,packed,name=isr,proto3" json:"isr,omitempty"`
+	Replicas             []int32  `protobuf:"varint,5,rep,packed,name=replicas,proto3" json:"replicas,omitempty"`
+	AddingReplicas       []int32  `protobuf:"varint,6,rep,packed,name=addingReplicas,proto3" json:"addingReplicas,omitempty"`
+	RemovingReplicas     []int32  `protobuf:"varint,7,rep,packed,name=removingReplicas,proto3" json:"removingReplicas,omitempty"`
+	IsNew                bool     `protobuf:"varint,8,opt,name=isNew,proto3" json:"isNew,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *LeaderAndIsrPartitionState) Reset()         { *m = LeaderAndIsrPartitionState{} }
+func (m *LeaderAndIsrPartitionState) String() string { return proto.CompactTextString(m) }
+func (*LeaderAndIsrPartitionState) ProtoMessage()    {}
+func (*LeaderAndIsrPartitionState) Descriptor() ([]byte, []int) {
+	return fileDescriptor_b89f257325c17cfa, []int{4}
+}
+
+func (m *LeaderAndIsrPartitionState) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_LeaderAndIsrPartitionState.Unmarshal(m, b)
+}
+func (m *LeaderAndIsrPartitionState) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_LeaderAndIsrPartitionState.Marshal(b, m, deterministic)
+}
+func (m *LeaderAndIsrPartitionState) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_LeaderAndIsrPartitionState.Merge(m, src)
+}
+func (m *LeaderAndIsrPartitionState) XXX_Size() int {
+	return xxx_messageInfo_LeaderAndIsrPartitionState.Size(m)
+}
+func (m *LeaderAndIsrPartitionState) XXX_DiscardUnknown() {
+	xxx_messageInfo_LeaderAndIsrPartitionState.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_LeaderAndIsrPartitionState proto.InternalMessageInfo
+
+func (m *LeaderAndIsrPartitionState) GetTopicName() string {
+	if m != nil {
+		return m.TopicName
+	}
+	return ""
+}
+
+func (m *LeaderAndIsrPartitionState) GetPartitionIndex() int32 {
+	if m != nil {
+		return m.PartitionIndex
+	}
+	return 0
+}
+
+func (m *LeaderAndIsrPartitionState) GetLeader() int32 {
+	if m != nil {
+		return m.Leader
+	}
+	return 0
+}
+
+func (m *LeaderAndIsrPartitionState) GetIsr() []int32 {
+	if m != nil {
+		return m.Isr
+	}
+	return nil
+}
+
+func (m *LeaderAndIsrPartitionState) GetReplicas() []int32 {
+	if m != nil {
+		return m.Replicas
+	}
+	return nil
+}
+
+func (m *LeaderAndIsrPartitionState) GetAddingReplicas() []int32 {
+	if m != nil {
+		return m.AddingReplicas
+	}
+	return nil
+}
+
+func (m *LeaderAndIsrPartitionState) GetRemovingReplicas() []int32 {
+	if m != nil {
+		return m.RemovingReplicas
+	}
+	return nil
+}
+
+func (m *LeaderAndIsrPartitionState) GetIsNew() bool {
+	if m != nil {
+		return m.IsNew
+	}
+	return false
+}
+
+type LeaderAndIsrTopicState struct {
+	TopicName            string                        `protobuf:"bytes,1,opt,name=topicName,proto3" json:"topicName,omitempty"`
+	PartitionStates      []*LeaderAndIsrPartitionState `protobuf:"bytes,2,rep,name=partitionStates,proto3" json:"partitionStates,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}                      `json:"-"`
+	XXX_unrecognized     []byte                        `json:"-"`
+	XXX_sizecache        int32                         `json:"-"`
+}
+
+func (m *LeaderAndIsrTopicState) Reset()         { *m = LeaderAndIsrTopicState{} }
+func (m *LeaderAndIsrTopicState) String() string { return proto.CompactTextString(m) }
+func (*LeaderAndIsrTopicState) ProtoMessage()    {}
+func (*LeaderAndIsrTopicState) Descriptor() ([]byte, []int) {
+	return fileDescriptor_b89f257325c17cfa, []int{5}
+}
+
+func (m *LeaderAndIsrTopicState) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_LeaderAndIsrTopicState.Unmarshal(m, b)
+}
+func (m *LeaderAndIsrTopicState) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_LeaderAndIsrTopicState.Marshal(b, m, deterministic)
+}
+func (m *LeaderAndIsrTopicState) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_LeaderAndIsrTopicState.Merge(m, src)
+}
+func (m *LeaderAndIsrTopicState) XXX_Size() int {
+	return xxx_messageInfo_LeaderAndIsrTopicState.Size(m)
+}
+func (m *LeaderAndIsrTopicState) XXX_DiscardUnknown() {
+	xxx_messageInfo_LeaderAndIsrTopicState.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_LeaderAndIsrTopicState proto.InternalMessageInfo
+
+func (m *LeaderAndIsrTopicState) GetTopicName() string {
+	if m != nil {
+		return m.TopicName
+	}
+	return ""
+}
+
+func (m *LeaderAndIsrTopicState) GetPartitionStates() []*LeaderAndIsrPartitionState {
+	if m != nil {
+		return m.PartitionStates
+	}
+	return nil
+}
+
+type LeaderAndIsrLiveLeader struct {
+	BrokerID             int32    `protobuf:"varint,1,opt,name=brokerID,proto3" json:"brokerID,omitempty"`
+	HostName             string   `protobuf:"bytes,2,opt,name=hostName,proto3" json:"hostName,omitempty"`
+	Port                 int32    `protobuf:"varint,3,opt,name=port,proto3" json:"port,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *LeaderAndIsrLiveLeader) Reset()         { *m = LeaderAndIsrLiveLeader{} }
+func (m *LeaderAndIsrLiveLeader) String() string { return proto.CompactTextString(m) }
+func (*LeaderAndIsrLiveLeader) ProtoMessage()    {}
+func (*LeaderAndIsrLiveLeader) Descriptor() ([]byte, []int) {
+	return fileDescriptor_b89f257325c17cfa, []int{6}
+}
+
+func (m *LeaderAndIsrLiveLeader) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_LeaderAndIsrLiveLeader.Unmarshal(m, b)
+}
+func (m *LeaderAndIsrLiveLeader) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_LeaderAndIsrLiveLeader.Marshal(b, m, deterministic)
+}
+func (m *LeaderAndIsrLiveLeader) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_LeaderAndIsrLiveLeader.Merge(m, src)
+}
+func (m *LeaderAndIsrLiveLeader) XXX_Size() int {
+	return xxx_messageInfo_LeaderAndIsrLiveLeader.Size(m)
+}
+func (m *LeaderAndIsrLiveLeader) XXX_DiscardUnknown() {
+	xxx_messageInfo_LeaderAndIsrLiveLeader.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_LeaderAndIsrLiveLeader proto.InternalMessageInfo
+
+func (m *LeaderAndIsrLiveLeader) GetBrokerID() int32 {
+	if m != nil {
+		return m.BrokerID
+	}
+	return 0
+}
+
+func (m *LeaderAndIsrLiveLeader) GetHostName() string {
+	if m != nil {
+		return m.HostName
+	}
+	return ""
+}
+
+func (m *LeaderAndIsrLiveLeader) GetPort() int32 {
+	if m != nil {
+		return m.Port
+	}
+	return 0
+}
+
+type LeaderAndIsrRequest struct {
+	ControllerID         int32                     `protobuf:"varint,1,opt,name=controllerID,proto3" json:"controllerID,omitempty"`
+	TopicStates          []*LeaderAndIsrTopicState `protobuf:"bytes,2,rep,name=topicStates,proto3" json:"topicStates,omitempty"`
+	LiveLeaders          []*LeaderAndIsrLiveLeader `protobuf:"bytes,3,rep,name=liveLeaders,proto3" json:"liveLeaders,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}                  `json:"-"`
+	XXX_unrecognized     []byte                    `json:"-"`
+	XXX_sizecache        int32                     `json:"-"`
+}
+
+func (m *LeaderAndIsrRequest) Reset()         { *m = LeaderAndIsrRequest{} }
+func (m *LeaderAndIsrRequest) String() string { return proto.CompactTextString(m) }
+func (*LeaderAndIsrRequest) ProtoMessage()    {}
+func (*LeaderAndIsrRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_b89f257325c17cfa, []int{7}
+}
+
+func (m *LeaderAndIsrRequest) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_LeaderAndIsrRequest.Unmarshal(m, b)
+}
+func (m *LeaderAndIsrRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_LeaderAndIsrRequest.Marshal(b, m, deterministic)
+}
+func (m *LeaderAndIsrRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_LeaderAndIsrRequest.Merge(m, src)
+}
+func (m *LeaderAndIsrRequest) XXX_Size() int {
+	return xxx_messageInfo_LeaderAndIsrRequest.Size(m)
+}
+func (m *LeaderAndIsrRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_LeaderAndIsrRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_LeaderAndIsrRequest proto.InternalMessageInfo
+
+func (m *LeaderAndIsrRequest) GetControllerID() int32 {
+	if m != nil {
+		return m.ControllerID
+	}
+	return 0
+}
+
+func (m *LeaderAndIsrRequest) GetTopicStates() []*LeaderAndIsrTopicState {
+	if m != nil {
+		return m.TopicStates
+	}
+	return nil
+}
+
+func (m *LeaderAndIsrRequest) GetLiveLeaders() []*LeaderAndIsrLiveLeader {
+	if m != nil {
+		return m.LiveLeaders
+	}
+	return nil
+}
+
+type LeaderAndIsrResponse struct {
+	Response             Response `protobuf:"varint,1,opt,name=response,proto3,enum=proto.adminpb.Response" json:"response,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *LeaderAndIsrResponse) Reset()         { *m = LeaderAndIsrResponse{} }
+func (m *LeaderAndIsrResponse) String() string { return proto.CompactTextString(m) }
+func (*LeaderAndIsrResponse) ProtoMessage()    {}
+func (*LeaderAndIsrResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_b89f257325c17cfa, []int{8}
+}
+
+func (m *LeaderAndIsrResponse) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_LeaderAndIsrResponse.Unmarshal(m, b)
+}
+func (m *LeaderAndIsrResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_LeaderAndIsrResponse.Marshal(b, m, deterministic)
+}
+func (m *LeaderAndIsrResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_LeaderAndIsrResponse.Merge(m, src)
+}
+func (m *LeaderAndIsrResponse) XXX_Size() int {
+	return xxx_messageInfo_LeaderAndIsrResponse.Size(m)
+}
+func (m *LeaderAndIsrResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_LeaderAndIsrResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_LeaderAndIsrResponse proto.InternalMessageInfo
+
+func (m *LeaderAndIsrResponse) GetResponse() Response {
+	if m != nil {
+		return m.Response
+	}
+	return Response_SUCCESS
+}
+
 func init() {
 	proto.RegisterEnum("proto.adminpb.Response", Response_name, Response_value)
 	proto.RegisterType((*AdminClientNewTopicRequest)(nil), "proto.adminpb.AdminClientNewTopicRequest")
 	proto.RegisterType((*AdminClientNewTopicResponse)(nil), "proto.adminpb.AdminClientNewTopicResponse")
 	proto.RegisterType((*AdminClientNewPartitionRequest)(nil), "proto.adminpb.AdminClientNewPartitionRequest")
 	proto.RegisterType((*AdminClientNewPartitionResponse)(nil), "proto.adminpb.AdminClientNewPartitionResponse")
+	proto.RegisterType((*LeaderAndIsrPartitionState)(nil), "proto.adminpb.LeaderAndIsrPartitionState")
+	proto.RegisterType((*LeaderAndIsrTopicState)(nil), "proto.adminpb.LeaderAndIsrTopicState")
+	proto.RegisterType((*LeaderAndIsrLiveLeader)(nil), "proto.adminpb.LeaderAndIsrLiveLeader")
+	proto.RegisterType((*LeaderAndIsrRequest)(nil), "proto.adminpb.LeaderAndIsrRequest")
+	proto.RegisterType((*LeaderAndIsrResponse)(nil), "proto.adminpb.LeaderAndIsrResponse")
 }
 
 func init() {
@@ -250,28 +546,45 @@ func init() {
 }
 
 var fileDescriptor_b89f257325c17cfa = []byte{
-	// 329 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xe2, 0x92, 0x2c, 0x28, 0xca, 0x2f,
-	0xc9, 0xd7, 0x4f, 0x4c, 0xc9, 0xcd, 0xcc, 0x2b, 0x48, 0x82, 0xd0, 0x7a, 0x60, 0x31, 0x21, 0x5e,
-	0x30, 0xa5, 0x07, 0x95, 0x52, 0x6a, 0x63, 0xe4, 0x92, 0x72, 0x04, 0xb1, 0x9d, 0x73, 0x32, 0x53,
-	0xf3, 0x4a, 0xfc, 0x52, 0xcb, 0x43, 0xf2, 0x0b, 0x32, 0x93, 0x83, 0x52, 0x0b, 0x4b, 0x53, 0x8b,
-	0x4b, 0x84, 0x44, 0xb8, 0x58, 0x4b, 0x40, 0x7c, 0x09, 0x46, 0x05, 0x46, 0x0d, 0xce, 0x20, 0x08,
-	0x47, 0x48, 0x85, 0x8b, 0x37, 0xaf, 0x34, 0x37, 0x20, 0xb1, 0xa8, 0x24, 0xb3, 0x24, 0x33, 0x3f,
-	0xaf, 0x58, 0x82, 0x49, 0x81, 0x51, 0x83, 0x35, 0x08, 0x55, 0x50, 0x48, 0x87, 0x4b, 0xb0, 0x28,
-	0xb5, 0x20, 0x27, 0x33, 0x39, 0x11, 0xc4, 0x77, 0x4b, 0x4c, 0x2e, 0xc9, 0x2f, 0x92, 0x60, 0x06,
-	0xab, 0xc4, 0x94, 0x50, 0x0a, 0xe2, 0x92, 0xc6, 0xea, 0x8e, 0xe2, 0x82, 0xfc, 0xbc, 0xe2, 0x54,
-	0x21, 0x63, 0x2e, 0x8e, 0x22, 0x28, 0x1b, 0xec, 0x16, 0x3e, 0x23, 0x71, 0x3d, 0x14, 0x9f, 0xe8,
-	0xc1, 0x94, 0x06, 0xc1, 0x15, 0x2a, 0x95, 0x71, 0xc9, 0xa1, 0x9a, 0x09, 0x77, 0x1d, 0x7e, 0xff,
-	0x29, 0x70, 0x71, 0x17, 0xc0, 0x54, 0x7a, 0xba, 0x48, 0x30, 0x29, 0x30, 0x6b, 0xb0, 0x06, 0x21,
-	0x0b, 0x09, 0xc9, 0x70, 0x71, 0x42, 0xbd, 0xe0, 0xe9, 0x02, 0xf5, 0x13, 0x42, 0x40, 0x29, 0x8c,
-	0x4b, 0x1e, 0xa7, 0xbd, 0x14, 0xf8, 0x47, 0x4b, 0x91, 0x8b, 0x03, 0x6e, 0x00, 0x37, 0x17, 0x7b,
-	0x70, 0xa8, 0xb3, 0xb3, 0x6b, 0x70, 0xb0, 0x00, 0x83, 0x10, 0x07, 0x17, 0x8b, 0x9b, 0xa3, 0xa7,
-	0x8f, 0x00, 0xa3, 0xd1, 0x2f, 0x46, 0x2e, 0x1e, 0xb0, 0xdd, 0xc1, 0xa9, 0x45, 0x65, 0x99, 0xc9,
-	0xa9, 0x42, 0x79, 0x5c, 0xc2, 0x58, 0xc2, 0x55, 0x48, 0x13, 0xcd, 0x36, 0xdc, 0x69, 0x40, 0x4a,
-	0x8b, 0x18, 0xa5, 0xd0, 0x10, 0x67, 0x10, 0xaa, 0xe2, 0x12, 0xc7, 0xe1, 0x77, 0x21, 0x5d, 0xbc,
-	0x06, 0xa1, 0xc7, 0x8d, 0x94, 0x1e, 0xb1, 0xca, 0x61, 0x76, 0x3b, 0x89, 0x46, 0x09, 0x3b, 0x7a,
-	0xbb, 0x39, 0x7a, 0xeb, 0xa3, 0x24, 0xff, 0x24, 0x36, 0x30, 0xd7, 0x18, 0x10, 0x00, 0x00, 0xff,
-	0xff, 0xc5, 0xed, 0x64, 0x98, 0x16, 0x03, 0x00, 0x00,
+	// 599 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xa4, 0x55, 0xdd, 0x8e, 0xd2, 0x40,
+	0x14, 0xde, 0xf2, 0xb7, 0xec, 0x81, 0x5d, 0x71, 0x58, 0x77, 0x2b, 0x1a, 0xc5, 0xfa, 0x13, 0x24,
+	0xca, 0x26, 0xec, 0x13, 0x20, 0x88, 0x21, 0x10, 0x62, 0xa6, 0x6a, 0xa2, 0x77, 0x85, 0x4e, 0x74,
+	0x62, 0xe9, 0xd4, 0x99, 0x59, 0xd6, 0xf8, 0x00, 0xde, 0x78, 0xe7, 0x6b, 0x79, 0xed, 0xfb, 0x98,
+	0x19, 0xda, 0xd2, 0x76, 0x17, 0x24, 0xd9, 0x2b, 0xe6, 0x7c, 0xf3, 0xf5, 0x9c, 0xf3, 0x7d, 0x67,
+	0x66, 0x80, 0xbb, 0x01, 0x67, 0x92, 0x9d, 0x39, 0xee, 0x82, 0xfa, 0xc1, 0x6c, 0xf5, 0xdb, 0xd1,
+	0x18, 0x3a, 0xd4, 0x3f, 0x9d, 0x70, 0xcb, 0xfa, 0x69, 0x40, 0xa3, 0xa7, 0xd6, 0x7d, 0x8f, 0x12,
+	0x5f, 0x4e, 0xc9, 0xe5, 0x3b, 0x16, 0xd0, 0x39, 0x26, 0xdf, 0x2e, 0x88, 0x90, 0xe8, 0x18, 0x8a,
+	0x52, 0xc5, 0xa6, 0xd1, 0x34, 0x5a, 0x07, 0x78, 0x15, 0xa0, 0x27, 0x70, 0xe8, 0x5f, 0x2c, 0xde,
+	0x3a, 0x5c, 0x52, 0x49, 0x99, 0x2f, 0xcc, 0x5c, 0xd3, 0x68, 0x15, 0x71, 0x1a, 0x44, 0x2f, 0xe0,
+	0x36, 0x27, 0x81, 0x47, 0xe7, 0x8e, 0x8a, 0x87, 0xce, 0x5c, 0x32, 0x6e, 0xe6, 0x35, 0xf3, 0xea,
+	0x86, 0x85, 0xe1, 0xde, 0xb5, 0x7d, 0x88, 0x80, 0xf9, 0x82, 0xa0, 0x73, 0x28, 0xf3, 0x70, 0xad,
+	0x7b, 0x39, 0xea, 0x9e, 0x76, 0x52, 0x4a, 0x3a, 0x11, 0x15, 0xc7, 0x44, 0x6b, 0x09, 0x0f, 0xd2,
+	0x39, 0xe3, 0xee, 0xb6, 0xeb, 0x6b, 0x42, 0x25, 0x88, 0x98, 0xa3, 0x81, 0x99, 0x6b, 0xe6, 0x5b,
+	0x45, 0x9c, 0x84, 0xd0, 0x7d, 0x38, 0x08, 0x25, 0x8c, 0x06, 0xa1, 0xa6, 0x35, 0x60, 0x7d, 0x80,
+	0x87, 0x1b, 0xeb, 0xde, 0x44, 0xcf, 0xef, 0x1c, 0x34, 0x26, 0xc4, 0x71, 0x09, 0xef, 0xf9, 0xee,
+	0x48, 0xf0, 0x38, 0xad, 0x2d, 0x1d, 0x49, 0x54, 0x53, 0xba, 0xff, 0xa9, 0xb3, 0x20, 0xa1, 0xa0,
+	0x35, 0x80, 0x9e, 0xc1, 0xd1, 0x5a, 0x81, 0xef, 0x92, 0xef, 0xe1, 0xd4, 0x32, 0x28, 0x3a, 0x81,
+	0x92, 0xa7, 0x6b, 0x84, 0xba, 0xc2, 0x08, 0xd5, 0x20, 0x4f, 0x05, 0x37, 0x0b, 0xda, 0x0c, 0xb5,
+	0x44, 0x0d, 0xa5, 0x41, 0x6b, 0x16, 0x66, 0x51, 0xc3, 0x71, 0xac, 0xaa, 0x39, 0xae, 0x4b, 0xfd,
+	0xcf, 0x38, 0x62, 0x94, 0x34, 0x23, 0x83, 0xa2, 0x36, 0xd4, 0x38, 0x59, 0xb0, 0x65, 0x92, 0xb9,
+	0xaf, 0x99, 0x57, 0x70, 0x35, 0x2c, 0x2a, 0xa6, 0xe4, 0xd2, 0x2c, 0x37, 0x8d, 0x56, 0x19, 0xaf,
+	0x02, 0xeb, 0x97, 0x01, 0x27, 0x49, 0x53, 0xf4, 0xb9, 0xd9, 0xc5, 0x10, 0x1b, 0x6e, 0x05, 0x29,
+	0x03, 0x85, 0x9e, 0x74, 0xa5, 0xfb, 0x3c, 0x33, 0x89, 0xcd, 0x96, 0xe3, 0x6c, 0x06, 0xcb, 0x4d,
+	0x37, 0x33, 0xa1, 0x4b, 0xb2, 0x8a, 0x95, 0x5b, 0x33, 0xce, 0xbe, 0x12, 0x3e, 0x1a, 0xe8, 0x5e,
+	0x8a, 0x38, 0x8e, 0xd5, 0xde, 0x17, 0x26, 0xa4, 0xee, 0x33, 0xa7, 0xfb, 0x8c, 0x63, 0x84, 0xa0,
+	0x10, 0x30, 0x2e, 0xc3, 0x69, 0xe8, 0xb5, 0xf5, 0xc7, 0x80, 0x7a, 0xb2, 0x4c, 0x74, 0x9c, 0x2d,
+	0xa8, 0xce, 0x99, 0x2f, 0x39, 0xf3, 0xbc, 0x44, 0x9d, 0x14, 0x86, 0xde, 0x40, 0x45, 0xc6, 0x16,
+	0x45, 0x92, 0x9f, 0x6e, 0x91, 0xbc, 0x36, 0x14, 0x27, 0xbf, 0x54, 0x89, 0xbc, 0x58, 0x9e, 0x30,
+	0xf3, 0xff, 0x4d, 0xb4, 0x36, 0x03, 0x27, 0xbf, 0xb4, 0xc6, 0x70, 0x9c, 0x16, 0x73, 0x83, 0x3b,
+	0xd2, 0x7e, 0x04, 0xe5, 0x38, 0x41, 0x05, 0xf6, 0xed, 0xf7, 0xfd, 0xfe, 0x6b, 0xdb, 0xae, 0xed,
+	0xa1, 0x32, 0x14, 0x86, 0xbd, 0xd1, 0xa4, 0x66, 0x74, 0xff, 0xe6, 0xa0, 0xaa, 0xef, 0xa7, 0x4d,
+	0xf8, 0x92, 0xce, 0x09, 0xf2, 0xa1, 0x7e, 0xcd, 0xdb, 0x83, 0xb2, 0xe7, 0x60, 0xf3, 0x3b, 0xd9,
+	0x68, 0xef, 0x42, 0x0d, 0x6f, 0xf1, 0x1e, 0xfa, 0x01, 0xa7, 0x1b, 0xde, 0x07, 0xf4, 0x72, 0x6b,
+	0xa2, 0xec, 0xfb, 0xd5, 0xe8, 0xec, 0x4a, 0x8f, 0x6b, 0x7f, 0x84, 0x6a, 0xd2, 0x6c, 0x64, 0x6d,
+	0x19, 0x58, 0x54, 0xe5, 0xf1, 0x56, 0x4e, 0x94, 0xfa, 0xd5, 0x9d, 0x4f, 0xf5, 0xde, 0x78, 0xd8,
+	0x1b, 0x9f, 0xa5, 0xfe, 0x7d, 0x66, 0x25, 0x1d, 0x9e, 0xff, 0x0b, 0x00, 0x00, 0xff, 0xff, 0x9d,
+	0x17, 0xd9, 0x48, 0x95, 0x06, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -288,6 +601,7 @@ const _ = grpc.SupportPackageIsVersion6
 type AdminServiceClient interface {
 	AdminClientNewTopic(ctx context.Context, in *AdminClientNewTopicRequest, opts ...grpc.CallOption) (*AdminClientNewTopicResponse, error)
 	AdminClientNewPartition(ctx context.Context, in *AdminClientNewPartitionRequest, opts ...grpc.CallOption) (*AdminClientNewPartitionResponse, error)
+	LeaderAndIsr(ctx context.Context, in *LeaderAndIsrRequest, opts ...grpc.CallOption) (*LeaderAndIsrResponse, error)
 }
 
 type adminServiceClient struct {
@@ -316,10 +630,20 @@ func (c *adminServiceClient) AdminClientNewPartition(ctx context.Context, in *Ad
 	return out, nil
 }
 
+func (c *adminServiceClient) LeaderAndIsr(ctx context.Context, in *LeaderAndIsrRequest, opts ...grpc.CallOption) (*LeaderAndIsrResponse, error) {
+	out := new(LeaderAndIsrResponse)
+	err := c.cc.Invoke(ctx, "/proto.adminpb.AdminService/LeaderAndIsr", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AdminServiceServer is the server API for AdminService service.
 type AdminServiceServer interface {
 	AdminClientNewTopic(context.Context, *AdminClientNewTopicRequest) (*AdminClientNewTopicResponse, error)
 	AdminClientNewPartition(context.Context, *AdminClientNewPartitionRequest) (*AdminClientNewPartitionResponse, error)
+	LeaderAndIsr(context.Context, *LeaderAndIsrRequest) (*LeaderAndIsrResponse, error)
 }
 
 // UnimplementedAdminServiceServer can be embedded to have forward compatible implementations.
@@ -331,6 +655,9 @@ func (*UnimplementedAdminServiceServer) AdminClientNewTopic(ctx context.Context,
 }
 func (*UnimplementedAdminServiceServer) AdminClientNewPartition(ctx context.Context, req *AdminClientNewPartitionRequest) (*AdminClientNewPartitionResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AdminClientNewPartition not implemented")
+}
+func (*UnimplementedAdminServiceServer) LeaderAndIsr(ctx context.Context, req *LeaderAndIsrRequest) (*LeaderAndIsrResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method LeaderAndIsr not implemented")
 }
 
 func RegisterAdminServiceServer(s *grpc.Server, srv AdminServiceServer) {
@@ -373,6 +700,24 @@ func _AdminService_AdminClientNewPartition_Handler(srv interface{}, ctx context.
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AdminService_LeaderAndIsr_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(LeaderAndIsrRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdminServiceServer).LeaderAndIsr(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.adminpb.AdminService/LeaderAndIsr",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdminServiceServer).LeaderAndIsr(ctx, req.(*LeaderAndIsrRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 var _AdminService_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "proto.adminpb.AdminService",
 	HandlerType: (*AdminServiceServer)(nil),
@@ -384,6 +729,10 @@ var _AdminService_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "AdminClientNewPartition",
 			Handler:    _AdminService_AdminClientNewPartition_Handler,
+		},
+		{
+			MethodName: "LeaderAndIsr",
+			Handler:    _AdminService_LeaderAndIsr_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

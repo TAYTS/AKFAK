@@ -23,9 +23,36 @@ message AdminClientNewPartitionRequest {
 }
 message AdminClientNewPartitionResponse { Response response = 1; }
 
+message LeaderAndIsrPartitionState {
+  string topicName = 1;
+  int32 partitionIndex = 2;
+  int32 leader = 3;
+  repeated int32 isr = 4;
+  repeated int32 replicas = 5;
+  repeated int32 addingReplicas = 6;
+  repeated int32 removingReplicas = 7;
+  bool isNew = 8;
+}
+message LeaderAndIsrTopicState {
+  string topicName = 1;
+  repeated LeaderAndIsrPartitionState partitionStates = 2;
+}
+message LeaderAndIsrLiveLeader {
+  int32 brokerID = 1;
+  string hostName = 2;
+  int32 port = 3;
+}
+message LeaderAndIsrRequest {
+  int32 controllerID = 1;
+  repeated LeaderAndIsrTopicState topicStates = 2;
+  repeated LeaderAndIsrLiveLeader liveLeaders = 3;
+}
+message LeaderAndIsrResponse { Response response = 1; }
+
 service AdminService {
   rpc AdminClientNewTopic(AdminClientNewTopicRequest)
       returns (AdminClientNewTopicResponse) {}
   rpc AdminClientNewPartition(AdminClientNewPartitionRequest)
       returns (AdminClientNewPartitionResponse) {}
+  rpc LeaderAndIsr(LeaderAndIsrRequest) returns (LeaderAndIsrResponse) {}
 }
