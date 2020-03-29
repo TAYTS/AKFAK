@@ -8,21 +8,25 @@ enum Response {
   SUCCESS = 0;
   FAIL = 1;
 }
-
+/* AdminClientNewTopic */
 message AdminClientNewTopicRequest {
   string topic = 1;
   int32 numPartitions = 2;
   int32 replicationFactor = 3;
 }
 message AdminClientNewTopicResponse { Response response = 1; }
+/* AdminClientNewTopic  */
 
+/* AdminClientNewPartition  */
 message AdminClientNewPartitionRequest {
   string topic = 1;
   repeated int32 partitionID = 2;
   int32 replicaID = 3; // broker ID
 }
 message AdminClientNewPartitionResponse { Response response = 1; }
+/* AdminClientNewPartition  */
 
+/* LeaderAndIsr */
 message LeaderAndIsrPartitionState {
   string topicName = 1;
   int32 partitionIndex = 2;
@@ -48,6 +52,38 @@ message LeaderAndIsrRequest {
   repeated LeaderAndIsrLiveLeader liveLeaders = 3;
 }
 message LeaderAndIsrResponse { Response response = 1; }
+/* LeaderAndIsr */
+
+/* UpdateMetadata */
+message UpdateMetadataPartitionState {
+  string topicName = 1;
+  int32 partitionIndex = 2;
+  int32 leader = 3;
+  repeated int32 isr = 4;
+  repeated int32 replicas = 5;
+  repeated int32 offlineReplicas = 6;
+}
+message UpdateMetadataTopicState {
+  string topicName = 1;
+  repeated UpdateMetadataPartitionState partitionStates = 2;
+}
+message UpdateMetadataEndpoint {
+  int32 port = 1;
+  string host = 2;
+}
+message UpdateMetadataBroker {
+  int32 ID = 1;
+  string host = 2;
+  int32 port = 3;
+  repeated UpdateMetadataEndpoint endpoints = 4;
+}
+message UpdateMetadatRequest {
+  int32 controllerID = 1;
+  repeated UpdateMetadataTopicState topicStates = 2;
+  repeated UpdateMetadataBroker liveBrokers = 3;
+}
+message UpdateMetadataResponse { Response response = 1; }
+/* UpdateMetadata */
 
 service AdminService {
   rpc AdminClientNewTopic(AdminClientNewTopicRequest)
@@ -55,4 +91,5 @@ service AdminService {
   rpc AdminClientNewPartition(AdminClientNewPartitionRequest)
       returns (AdminClientNewPartitionResponse) {}
   rpc LeaderAndIsr(LeaderAndIsrRequest) returns (LeaderAndIsrResponse) {}
+  rpc UpdateMetadata(UpdateMetadatRequest) returns (UpdateMetadataResponse) {}
 }
