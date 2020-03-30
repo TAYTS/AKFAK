@@ -12,7 +12,13 @@ import (
 	"google.golang.org/grpc"
 )
 
-type messageServer struct{}
+/* 
+********************************* NOTE ***************************************
+Code below is only for local testing of send/receive functions for producer.go
+******************************************************************************
+*/
+
+type messageServer struct {}
 type metadataServer struct{}
 
 func (*messageServer) MessageBatch(stream messagepb.MessageService_MessageBatchServer) error {
@@ -29,10 +35,9 @@ func (*messageServer) MessageBatch(stream messagepb.MessageService_MessageBatchS
 		}
 
 		records := req.GetRecords()
-		// TODO: get fields from records and do stuff with it
-		fmt.Println("Records: %v", records)
+		fmt.Println("Records:", records)
 
-		result := "Received"
+		result := "Broker Received"
 		sendErr := stream.Send(&messagepb.MessageBatchResponse{
 			Result: result,
 		})
@@ -46,16 +51,18 @@ func (*messageServer) MessageBatch(stream messagepb.MessageService_MessageBatchS
 func (*metadataServer) WaitOnMetadata(ctx context.Context, req *metadatapb.MetadataRequest) (*metadatapb.MetadataResponse, error) {
 	fmt.Printf("WaitOnMetadata function was invoked with %v\n", req)
 
-	//topicNames := req.GetTopicNames()
-
-	// TODO: get brokers
-	broker := &metadatapb.Broker{
+	broker1 := &metadatapb.Broker{
 		NodeID: 1,
-		Host:   "127.0.0.1",
-		Port:   1,
+		Host:   "0.0.0.0",
+		Port:   50052,
 	}
 
-	// TODO: get topics
+	broker2 := &metadatapb.Broker{
+		NodeID: 1,
+		Host:   "0.0.0.0",
+		Port:   50053,
+	}
+
 	topic := &metadatapb.Topic{
 		ErrorCode: 0,
 		Name:      "name",
@@ -74,29 +81,50 @@ func (*metadataServer) WaitOnMetadata(ctx context.Context, req *metadatapb.Metad
 	}
 
 	res := &metadatapb.MetadataResponse{
-		Brokers: []*metadatapb.Broker{broker},
-		Topics:  []*metadatapb.Topic{topic},
+		Brokers: []*metadatapb.Broker{broker1, broker2},
+		Topic:  topic,
 	}
 	return res, nil
 }
 
 func main() {
+	// set up servers listening for messageBatch request
+	go func(){
+		listen1, err1 := net.Listen("tcp", "0.0.0.0:50052")
+		if err1 != nil {
+			log.Fatalf("Failed to listen: %v", err1)
+			return
+		}
+		gRPCmsgServer1 := grpc.NewServer()
+		messagepb.RegisterMessageServiceServer(gRPCmsgServer1, &messageServer{})
+		
+		if err := gRPCmsgServer1.Serve(listen1); err1 != nil {
+			log.Fatalf("Failed to serve: %v", err)
+		}
+	}()
 
+	go func(){
+		listen2, err2 := net.Listen("tcp", "0.0.0.0:50053")
+		if err2 != nil {
+			log.Fatalf("Failed to listen: %v", err2)
+			return
+		}
+		gRPCmsgServer2 := grpc.NewServer()
+	
+		messagepb.RegisterMessageServiceServer(gRPCmsgServer2, &messageServer{})	
+		if err := gRPCmsgServer2.Serve(listen2); err != nil {
+			log.Fatalf("Failed to serve: %v", err)
+		}
+	}()
+
+		
 	listen, err := net.Listen("tcp", "0.0.0.0:50051")
 	if err != nil {
 		log.Fatalf("Failed to listen: %v", err)
 		return
 	}
 
-	// message batch
-	// gRPCmsgServer := grpc.NewServer()
-	// messagepb.RegisterMessageServiceServer(gRPCmsgServer, &messageServer{})
-
-	// if err := gRPCmsgServer.Serve(listen); err != nil {
-	// 	log.Fatalf("Failed to serve: %v", err)
-	// }
-
-	// metadata
+	// server for metadata
 	gRPCmetadataServer := grpc.NewServer()
 	metadatapb.RegisterMetadataServiceServer(gRPCmetadataServer, &metadataServer{})
 

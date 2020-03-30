@@ -123,12 +123,14 @@ func Send(metadataProd metadatapb.MetadataServiceClient, records []ProducerRecor
 
 	// send messages to broker
 	go func() {
-		for _, req := range requests {
-			fmt.Printf("Sending message: %v\n", msg)
-			brokersConnections[partition].Send(req)
-			time.Sleep(1000 * time.Millisecond)
+		for { // TODO: Remove while true loop, this is for demo purposes
+			for _, req := range requests {
+				fmt.Printf("Sending message: %v\n", msg)
+				brokersConnections[partition].Send(req)
+				time.Sleep(1000 * time.Millisecond)
+			}
 		}
-		brokersConnections[partition].CloseSend()
+		// brokersConnections[partition].CloseSend()
 	}()
 
 	// receive messages from broker
