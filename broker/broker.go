@@ -9,16 +9,17 @@ import (
 
 	messagepb "AKFAK/proto/messagepb"
 	metadatapb "AKFAK/proto/metadatapb"
+
 	"google.golang.org/grpc"
 )
 
-/* 
+/*
 ********************************* NOTE ***************************************
 Code below is only for local testing of send/receive functions for producer.go
 ******************************************************************************
 */
 
-type messageServer struct {}
+type messageServer struct{}
 type metadataServer struct{}
 
 func (*messageServer) MessageBatch(stream messagepb.MessageService_MessageBatchServer) error {
@@ -82,14 +83,14 @@ func (*metadataServer) WaitOnMetadata(ctx context.Context, req *metadatapb.Metad
 
 	res := &metadatapb.MetadataResponse{
 		Brokers: []*metadatapb.Broker{broker1, broker2},
-		Topic:  topic,
+		Topics:  topic,
 	}
 	return res, nil
 }
 
 func main() {
 	// set up servers listening for messageBatch request
-	go func(){
+	go func() {
 		listen1, err1 := net.Listen("tcp", "0.0.0.0:50052")
 		if err1 != nil {
 			log.Fatalf("Failed to listen: %v", err1)
@@ -97,27 +98,26 @@ func main() {
 		}
 		gRPCmsgServer1 := grpc.NewServer()
 		messagepb.RegisterMessageServiceServer(gRPCmsgServer1, &messageServer{})
-		
+
 		if err := gRPCmsgServer1.Serve(listen1); err1 != nil {
 			log.Fatalf("Failed to serve: %v", err)
 		}
 	}()
 
-	go func(){
+	go func() {
 		listen2, err2 := net.Listen("tcp", "0.0.0.0:50053")
 		if err2 != nil {
 			log.Fatalf("Failed to listen: %v", err2)
 			return
 		}
 		gRPCmsgServer2 := grpc.NewServer()
-	
-		messagepb.RegisterMessageServiceServer(gRPCmsgServer2, &messageServer{})	
+
+		messagepb.RegisterMessageServiceServer(gRPCmsgServer2, &messageServer{})
 		if err := gRPCmsgServer2.Serve(listen2); err != nil {
 			log.Fatalf("Failed to serve: %v", err)
 		}
 	}()
 
-		
 	listen, err := net.Listen("tcp", "0.0.0.0:50051")
 	if err != nil {
 		log.Fatalf("Failed to listen: %v", err)

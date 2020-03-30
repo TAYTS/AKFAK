@@ -48,5 +48,5 @@ message Partition {
 }
 
 service MetadataService {
-    rpc waitOnMetadata(MetadataRequest) returns (MetadataResponse) {}
+  rpc waitOnMetadata(MetadataRequest) returns (MetadataResponse) {}
 }

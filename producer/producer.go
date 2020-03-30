@@ -5,33 +5,34 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"time"
 	"strconv"
-	
+	"time"
+
 	messagepb "AKFAK/proto/messagepb"
 	metadatapb "AKFAK/proto/metadatapb"
 	recordpb "AKFAK/proto/recordpb"
+
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // ProducerRecord will be used to instantiate a record
 type ProducerRecord struct {
-	topic     string	// topic the record will be appended to
-	timestamp int64		// timestamp of the record in ms since epoch. If null, assign current time in ms
-	value     []byte		// the record contents
+	topic     string // topic the record will be appended to
+	timestamp int64  // timestamp of the record in ms since epoch. If null, assign current time in ms
+	value     []byte // the record contents
 }
 
 // getCurrentTimeinMs return current unix time in ms
-func getCurrentTimeinMs() int64{
+func getCurrentTimeinMs() int64 {
 	return time.Now().UnixNano() / int64(time.Millisecond)
 }
 
 // converts records from struct ProducerRecords to RecordBatch
 func producerRecordsToRecordBatch(pRecords []ProducerRecord) *recordpb.RecordBatch {
 
-	recordBatch := recordpb.InitialiseEmptyRecordBatch() 
+	recordBatch := recordpb.InitialiseEmptyRecordBatch()
 	recordBatch.FirstTimestamp = getCurrentTimeinMs()
 
 	// convert []ProducerRecord to []recordpb.Record
@@ -42,24 +43,24 @@ func producerRecordsToRecordBatch(pRecords []ProducerRecord) *recordpb.RecordBat
 		}
 		// append record to record batch
 		recordBatch.AppendRecord(&recordpb.Record{
-						Length:         1,
-						Attributes:     0,
-						TimestampDelta: int32(getCurrentTimeinMs()-pRecord.timestamp), // current time-record.timestamp
-						OffsetDelta:    1,
-						ValueLen:       int32(len(pRecord.value)),
-						Value:          pRecord.value,
-					})
+			Length:         1,
+			Attributes:     0,
+			TimestampDelta: int32(getCurrentTimeinMs() - pRecord.timestamp), // current time-record.timestamp
+			OffsetDelta:    1,
+			ValueLen:       int32(len(pRecord.value)),
+			Value:          pRecord.value,
+		})
 	}
-	
+
 	// timestamp when last record is added
 	recordBatch.MaxTimestamp = getCurrentTimeinMs()
 	recordBatch.Magic = 2
 	recordBatch.LastOffsetDelta = 1 // still unsure about this
-	
+
 	return recordBatch
 }
 
-func dialBrokers(brokersAddr map[int]string) map[int]messagepb.MessageService_MessageBatchClient{
+func dialBrokers(brokersAddr map[int]string) map[int]messagepb.MessageService_MessageBatchClient {
 	opts := grpc.WithInsecure()
 	time.Sleep(time.Second)
 	brokersConnections := make(map[int]messagepb.MessageService_MessageBatchClient)
@@ -92,7 +93,6 @@ func dialBrokers(brokersAddr map[int]string) map[int]messagepb.MessageService_Me
 	return brokersConnections
 }
 
-
 // Send takes records and sends to partition decided by round-robin
 func Send(metadataProd metadatapb.MetadataServiceClient, records []ProducerRecord) {
 
@@ -115,7 +115,7 @@ func Send(metadataProd metadatapb.MetadataServiceClient, records []ProducerRecor
 
 	recordBatch := producerRecordsToRecordBatch(records)
 	msg := &messagepb.MessageBatchRequest{
-		Records:	recordBatch,
+		Records: recordBatch,
 	}
 	requests := []*messagepb.MessageBatchRequest{msg}
 
@@ -153,8 +153,7 @@ func Send(metadataProd metadatapb.MetadataServiceClient, records []ProducerRecor
 	<-waitc
 }
 
-
-// wait for cluster metadata including partitions for the given topic 
+// wait for cluster metadata including partitions for the given topic
 // and partition (if specified, 0 if no preference) to be available
 func waitOnMetadata(producer metadatapb.MetadataServiceClient, partition int, topicName string, maxWaitMs time.Duration) *metadatapb.MetadataResponse {
 
@@ -184,15 +183,14 @@ func waitOnMetadata(producer metadatapb.MetadataServiceClient, partition int, to
 	return res
 }
 
-
 func getBrokersForTopic(producer metadatapb.MetadataServiceClient, topic string) map[int]string {
 	fmt.Println("in get brokers for topic")
-	
+
 	brokers := make(map[int]string)
 
 	// get metadata on topic
 	metadata := waitOnMetadata(producer, 0, topic, 3000*time.Millisecond)
-	
+
 	// get addresses of other brokers having partitions of topic in request
 	for i, broker := range metadata.GetBrokers() {
 		brokers[i] = broker.GetHost() + strconv.Itoa(int(broker.GetPort()))
@@ -211,15 +209,15 @@ func main() {
 		log.Fatalf("did not connect: %v", err)
 	}
 	defer conn.Close()
-	
+
 	// create a metadataclient
 	metadataProd := metadatapb.NewMetadataServiceClient(conn)
-	
+
 	records := []ProducerRecord{
-		ProducerRecord {
-			topic: "topic1",
+		ProducerRecord{
+			topic:     "topic1",
 			timestamp: getCurrentTimeinMs(),
-			value: []byte("this is the message content"),
+			value:     []byte("this is the message content"),
 		},
 	}
 
