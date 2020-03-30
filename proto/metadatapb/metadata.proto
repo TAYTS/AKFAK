@@ -1,4 +1,3 @@
-
 syntax = "proto3";
 
 package proto.metadatapb;
@@ -45,8 +44,4 @@ message Partition {
   // partition
   repeated int32 isrNodes = 5;
   // set subset of replicas that in sync with leader of partition
-}
-
-service MetadataService {
-  rpc waitOnMetadata(MetadataRequest) returns (MetadataResponse) {}
 }

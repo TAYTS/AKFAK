@@ -12,8 +12,3 @@ message MessageBatchRequest {
 }
 
 message MessageBatchResponse { string result = 1; }
-
-service MessageService {
-  rpc MessageBatch(stream MessageBatchRequest)
-      returns (stream MessageBatchResponse) {};
-}
