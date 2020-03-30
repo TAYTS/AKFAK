@@ -9,12 +9,14 @@ func (n *Node) newPartitionRequestData(topicName string, numPartitions int, repl
 	// check if the topic exist
 	topicExist := false // TODO: Verify if the topic exist
 
-	numBrokers := len(n.peerCon)
+	// TODO: Get from ZK
+	numBrokers := len(n.peerCon) + 1
 
 	if !topicExist {
 		newTopicPartitionRequests := make(map[int]*adminpb.AdminClientNewPartitionRequest)
 
 		for partID := 0; partID < numPartitions; partID++ {
+			// TODO: Update this after implement ZK Metadata
 			// distribute the partitions among the brokers
 			brokerID := partID % numBrokers
 			for replicaIdx := 0; replicaIdx < replicaFactor; replicaIdx++ {

@@ -4,7 +4,23 @@ import (
 	"AKFAK/broker/partition"
 	"AKFAK/proto/adminpb"
 	"context"
+	"fmt"
 )
+
+// ControllerElection used for the ZK to inform the broker to start the controller routine
+func (n *Node) ControllerElection(ctx context.Context, req *adminpb.ControllerElectionRequest) (*adminpb.ControllerElectionResponse, error) {
+	// get the selected brokerID to be the controller from ZK
+	brokerID := int(req.GetBrokerID())
+
+	fmt.Printf("Node %v received controller election request for broker %v\n", n.ID, req.GetBrokerID())
+
+	// if the broker got selected start the controller routine
+	if brokerID == n.ID {
+		n.InitControllerRoutine()
+	}
+
+	return &adminpb.ControllerElectionResponse{Response: adminpb.Response_SUCCESS}, nil
+}
 
 // AdminClientNewTopic create new topic
 func (n *Node) AdminClientNewTopic(ctx context.Context, req *adminpb.AdminClientNewTopicRequest) (*adminpb.AdminClientNewTopicResponse, error) {
@@ -28,12 +44,28 @@ func (n *Node) AdminClientNewTopic(ctx context.Context, req *adminpb.AdminClient
 
 	// send request to each broker to create the partition
 	for brokerID, req := range newPartitionReqMap {
-		res, err := n.peerCon[brokerID].AdminClientNewPartition(context.Background(), req)
-		if err != nil && res.GetResponse() == adminpb.Response_FAIL {
-			// Terminate the partition creation
-			// TODO: Clean up partition if the process does not complete fully (nobody care in this school project anyway)
-			return &adminpb.AdminClientNewTopicResponse{
-				Response: adminpb.Response_FAIL}, err
+		// local; create partition directly directly
+		// !!! Not a good way of doing this
+		if brokerID == n.ID {
+			topicName := req.GetTopic()
+			partitionID := req.GetPartitionID()
+			fmt.Printf("Node %v: Create partition %v\n", n.ID, partitionID)
+			for _, partID := range partitionID {
+				// TODO: Get the log root directory
+				err := partition.CreatePartitionDir(".", topicName, int(partID))
+				if err != nil {
+					return &adminpb.AdminClientNewTopicResponse{
+						Response: adminpb.Response_FAIL}, err
+				}
+			}
+		} else {
+			res, err := n.peerCon[brokerID].AdminClientNewPartition(context.Background(), req)
+			if err != nil && res.GetResponse() == adminpb.Response_FAIL {
+				// Terminate the partition creation
+				// TODO: Clean up partition if the process does not complete fully (nobody care in this school project anyway)
+				return &adminpb.AdminClientNewTopicResponse{
+					Response: adminpb.Response_FAIL}, err
+			}
 		}
 
 		// update the partition leader and isr mapping
@@ -68,6 +100,7 @@ func (*Node) AdminClientNewPartition(ctx context.Context, req *adminpb.AdminClie
 	partitionID := req.GetPartitionID()
 
 	for _, partID := range partitionID {
+		// TODO: Get the log root directory
 		err := partition.CreatePartitionDir(".", topicName, int(partID))
 		if err != nil {
 			return &adminpb.AdminClientNewPartitionResponse{Response: adminpb.Response_FAIL}, err
