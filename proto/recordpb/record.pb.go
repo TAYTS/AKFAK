@@ -106,10 +106,7 @@ type RecordBatch struct {
 	LastOffsetDelta      int32     `protobuf:"varint,7,opt,name=lastOffsetDelta,proto3" json:"lastOffsetDelta,omitempty"`
 	FirstTimestamp       int64     `protobuf:"varint,8,opt,name=firstTimestamp,proto3" json:"firstTimestamp,omitempty"`
 	MaxTimestamp         int64     `protobuf:"varint,9,opt,name=maxTimestamp,proto3" json:"maxTimestamp,omitempty"`
-	ProducerId           int64     `protobuf:"varint,10,opt,name=producerId,proto3" json:"producerId,omitempty"`
-	ProducerEpoch        int32     `protobuf:"varint,11,opt,name=producerEpoch,proto3" json:"producerEpoch,omitempty"`
-	BaseSequence         int32     `protobuf:"varint,12,opt,name=baseSequence,proto3" json:"baseSequence,omitempty"`
-	Records              []*Record `protobuf:"bytes,13,rep,name=records,proto3" json:"records,omitempty"`
+	Records              []*Record `protobuf:"bytes,10,rep,name=records,proto3" json:"records,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}  `json:"-"`
 	XXX_unrecognized     []byte    `json:"-"`
 	XXX_sizecache        int32     `json:"-"`
@@ -199,27 +196,6 @@ func (m *RecordBatch) GetFirstTimestamp() int64 {
 func (m *RecordBatch) GetMaxTimestamp() int64 {
 	if m != nil {
 		return m.MaxTimestamp
-	}
-	return 0
-}
-
-func (m *RecordBatch) GetProducerId() int64 {
-	if m != nil {
-		return m.ProducerId
-	}
-	return 0
-}
-
-func (m *RecordBatch) GetProducerEpoch() int32 {
-	if m != nil {
-		return m.ProducerEpoch
-	}
-	return 0
-}
-
-func (m *RecordBatch) GetBaseSequence() int32 {
-	if m != nil {
-		return m.BaseSequence
 	}
 	return 0
 }

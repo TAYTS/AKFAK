@@ -25,7 +25,7 @@ var _ = math.Inf
 const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
 type MetadataRequest struct {
-	TopicNames           []string `protobuf:"bytes,1,rep,name=topicNames,proto3" json:"topicNames,omitempty"`
+	TopicName            string   `protobuf:"bytes,1,opt,name=topicName,proto3" json:"topicName,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -56,16 +56,16 @@ func (m *MetadataRequest) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_MetadataRequest proto.InternalMessageInfo
 
-func (m *MetadataRequest) GetTopicNames() []string {
+func (m *MetadataRequest) GetTopicName() string {
 	if m != nil {
-		return m.TopicNames
+		return m.TopicName
 	}
-	return nil
+	return ""
 }
 
 type MetadataResponse struct {
 	Brokers              []*Broker `protobuf:"bytes,1,rep,name=brokers,proto3" json:"brokers,omitempty"`
-	Topics               []*Topic  `protobuf:"bytes,2,rep,name=topics,proto3" json:"topics,omitempty"`
+	Topic                *Topic    `protobuf:"bytes,2,opt,name=topic,proto3" json:"topic,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}  `json:"-"`
 	XXX_unrecognized     []byte    `json:"-"`
 	XXX_sizecache        int32     `json:"-"`
@@ -103,9 +103,9 @@ func (m *MetadataResponse) GetBrokers() []*Broker {
 	return nil
 }
 
-func (m *MetadataResponse) GetTopics() []*Topic {
+func (m *MetadataResponse) GetTopic() *Topic {
 	if m != nil {
-		return m.Topics
+		return m.Topic
 	}
 	return nil
 }
@@ -225,11 +225,12 @@ type Partition struct {
 	PartitionIndex int32 `protobuf:"varint,2,opt,name=partitionIndex,proto3" json:"partitionIndex,omitempty"`
 	LeaderID       int32 `protobuf:"varint,3,opt,name=leaderID,proto3" json:"leaderID,omitempty"`
 	//
-	//leader represents the node id for the kafka broker current acting as the leader
-	//for this partition. If no leader exists because system is in the middle of a
-	//leader election, this id will be -1
+	//leader represents the node id for the kafka broker current acting as the
+	//leader for this partition. If no leader exists because system is in the middle
+	//of a leader election, this id will be -1
 	ReplicaNodes []int32 `protobuf:"varint,4,rep,packed,name=replicaNodes,proto3" json:"replicaNodes,omitempty"`
-	// set of alive nodes that current act as slaves for the leader for this partition
+	// set of alive nodes that current act as slaves for the leader for this
+	// partition
 	IsrNodes             []int32  `protobuf:"varint,5,rep,packed,name=isrNodes,proto3" json:"isrNodes,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
