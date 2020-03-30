@@ -1,0 +1,108 @@
+syntax = "proto3";
+
+package proto.adminpb;
+
+option go_package = "AKFAK/proto/adminpb";
+
+enum Response {
+  SUCCESS = 0;
+  FAIL = 1;
+}
+
+/* ControllerElection */
+// TODO: Need to update again after ZK is finalised
+message ControllerElectionRequest {
+  int32 brokerID = 1;
+  string hostName = 2;
+  int32 port = 3;
+}
+message ControllerElectionResponse { Response response = 1; }
+/* ControllerElection */
+
+/* AdminClientNewTopic */
+message AdminClientNewTopicRequest {
+  string topic = 1;
+  int32 numPartitions = 2;
+  int32 replicationFactor = 3;
+}
+message AdminClientNewTopicResponse { Response response = 1; }
+/* AdminClientNewTopic  */
+
+/* AdminClientNewPartition  */
+message AdminClientNewPartitionRequest {
+  string topic = 1;
+  repeated int32 partitionID = 2;
+  int32 replicaID = 3; // broker ID
+}
+message AdminClientNewPartitionResponse { Response response = 1; }
+/* AdminClientNewPartition  */
+
+/* LeaderAndIsr */
+message LeaderAndIsrPartitionState {
+  string topicName = 1;
+  int32 partitionIndex = 2;
+  int32 leader = 3;
+  repeated int32 isr = 4;
+  repeated int32 replicas = 5;
+  repeated int32 addingReplicas = 6;
+  repeated int32 removingReplicas = 7;
+  bool isNew = 8;
+}
+message LeaderAndIsrTopicState {
+  string topicName = 1;
+  repeated LeaderAndIsrPartitionState partitionStates = 2;
+}
+message LeaderAndIsrLiveLeader {
+  int32 brokerID = 1;
+  string hostName = 2;
+  int32 port = 3;
+}
+message LeaderAndIsrRequest {
+  int32 controllerID = 1;
+  repeated LeaderAndIsrTopicState topicStates = 2;
+  repeated LeaderAndIsrLiveLeader liveLeaders = 3;
+}
+message LeaderAndIsrResponse { Response response = 1; }
+/* LeaderAndIsr */
+
+/* UpdateMetadata */
+message UpdateMetadataPartitionState {
+  string topicName = 1;
+  int32 partitionIndex = 2;
+  int32 leader = 3;
+  repeated int32 isr = 4;
+  repeated int32 replicas = 5;
+  repeated int32 offlineReplicas = 6;
+}
+message UpdateMetadataTopicState {
+  string topicName = 1;
+  repeated UpdateMetadataPartitionState partitionStates = 2;
+}
+message UpdateMetadataEndpoint {
+  int32 port = 1;
+  string host = 2;
+}
+message UpdateMetadataBroker {
+  int32 ID = 1;
+  string host = 2;
+  int32 port = 3;
+  repeated UpdateMetadataEndpoint endpoints = 4;
+}
+message UpdateMetadatRequest {
+  int32 controllerID = 1;
+  repeated UpdateMetadataTopicState topicStates = 2;
+  repeated UpdateMetadataBroker liveBrokers = 3;
+}
+message UpdateMetadataResponse { Response response = 1; }
+/* UpdateMetadata */
+
+service AdminService {
+  rpc ControllerElection(ControllerElectionRequest)
+      returns (ControllerElectionResponse) {}
+  rpc AdminClientNewTopic(AdminClientNewTopicRequest)
+      returns (AdminClientNewTopicResponse) {}
+  rpc AdminClientNewPartition(AdminClientNewPartitionRequest)
+      returns (AdminClientNewPartitionResponse) {}
+  rpc LeaderAndIsr(LeaderAndIsrRequest) returns (LeaderAndIsrResponse) {}
+  rpc UpdateMetadata(UpdateMetadatRequest) returns (UpdateMetadataResponse) {}
+}
