@@ -8,6 +8,17 @@ enum Response {
   SUCCESS = 0;
   FAIL = 1;
 }
+
+/* ControllerElection */
+// TODO: Need to update again after ZK is finalised
+message ControllerElectionRequest {
+  int32 brokerID = 1;
+  string hostName = 2;
+  int32 port = 3;
+}
+message ControllerElectionResponse { Response response = 1; }
+/* ControllerElection */
+
 /* AdminClientNewTopic */
 message AdminClientNewTopicRequest {
   string topic = 1;
@@ -86,6 +97,8 @@ message UpdateMetadataResponse { Response response = 1; }
 /* UpdateMetadata */
 
 service AdminService {
+  rpc ControllerElection(ControllerElectionRequest)
+      returns (ControllerElectionResponse) {}
   rpc AdminClientNewTopic(AdminClientNewTopicRequest)
       returns (AdminClientNewTopicResponse) {}
   rpc AdminClientNewPartition(AdminClientNewPartitionRequest)
