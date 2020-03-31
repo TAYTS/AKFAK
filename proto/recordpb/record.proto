@@ -13,6 +13,8 @@ message Record {
   */
   int32 timestampDelta = 3;
   int32 offsetDelta = 4; // varint in original implementation
+  int32 valueLen = 5; // varint in original implementation
+  bytes value = 6; // message contents
 }
 
 message RecordBatch {
@@ -37,8 +39,5 @@ message RecordBatch {
   int32 lastOffsetDelta = 7;   // last offset delta of record
   int64 firstTimestamp = 8;    // time when record batch is first instantiated
   int64 maxTimestamp = 9;      // time when last record is added
-  int64 producerId = 10;       // uuid of producer
-  int32 producerEpoch = 11;    // int16 in original implementation
-  int32 baseSequence = 12;     //
   repeated Record records = 13; //
 }
