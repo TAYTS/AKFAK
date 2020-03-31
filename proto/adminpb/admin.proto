@@ -4,10 +4,7 @@ package proto.adminpb;
 
 option go_package = "AKFAK/proto/adminpb";
 
-enum Response {
-  SUCCESS = 0;
-  FAIL = 1;
-}
+import "proto/commonpb/response.proto";
 
 /* ControllerElection */
 // TODO: Need to update again after ZK is finalised
@@ -16,7 +13,7 @@ message ControllerElectionRequest {
   string hostName = 2;
   int32 port = 3;
 }
-message ControllerElectionResponse { Response response = 1; }
+message ControllerElectionResponse { commonpb.ResponseMsg response = 1; }
 /* ControllerElection */
 
 /* AdminClientNewTopic */
@@ -25,7 +22,7 @@ message AdminClientNewTopicRequest {
   int32 numPartitions = 2;
   int32 replicationFactor = 3;
 }
-message AdminClientNewTopicResponse { Response response = 1; }
+message AdminClientNewTopicResponse { commonpb.ResponseMsg response = 1; }
 /* AdminClientNewTopic  */
 
 /* AdminClientNewPartition  */
@@ -34,7 +31,7 @@ message AdminClientNewPartitionRequest {
   repeated int32 partitionID = 2;
   int32 replicaID = 3; // broker ID
 }
-message AdminClientNewPartitionResponse { Response response = 1; }
+message AdminClientNewPartitionResponse { commonpb.ResponseMsg response = 1; }
 /* AdminClientNewPartition  */
 
 /* LeaderAndIsr */
@@ -62,7 +59,7 @@ message LeaderAndIsrRequest {
   repeated LeaderAndIsrTopicState topicStates = 2;
   repeated LeaderAndIsrLiveLeader liveLeaders = 3;
 }
-message LeaderAndIsrResponse { Response response = 1; }
+message LeaderAndIsrResponse { commonpb.ResponseMsg response = 1; }
 /* LeaderAndIsr */
 
 /* UpdateMetadata */
@@ -93,7 +90,7 @@ message UpdateMetadatRequest {
   repeated UpdateMetadataTopicState topicStates = 2;
   repeated UpdateMetadataBroker liveBrokers = 3;
 }
-message UpdateMetadataResponse { Response response = 1; }
+message UpdateMetadataResponse { commonpb.ResponseMsg response = 1; }
 /* UpdateMetadata */
 
 service AdminService {

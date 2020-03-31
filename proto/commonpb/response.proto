@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package proto.commonpb;
+
+option go_package = "AKFAK/proto/commonpb";
+
+enum ResponseStatus {
+  SUCCESS = 0;
+  FAIL = 1;
+}
+
+message ResponseMsg {
+  ResponseStatus status = 1;
+  string message = 2;
+}
