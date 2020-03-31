@@ -1,6 +1,7 @@
 package main
 
 import (
+	"AKFAK/proto/adminclientpb"
 	"AKFAK/proto/adminpb"
 	"context"
 	"fmt"
@@ -19,7 +20,7 @@ func main() {
 
 	c := adminpb.NewAdminServiceClient(cc)
 
-	req := &adminpb.ControllerElectionRequest{
+	req := &adminclientpb.ControllerElectionRequest{
 		BrokerID: 0,
 		HostName: "0.0.0.0",
 		Port:     5001,
