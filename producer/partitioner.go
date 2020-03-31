@@ -1,24 +1,21 @@
-package main
+package producer
 
 import (
-	"github.com/orcaman/concurrent-map"
 	"sync"
+
+	cmap "github.com/orcaman/concurrent-map"
 )
 
-type Partitioner interface {
-	getPartition() int
-	nextValue() int
-}
-
+// RoundRobinPartitioner is to be filled
 type RoundRobinPartitioner struct {
-	partitioner Partitioner
 	// https://github.com/orcaman/concurrent-map/blob/master/concurrent_map.go
 	topicCounterMap cmap.ConcurrentMap
 }
 
+// AtomicCounter is to be filled
 type AtomicCounter struct {
 	counter int
-	mux sync.Mutex
+	mux     sync.Mutex
 }
 
 // returns the updated value
@@ -41,7 +38,7 @@ func (a *AtomicCounter) getCount() int {
 }
 
 // where cluster.partitionsForTopic(topic) gives an empty list or a list from the Map of the topic
-func (r *RoundRobinPartitioner) getPartition (topic string, cluster Cluster) int {
+func (r *RoundRobinPartitioner) getPartition(topic string, cluster Cluster) int {
 	var partitions []PartitionInfo = cluster.partitionsForTopic(topic)
 	var availablePartitions []PartitionInfo = cluster.availablePartitionsForTopic(topic)
 	numPartitions := len(partitions)
@@ -52,9 +49,8 @@ func (r *RoundRobinPartitioner) getPartition (topic string, cluster Cluster) int
 	if len(availablePartitions) == 0 {
 		part := nextValue % numAvailPartitions
 		return availablePartitions[part].partition()
-	} else {
-		return nextValue % numPartitions
 	}
+	return nextValue % numPartitions
 }
 
 func (r *RoundRobinPartitioner) getNextValue(topic string) int {
@@ -75,11 +71,3 @@ func (r *RoundRobinPartitioner) getNextValue(topic string) int {
 	}
 	return counter.getCount()
 }
-
-// func main() {
-// 	//var r RoundRobinPartitioner
-// 	//var counter AtomicCounter
-// 	//counter.increment()
-// 	//fmt.Println(counter.getCount())
-// }
-

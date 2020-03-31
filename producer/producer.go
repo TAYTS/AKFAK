@@ -1,4 +1,4 @@
-package main
+package producer
 
 import (
 	"context"
@@ -8,9 +8,10 @@ import (
 	"strconv"
 	"time"
 
-	messagepb "AKFAK/proto/messagepb"
-	metadatapb "AKFAK/proto/metadatapb"
-	recordpb "AKFAK/proto/recordpb"
+	"AKFAK/proto/clientpb"
+	"AKFAK/proto/messagepb"
+	"AKFAK/proto/metadatapb"
+	"AKFAK/proto/recordpb"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -60,10 +61,10 @@ func producerRecordsToRecordBatch(pRecords []ProducerRecord) *recordpb.RecordBat
 	return recordBatch
 }
 
-func dialBrokers(brokersAddr map[int]string) map[int]messagepb.MessageService_MessageBatchClient {
+func dialBrokers(brokersAddr map[int]string) map[int]clientpb.ClientService_MessageBatchClient {
 	opts := grpc.WithInsecure()
 	time.Sleep(time.Second)
-	brokersConnections := make(map[int]messagepb.MessageService_MessageBatchClient)
+	brokersConnections := make(map[int]clientpb.ClientService_MessageBatchClient)
 
 	for i, addr := range brokersAddr {
 		fmt.Printf("Dialing %v\n", addr)
@@ -75,7 +76,7 @@ func dialBrokers(brokersAddr map[int]string) map[int]messagepb.MessageService_Me
 					fmt.Printf("Error did not connect: %v\n", err)
 					continue
 				}
-				cRPC := messagepb.NewMessageServiceClient(cSock)
+				cRPC := clientpb.NewClientServiceClient(cSock)
 				// Create stream by invoking the client
 				stream, err := cRPC.MessageBatch(context.Background())
 				if err != nil {
@@ -94,7 +95,7 @@ func dialBrokers(brokersAddr map[int]string) map[int]messagepb.MessageService_Me
 }
 
 // Send takes records and sends to partition decided by round-robin
-func Send(metadataProd metadatapb.MetadataServiceClient, records []ProducerRecord) {
+func Send(metadataProd clientpb.ClientServiceClient, records []ProducerRecord) {
 
 	// all records in a recordbatch should have the same topic
 	topic := records[0].topic
@@ -144,7 +145,7 @@ func Send(metadataProd metadatapb.MetadataServiceClient, records []ProducerRecor
 				log.Fatalf("Error while receiving: %v", err)
 				break
 			}
-			fmt.Printf("Received: %v\n", res.GetResult())
+			fmt.Printf("Received: %v\n", res)
 		}
 		close(waitc)
 	}()
@@ -155,7 +156,7 @@ func Send(metadataProd metadatapb.MetadataServiceClient, records []ProducerRecor
 
 // wait for cluster metadata including partitions for the given topic
 // and partition (if specified, 0 if no preference) to be available
-func waitOnMetadata(producer metadatapb.MetadataServiceClient, partition int, topicName string, maxWaitMs time.Duration) *metadatapb.MetadataResponse {
+func waitOnMetadata(producer clientpb.ClientServiceClient, partition int, topicName string, maxWaitMs time.Duration) *metadatapb.MetadataResponse {
 
 	req := &metadatapb.MetadataRequest{
 		TopicName: topicName,
@@ -183,7 +184,7 @@ func waitOnMetadata(producer metadatapb.MetadataServiceClient, partition int, to
 	return res
 }
 
-func getBrokersForTopic(producer metadatapb.MetadataServiceClient, topic string) map[int]string {
+func getBrokersForTopic(producer clientpb.ClientServiceClient, topic string) map[int]string {
 	fmt.Println("in get brokers for topic")
 
 	brokers := make(map[int]string)
@@ -198,30 +199,4 @@ func getBrokersForTopic(producer metadatapb.MetadataServiceClient, topic string)
 
 	fmt.Println(brokers)
 	return brokers
-}
-
-func main() {
-	// Set up a connection to a broker
-	fmt.Println("running producer.go...")
-	broker0 := "0.0.0.0:50051"
-	conn, err := grpc.Dial(broker0, grpc.WithInsecure(), grpc.WithBlock())
-	if err != nil {
-		log.Fatalf("did not connect: %v", err)
-	}
-	defer conn.Close()
-
-	// create a metadataclient
-	metadataProd := metadatapb.NewMetadataServiceClient(conn)
-
-	records := []ProducerRecord{
-		ProducerRecord{
-			topic:     "topic1",
-			timestamp: getCurrentTimeinMs(),
-			value:     []byte("this is the message content"),
-		},
-	}
-
-	fmt.Println("sending message")
-
-	Send(metadataProd, records)
 }
