@@ -7,11 +7,6 @@ option go_package = "AKFAK/proto/clientpb";
 import "proto/messagepb/message.proto";
 import "proto/metadatapb/metadata.proto";
 
-enum Response {
-  SUCCESS = 0;
-  FAIL = 1;
-}
-
 service ClientService {
   /* Producer RPC */
   rpc MessageBatch(stream messagepb.MessageBatchRequest)
