@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package proto.adminclientpb;
+
+option go_package = "AKFAK/proto/adminclientpb";
+
+import "proto/commonpb/response.proto";
+
+message UpdateMetadataPartitionState {
+  string topicName = 1;
+  int32 partitionIndex = 2;
+  int32 leader = 3;
+  repeated int32 isr = 4;
+  repeated int32 replicas = 5;
+  repeated int32 offlineReplicas = 6;
+}
+message UpdateMetadataTopicState {
+  string topicName = 1;
+  repeated UpdateMetadataPartitionState partitionStates = 2;
+}
+message UpdateMetadataEndpoint {
+  int32 port = 1;
+  string host = 2;
+}
+message UpdateMetadataBroker {
+  int32 ID = 1;
+  string host = 2;
+  int32 port = 3;
+  repeated UpdateMetadataEndpoint endpoints = 4;
+}
+message UpdateMetadatRequest {
+  int32 controllerID = 1;
+  repeated UpdateMetadataTopicState topicStates = 2;
+  repeated UpdateMetadataBroker liveBrokers = 3;
+}
+message UpdateMetadataResponse { commonpb.Response response = 1; }

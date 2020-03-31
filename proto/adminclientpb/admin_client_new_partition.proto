@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package proto.adminclientpb;
+
+option go_package = "AKFAK/proto/adminclientpb";
+
+import "proto/commonpb/response.proto";
+
+message AdminClientNewPartitionRequest {
+  string topic = 1;
+  repeated int32 partitionID = 2;
+  int32 replicaID = 3; // broker ID
+}
+message AdminClientNewPartitionResponse { commonpb.Response response = 1; }

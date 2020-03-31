@@ -4,7 +4,7 @@
 package adminpb
 
 import (
-	commonpb "AKFAK/proto/commonpb"
+	adminclientpb "AKFAK/proto/adminclientpb"
 	context "context"
 	fmt "fmt"
 	proto "github.com/golang/protobuf/proto"
@@ -25,992 +25,32 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
-// TODO: Need to update again after ZK is finalised
-type ControllerElectionRequest struct {
-	BrokerID             int32    `protobuf:"varint,1,opt,name=brokerID,proto3" json:"brokerID,omitempty"`
-	HostName             string   `protobuf:"bytes,2,opt,name=hostName,proto3" json:"hostName,omitempty"`
-	Port                 int32    `protobuf:"varint,3,opt,name=port,proto3" json:"port,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
-}
-
-func (m *ControllerElectionRequest) Reset()         { *m = ControllerElectionRequest{} }
-func (m *ControllerElectionRequest) String() string { return proto.CompactTextString(m) }
-func (*ControllerElectionRequest) ProtoMessage()    {}
-func (*ControllerElectionRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_b89f257325c17cfa, []int{0}
-}
-
-func (m *ControllerElectionRequest) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_ControllerElectionRequest.Unmarshal(m, b)
-}
-func (m *ControllerElectionRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_ControllerElectionRequest.Marshal(b, m, deterministic)
-}
-func (m *ControllerElectionRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_ControllerElectionRequest.Merge(m, src)
-}
-func (m *ControllerElectionRequest) XXX_Size() int {
-	return xxx_messageInfo_ControllerElectionRequest.Size(m)
-}
-func (m *ControllerElectionRequest) XXX_DiscardUnknown() {
-	xxx_messageInfo_ControllerElectionRequest.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_ControllerElectionRequest proto.InternalMessageInfo
-
-func (m *ControllerElectionRequest) GetBrokerID() int32 {
-	if m != nil {
-		return m.BrokerID
-	}
-	return 0
-}
-
-func (m *ControllerElectionRequest) GetHostName() string {
-	if m != nil {
-		return m.HostName
-	}
-	return ""
-}
-
-func (m *ControllerElectionRequest) GetPort() int32 {
-	if m != nil {
-		return m.Port
-	}
-	return 0
-}
-
-type ControllerElectionResponse struct {
-	Response             *commonpb.ResponseMsg `protobuf:"bytes,1,opt,name=response,proto3" json:"response,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}              `json:"-"`
-	XXX_unrecognized     []byte                `json:"-"`
-	XXX_sizecache        int32                 `json:"-"`
-}
-
-func (m *ControllerElectionResponse) Reset()         { *m = ControllerElectionResponse{} }
-func (m *ControllerElectionResponse) String() string { return proto.CompactTextString(m) }
-func (*ControllerElectionResponse) ProtoMessage()    {}
-func (*ControllerElectionResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_b89f257325c17cfa, []int{1}
-}
-
-func (m *ControllerElectionResponse) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_ControllerElectionResponse.Unmarshal(m, b)
-}
-func (m *ControllerElectionResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_ControllerElectionResponse.Marshal(b, m, deterministic)
-}
-func (m *ControllerElectionResponse) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_ControllerElectionResponse.Merge(m, src)
-}
-func (m *ControllerElectionResponse) XXX_Size() int {
-	return xxx_messageInfo_ControllerElectionResponse.Size(m)
-}
-func (m *ControllerElectionResponse) XXX_DiscardUnknown() {
-	xxx_messageInfo_ControllerElectionResponse.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_ControllerElectionResponse proto.InternalMessageInfo
-
-func (m *ControllerElectionResponse) GetResponse() *commonpb.ResponseMsg {
-	if m != nil {
-		return m.Response
-	}
-	return nil
-}
-
-// AdminClientNewTopic
-type AdminClientNewTopicRequest struct {
-	Topic                string   `protobuf:"bytes,1,opt,name=topic,proto3" json:"topic,omitempty"`
-	NumPartitions        int32    `protobuf:"varint,2,opt,name=numPartitions,proto3" json:"numPartitions,omitempty"`
-	ReplicationFactor    int32    `protobuf:"varint,3,opt,name=replicationFactor,proto3" json:"replicationFactor,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
-}
-
-func (m *AdminClientNewTopicRequest) Reset()         { *m = AdminClientNewTopicRequest{} }
-func (m *AdminClientNewTopicRequest) String() string { return proto.CompactTextString(m) }
-func (*AdminClientNewTopicRequest) ProtoMessage()    {}
-func (*AdminClientNewTopicRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_b89f257325c17cfa, []int{2}
-}
-
-func (m *AdminClientNewTopicRequest) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_AdminClientNewTopicRequest.Unmarshal(m, b)
-}
-func (m *AdminClientNewTopicRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_AdminClientNewTopicRequest.Marshal(b, m, deterministic)
-}
-func (m *AdminClientNewTopicRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_AdminClientNewTopicRequest.Merge(m, src)
-}
-func (m *AdminClientNewTopicRequest) XXX_Size() int {
-	return xxx_messageInfo_AdminClientNewTopicRequest.Size(m)
-}
-func (m *AdminClientNewTopicRequest) XXX_DiscardUnknown() {
-	xxx_messageInfo_AdminClientNewTopicRequest.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_AdminClientNewTopicRequest proto.InternalMessageInfo
-
-func (m *AdminClientNewTopicRequest) GetTopic() string {
-	if m != nil {
-		return m.Topic
-	}
-	return ""
-}
-
-func (m *AdminClientNewTopicRequest) GetNumPartitions() int32 {
-	if m != nil {
-		return m.NumPartitions
-	}
-	return 0
-}
-
-func (m *AdminClientNewTopicRequest) GetReplicationFactor() int32 {
-	if m != nil {
-		return m.ReplicationFactor
-	}
-	return 0
-}
-
-type AdminClientNewTopicResponse struct {
-	Response             *commonpb.ResponseMsg `protobuf:"bytes,1,opt,name=response,proto3" json:"response,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}              `json:"-"`
-	XXX_unrecognized     []byte                `json:"-"`
-	XXX_sizecache        int32                 `json:"-"`
-}
-
-func (m *AdminClientNewTopicResponse) Reset()         { *m = AdminClientNewTopicResponse{} }
-func (m *AdminClientNewTopicResponse) String() string { return proto.CompactTextString(m) }
-func (*AdminClientNewTopicResponse) ProtoMessage()    {}
-func (*AdminClientNewTopicResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_b89f257325c17cfa, []int{3}
-}
-
-func (m *AdminClientNewTopicResponse) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_AdminClientNewTopicResponse.Unmarshal(m, b)
-}
-func (m *AdminClientNewTopicResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_AdminClientNewTopicResponse.Marshal(b, m, deterministic)
-}
-func (m *AdminClientNewTopicResponse) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_AdminClientNewTopicResponse.Merge(m, src)
-}
-func (m *AdminClientNewTopicResponse) XXX_Size() int {
-	return xxx_messageInfo_AdminClientNewTopicResponse.Size(m)
-}
-func (m *AdminClientNewTopicResponse) XXX_DiscardUnknown() {
-	xxx_messageInfo_AdminClientNewTopicResponse.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_AdminClientNewTopicResponse proto.InternalMessageInfo
-
-func (m *AdminClientNewTopicResponse) GetResponse() *commonpb.ResponseMsg {
-	if m != nil {
-		return m.Response
-	}
-	return nil
-}
-
-// AdminClientNewPartition
-type AdminClientNewPartitionRequest struct {
-	Topic                string   `protobuf:"bytes,1,opt,name=topic,proto3" json:"topic,omitempty"`
-	PartitionID          []int32  `protobuf:"varint,2,rep,packed,name=partitionID,proto3" json:"partitionID,omitempty"`
-	ReplicaID            int32    `protobuf:"varint,3,opt,name=replicaID,proto3" json:"replicaID,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
-}
-
-func (m *AdminClientNewPartitionRequest) Reset()         { *m = AdminClientNewPartitionRequest{} }
-func (m *AdminClientNewPartitionRequest) String() string { return proto.CompactTextString(m) }
-func (*AdminClientNewPartitionRequest) ProtoMessage()    {}
-func (*AdminClientNewPartitionRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_b89f257325c17cfa, []int{4}
-}
-
-func (m *AdminClientNewPartitionRequest) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_AdminClientNewPartitionRequest.Unmarshal(m, b)
-}
-func (m *AdminClientNewPartitionRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_AdminClientNewPartitionRequest.Marshal(b, m, deterministic)
-}
-func (m *AdminClientNewPartitionRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_AdminClientNewPartitionRequest.Merge(m, src)
-}
-func (m *AdminClientNewPartitionRequest) XXX_Size() int {
-	return xxx_messageInfo_AdminClientNewPartitionRequest.Size(m)
-}
-func (m *AdminClientNewPartitionRequest) XXX_DiscardUnknown() {
-	xxx_messageInfo_AdminClientNewPartitionRequest.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_AdminClientNewPartitionRequest proto.InternalMessageInfo
-
-func (m *AdminClientNewPartitionRequest) GetTopic() string {
-	if m != nil {
-		return m.Topic
-	}
-	return ""
-}
-
-func (m *AdminClientNewPartitionRequest) GetPartitionID() []int32 {
-	if m != nil {
-		return m.PartitionID
-	}
-	return nil
-}
-
-func (m *AdminClientNewPartitionRequest) GetReplicaID() int32 {
-	if m != nil {
-		return m.ReplicaID
-	}
-	return 0
-}
-
-type AdminClientNewPartitionResponse struct {
-	Response             *commonpb.ResponseMsg `protobuf:"bytes,1,opt,name=response,proto3" json:"response,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}              `json:"-"`
-	XXX_unrecognized     []byte                `json:"-"`
-	XXX_sizecache        int32                 `json:"-"`
-}
-
-func (m *AdminClientNewPartitionResponse) Reset()         { *m = AdminClientNewPartitionResponse{} }
-func (m *AdminClientNewPartitionResponse) String() string { return proto.CompactTextString(m) }
-func (*AdminClientNewPartitionResponse) ProtoMessage()    {}
-func (*AdminClientNewPartitionResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_b89f257325c17cfa, []int{5}
-}
-
-func (m *AdminClientNewPartitionResponse) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_AdminClientNewPartitionResponse.Unmarshal(m, b)
-}
-func (m *AdminClientNewPartitionResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_AdminClientNewPartitionResponse.Marshal(b, m, deterministic)
-}
-func (m *AdminClientNewPartitionResponse) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_AdminClientNewPartitionResponse.Merge(m, src)
-}
-func (m *AdminClientNewPartitionResponse) XXX_Size() int {
-	return xxx_messageInfo_AdminClientNewPartitionResponse.Size(m)
-}
-func (m *AdminClientNewPartitionResponse) XXX_DiscardUnknown() {
-	xxx_messageInfo_AdminClientNewPartitionResponse.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_AdminClientNewPartitionResponse proto.InternalMessageInfo
-
-func (m *AdminClientNewPartitionResponse) GetResponse() *commonpb.ResponseMsg {
-	if m != nil {
-		return m.Response
-	}
-	return nil
-}
-
-// LeaderAndIsr
-type LeaderAndIsrPartitionState struct {
-	TopicName            string   `protobuf:"bytes,1,opt,name=topicName,proto3" json:"topicName,omitempty"`
-	PartitionIndex       int32    `protobuf:"varint,2,opt,name=partitionIndex,proto3" json:"partitionIndex,omitempty"`
-	Leader               int32    `protobuf:"varint,3,opt,name=leader,proto3" json:"leader,omitempty"`
-	Isr                  []int32  `protobuf:"varint,4,rep,packed,name=isr,proto3" json:"isr,omitempty"`
-	Replicas             []int32  `protobuf:"varint,5,rep,packed,name=replicas,proto3" json:"replicas,omitempty"`
-	AddingReplicas       []int32  `protobuf:"varint,6,rep,packed,name=addingReplicas,proto3" json:"addingReplicas,omitempty"`
-	RemovingReplicas     []int32  `protobuf:"varint,7,rep,packed,name=removingReplicas,proto3" json:"removingReplicas,omitempty"`
-	IsNew                bool     `protobuf:"varint,8,opt,name=isNew,proto3" json:"isNew,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
-}
-
-func (m *LeaderAndIsrPartitionState) Reset()         { *m = LeaderAndIsrPartitionState{} }
-func (m *LeaderAndIsrPartitionState) String() string { return proto.CompactTextString(m) }
-func (*LeaderAndIsrPartitionState) ProtoMessage()    {}
-func (*LeaderAndIsrPartitionState) Descriptor() ([]byte, []int) {
-	return fileDescriptor_b89f257325c17cfa, []int{6}
-}
-
-func (m *LeaderAndIsrPartitionState) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_LeaderAndIsrPartitionState.Unmarshal(m, b)
-}
-func (m *LeaderAndIsrPartitionState) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_LeaderAndIsrPartitionState.Marshal(b, m, deterministic)
-}
-func (m *LeaderAndIsrPartitionState) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_LeaderAndIsrPartitionState.Merge(m, src)
-}
-func (m *LeaderAndIsrPartitionState) XXX_Size() int {
-	return xxx_messageInfo_LeaderAndIsrPartitionState.Size(m)
-}
-func (m *LeaderAndIsrPartitionState) XXX_DiscardUnknown() {
-	xxx_messageInfo_LeaderAndIsrPartitionState.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_LeaderAndIsrPartitionState proto.InternalMessageInfo
-
-func (m *LeaderAndIsrPartitionState) GetTopicName() string {
-	if m != nil {
-		return m.TopicName
-	}
-	return ""
-}
-
-func (m *LeaderAndIsrPartitionState) GetPartitionIndex() int32 {
-	if m != nil {
-		return m.PartitionIndex
-	}
-	return 0
-}
-
-func (m *LeaderAndIsrPartitionState) GetLeader() int32 {
-	if m != nil {
-		return m.Leader
-	}
-	return 0
-}
-
-func (m *LeaderAndIsrPartitionState) GetIsr() []int32 {
-	if m != nil {
-		return m.Isr
-	}
-	return nil
-}
-
-func (m *LeaderAndIsrPartitionState) GetReplicas() []int32 {
-	if m != nil {
-		return m.Replicas
-	}
-	return nil
-}
-
-func (m *LeaderAndIsrPartitionState) GetAddingReplicas() []int32 {
-	if m != nil {
-		return m.AddingReplicas
-	}
-	return nil
-}
-
-func (m *LeaderAndIsrPartitionState) GetRemovingReplicas() []int32 {
-	if m != nil {
-		return m.RemovingReplicas
-	}
-	return nil
-}
-
-func (m *LeaderAndIsrPartitionState) GetIsNew() bool {
-	if m != nil {
-		return m.IsNew
-	}
-	return false
-}
-
-type LeaderAndIsrTopicState struct {
-	TopicName            string                        `protobuf:"bytes,1,opt,name=topicName,proto3" json:"topicName,omitempty"`
-	PartitionStates      []*LeaderAndIsrPartitionState `protobuf:"bytes,2,rep,name=partitionStates,proto3" json:"partitionStates,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}                      `json:"-"`
-	XXX_unrecognized     []byte                        `json:"-"`
-	XXX_sizecache        int32                         `json:"-"`
-}
-
-func (m *LeaderAndIsrTopicState) Reset()         { *m = LeaderAndIsrTopicState{} }
-func (m *LeaderAndIsrTopicState) String() string { return proto.CompactTextString(m) }
-func (*LeaderAndIsrTopicState) ProtoMessage()    {}
-func (*LeaderAndIsrTopicState) Descriptor() ([]byte, []int) {
-	return fileDescriptor_b89f257325c17cfa, []int{7}
-}
-
-func (m *LeaderAndIsrTopicState) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_LeaderAndIsrTopicState.Unmarshal(m, b)
-}
-func (m *LeaderAndIsrTopicState) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_LeaderAndIsrTopicState.Marshal(b, m, deterministic)
-}
-func (m *LeaderAndIsrTopicState) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_LeaderAndIsrTopicState.Merge(m, src)
-}
-func (m *LeaderAndIsrTopicState) XXX_Size() int {
-	return xxx_messageInfo_LeaderAndIsrTopicState.Size(m)
-}
-func (m *LeaderAndIsrTopicState) XXX_DiscardUnknown() {
-	xxx_messageInfo_LeaderAndIsrTopicState.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_LeaderAndIsrTopicState proto.InternalMessageInfo
-
-func (m *LeaderAndIsrTopicState) GetTopicName() string {
-	if m != nil {
-		return m.TopicName
-	}
-	return ""
-}
-
-func (m *LeaderAndIsrTopicState) GetPartitionStates() []*LeaderAndIsrPartitionState {
-	if m != nil {
-		return m.PartitionStates
-	}
-	return nil
-}
-
-type LeaderAndIsrLiveLeader struct {
-	BrokerID             int32    `protobuf:"varint,1,opt,name=brokerID,proto3" json:"brokerID,omitempty"`
-	HostName             string   `protobuf:"bytes,2,opt,name=hostName,proto3" json:"hostName,omitempty"`
-	Port                 int32    `protobuf:"varint,3,opt,name=port,proto3" json:"port,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
-}
-
-func (m *LeaderAndIsrLiveLeader) Reset()         { *m = LeaderAndIsrLiveLeader{} }
-func (m *LeaderAndIsrLiveLeader) String() string { return proto.CompactTextString(m) }
-func (*LeaderAndIsrLiveLeader) ProtoMessage()    {}
-func (*LeaderAndIsrLiveLeader) Descriptor() ([]byte, []int) {
-	return fileDescriptor_b89f257325c17cfa, []int{8}
-}
-
-func (m *LeaderAndIsrLiveLeader) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_LeaderAndIsrLiveLeader.Unmarshal(m, b)
-}
-func (m *LeaderAndIsrLiveLeader) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_LeaderAndIsrLiveLeader.Marshal(b, m, deterministic)
-}
-func (m *LeaderAndIsrLiveLeader) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_LeaderAndIsrLiveLeader.Merge(m, src)
-}
-func (m *LeaderAndIsrLiveLeader) XXX_Size() int {
-	return xxx_messageInfo_LeaderAndIsrLiveLeader.Size(m)
-}
-func (m *LeaderAndIsrLiveLeader) XXX_DiscardUnknown() {
-	xxx_messageInfo_LeaderAndIsrLiveLeader.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_LeaderAndIsrLiveLeader proto.InternalMessageInfo
-
-func (m *LeaderAndIsrLiveLeader) GetBrokerID() int32 {
-	if m != nil {
-		return m.BrokerID
-	}
-	return 0
-}
-
-func (m *LeaderAndIsrLiveLeader) GetHostName() string {
-	if m != nil {
-		return m.HostName
-	}
-	return ""
-}
-
-func (m *LeaderAndIsrLiveLeader) GetPort() int32 {
-	if m != nil {
-		return m.Port
-	}
-	return 0
-}
-
-type LeaderAndIsrRequest struct {
-	ControllerID         int32                     `protobuf:"varint,1,opt,name=controllerID,proto3" json:"controllerID,omitempty"`
-	TopicStates          []*LeaderAndIsrTopicState `protobuf:"bytes,2,rep,name=topicStates,proto3" json:"topicStates,omitempty"`
-	LiveLeaders          []*LeaderAndIsrLiveLeader `protobuf:"bytes,3,rep,name=liveLeaders,proto3" json:"liveLeaders,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}                  `json:"-"`
-	XXX_unrecognized     []byte                    `json:"-"`
-	XXX_sizecache        int32                     `json:"-"`
-}
-
-func (m *LeaderAndIsrRequest) Reset()         { *m = LeaderAndIsrRequest{} }
-func (m *LeaderAndIsrRequest) String() string { return proto.CompactTextString(m) }
-func (*LeaderAndIsrRequest) ProtoMessage()    {}
-func (*LeaderAndIsrRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_b89f257325c17cfa, []int{9}
-}
-
-func (m *LeaderAndIsrRequest) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_LeaderAndIsrRequest.Unmarshal(m, b)
-}
-func (m *LeaderAndIsrRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_LeaderAndIsrRequest.Marshal(b, m, deterministic)
-}
-func (m *LeaderAndIsrRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_LeaderAndIsrRequest.Merge(m, src)
-}
-func (m *LeaderAndIsrRequest) XXX_Size() int {
-	return xxx_messageInfo_LeaderAndIsrRequest.Size(m)
-}
-func (m *LeaderAndIsrRequest) XXX_DiscardUnknown() {
-	xxx_messageInfo_LeaderAndIsrRequest.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_LeaderAndIsrRequest proto.InternalMessageInfo
-
-func (m *LeaderAndIsrRequest) GetControllerID() int32 {
-	if m != nil {
-		return m.ControllerID
-	}
-	return 0
-}
-
-func (m *LeaderAndIsrRequest) GetTopicStates() []*LeaderAndIsrTopicState {
-	if m != nil {
-		return m.TopicStates
-	}
-	return nil
-}
-
-func (m *LeaderAndIsrRequest) GetLiveLeaders() []*LeaderAndIsrLiveLeader {
-	if m != nil {
-		return m.LiveLeaders
-	}
-	return nil
-}
-
-type LeaderAndIsrResponse struct {
-	Response             *commonpb.ResponseMsg `protobuf:"bytes,1,opt,name=response,proto3" json:"response,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}              `json:"-"`
-	XXX_unrecognized     []byte                `json:"-"`
-	XXX_sizecache        int32                 `json:"-"`
-}
-
-func (m *LeaderAndIsrResponse) Reset()         { *m = LeaderAndIsrResponse{} }
-func (m *LeaderAndIsrResponse) String() string { return proto.CompactTextString(m) }
-func (*LeaderAndIsrResponse) ProtoMessage()    {}
-func (*LeaderAndIsrResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_b89f257325c17cfa, []int{10}
-}
-
-func (m *LeaderAndIsrResponse) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_LeaderAndIsrResponse.Unmarshal(m, b)
-}
-func (m *LeaderAndIsrResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_LeaderAndIsrResponse.Marshal(b, m, deterministic)
-}
-func (m *LeaderAndIsrResponse) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_LeaderAndIsrResponse.Merge(m, src)
-}
-func (m *LeaderAndIsrResponse) XXX_Size() int {
-	return xxx_messageInfo_LeaderAndIsrResponse.Size(m)
-}
-func (m *LeaderAndIsrResponse) XXX_DiscardUnknown() {
-	xxx_messageInfo_LeaderAndIsrResponse.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_LeaderAndIsrResponse proto.InternalMessageInfo
-
-func (m *LeaderAndIsrResponse) GetResponse() *commonpb.ResponseMsg {
-	if m != nil {
-		return m.Response
-	}
-	return nil
-}
-
-// UpdateMetadata
-type UpdateMetadataPartitionState struct {
-	TopicName            string   `protobuf:"bytes,1,opt,name=topicName,proto3" json:"topicName,omitempty"`
-	PartitionIndex       int32    `protobuf:"varint,2,opt,name=partitionIndex,proto3" json:"partitionIndex,omitempty"`
-	Leader               int32    `protobuf:"varint,3,opt,name=leader,proto3" json:"leader,omitempty"`
-	Isr                  []int32  `protobuf:"varint,4,rep,packed,name=isr,proto3" json:"isr,omitempty"`
-	Replicas             []int32  `protobuf:"varint,5,rep,packed,name=replicas,proto3" json:"replicas,omitempty"`
-	OfflineReplicas      []int32  `protobuf:"varint,6,rep,packed,name=offlineReplicas,proto3" json:"offlineReplicas,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
-}
-
-func (m *UpdateMetadataPartitionState) Reset()         { *m = UpdateMetadataPartitionState{} }
-func (m *UpdateMetadataPartitionState) String() string { return proto.CompactTextString(m) }
-func (*UpdateMetadataPartitionState) ProtoMessage()    {}
-func (*UpdateMetadataPartitionState) Descriptor() ([]byte, []int) {
-	return fileDescriptor_b89f257325c17cfa, []int{11}
-}
-
-func (m *UpdateMetadataPartitionState) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_UpdateMetadataPartitionState.Unmarshal(m, b)
-}
-func (m *UpdateMetadataPartitionState) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_UpdateMetadataPartitionState.Marshal(b, m, deterministic)
-}
-func (m *UpdateMetadataPartitionState) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_UpdateMetadataPartitionState.Merge(m, src)
-}
-func (m *UpdateMetadataPartitionState) XXX_Size() int {
-	return xxx_messageInfo_UpdateMetadataPartitionState.Size(m)
-}
-func (m *UpdateMetadataPartitionState) XXX_DiscardUnknown() {
-	xxx_messageInfo_UpdateMetadataPartitionState.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_UpdateMetadataPartitionState proto.InternalMessageInfo
-
-func (m *UpdateMetadataPartitionState) GetTopicName() string {
-	if m != nil {
-		return m.TopicName
-	}
-	return ""
-}
-
-func (m *UpdateMetadataPartitionState) GetPartitionIndex() int32 {
-	if m != nil {
-		return m.PartitionIndex
-	}
-	return 0
-}
-
-func (m *UpdateMetadataPartitionState) GetLeader() int32 {
-	if m != nil {
-		return m.Leader
-	}
-	return 0
-}
-
-func (m *UpdateMetadataPartitionState) GetIsr() []int32 {
-	if m != nil {
-		return m.Isr
-	}
-	return nil
-}
-
-func (m *UpdateMetadataPartitionState) GetReplicas() []int32 {
-	if m != nil {
-		return m.Replicas
-	}
-	return nil
-}
-
-func (m *UpdateMetadataPartitionState) GetOfflineReplicas() []int32 {
-	if m != nil {
-		return m.OfflineReplicas
-	}
-	return nil
-}
-
-type UpdateMetadataTopicState struct {
-	TopicName            string                          `protobuf:"bytes,1,opt,name=topicName,proto3" json:"topicName,omitempty"`
-	PartitionStates      []*UpdateMetadataPartitionState `protobuf:"bytes,2,rep,name=partitionStates,proto3" json:"partitionStates,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}                        `json:"-"`
-	XXX_unrecognized     []byte                          `json:"-"`
-	XXX_sizecache        int32                           `json:"-"`
-}
-
-func (m *UpdateMetadataTopicState) Reset()         { *m = UpdateMetadataTopicState{} }
-func (m *UpdateMetadataTopicState) String() string { return proto.CompactTextString(m) }
-func (*UpdateMetadataTopicState) ProtoMessage()    {}
-func (*UpdateMetadataTopicState) Descriptor() ([]byte, []int) {
-	return fileDescriptor_b89f257325c17cfa, []int{12}
-}
-
-func (m *UpdateMetadataTopicState) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_UpdateMetadataTopicState.Unmarshal(m, b)
-}
-func (m *UpdateMetadataTopicState) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_UpdateMetadataTopicState.Marshal(b, m, deterministic)
-}
-func (m *UpdateMetadataTopicState) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_UpdateMetadataTopicState.Merge(m, src)
-}
-func (m *UpdateMetadataTopicState) XXX_Size() int {
-	return xxx_messageInfo_UpdateMetadataTopicState.Size(m)
-}
-func (m *UpdateMetadataTopicState) XXX_DiscardUnknown() {
-	xxx_messageInfo_UpdateMetadataTopicState.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_UpdateMetadataTopicState proto.InternalMessageInfo
-
-func (m *UpdateMetadataTopicState) GetTopicName() string {
-	if m != nil {
-		return m.TopicName
-	}
-	return ""
-}
-
-func (m *UpdateMetadataTopicState) GetPartitionStates() []*UpdateMetadataPartitionState {
-	if m != nil {
-		return m.PartitionStates
-	}
-	return nil
-}
-
-type UpdateMetadataEndpoint struct {
-	Port                 int32    `protobuf:"varint,1,opt,name=port,proto3" json:"port,omitempty"`
-	Host                 string   `protobuf:"bytes,2,opt,name=host,proto3" json:"host,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
-}
-
-func (m *UpdateMetadataEndpoint) Reset()         { *m = UpdateMetadataEndpoint{} }
-func (m *UpdateMetadataEndpoint) String() string { return proto.CompactTextString(m) }
-func (*UpdateMetadataEndpoint) ProtoMessage()    {}
-func (*UpdateMetadataEndpoint) Descriptor() ([]byte, []int) {
-	return fileDescriptor_b89f257325c17cfa, []int{13}
-}
-
-func (m *UpdateMetadataEndpoint) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_UpdateMetadataEndpoint.Unmarshal(m, b)
-}
-func (m *UpdateMetadataEndpoint) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_UpdateMetadataEndpoint.Marshal(b, m, deterministic)
-}
-func (m *UpdateMetadataEndpoint) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_UpdateMetadataEndpoint.Merge(m, src)
-}
-func (m *UpdateMetadataEndpoint) XXX_Size() int {
-	return xxx_messageInfo_UpdateMetadataEndpoint.Size(m)
-}
-func (m *UpdateMetadataEndpoint) XXX_DiscardUnknown() {
-	xxx_messageInfo_UpdateMetadataEndpoint.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_UpdateMetadataEndpoint proto.InternalMessageInfo
-
-func (m *UpdateMetadataEndpoint) GetPort() int32 {
-	if m != nil {
-		return m.Port
-	}
-	return 0
-}
-
-func (m *UpdateMetadataEndpoint) GetHost() string {
-	if m != nil {
-		return m.Host
-	}
-	return ""
-}
-
-type UpdateMetadataBroker struct {
-	ID                   int32                     `protobuf:"varint,1,opt,name=ID,proto3" json:"ID,omitempty"`
-	Host                 string                    `protobuf:"bytes,2,opt,name=host,proto3" json:"host,omitempty"`
-	Port                 int32                     `protobuf:"varint,3,opt,name=port,proto3" json:"port,omitempty"`
-	Endpoints            []*UpdateMetadataEndpoint `protobuf:"bytes,4,rep,name=endpoints,proto3" json:"endpoints,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}                  `json:"-"`
-	XXX_unrecognized     []byte                    `json:"-"`
-	XXX_sizecache        int32                     `json:"-"`
-}
-
-func (m *UpdateMetadataBroker) Reset()         { *m = UpdateMetadataBroker{} }
-func (m *UpdateMetadataBroker) String() string { return proto.CompactTextString(m) }
-func (*UpdateMetadataBroker) ProtoMessage()    {}
-func (*UpdateMetadataBroker) Descriptor() ([]byte, []int) {
-	return fileDescriptor_b89f257325c17cfa, []int{14}
-}
-
-func (m *UpdateMetadataBroker) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_UpdateMetadataBroker.Unmarshal(m, b)
-}
-func (m *UpdateMetadataBroker) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_UpdateMetadataBroker.Marshal(b, m, deterministic)
-}
-func (m *UpdateMetadataBroker) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_UpdateMetadataBroker.Merge(m, src)
-}
-func (m *UpdateMetadataBroker) XXX_Size() int {
-	return xxx_messageInfo_UpdateMetadataBroker.Size(m)
-}
-func (m *UpdateMetadataBroker) XXX_DiscardUnknown() {
-	xxx_messageInfo_UpdateMetadataBroker.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_UpdateMetadataBroker proto.InternalMessageInfo
-
-func (m *UpdateMetadataBroker) GetID() int32 {
-	if m != nil {
-		return m.ID
-	}
-	return 0
-}
-
-func (m *UpdateMetadataBroker) GetHost() string {
-	if m != nil {
-		return m.Host
-	}
-	return ""
-}
-
-func (m *UpdateMetadataBroker) GetPort() int32 {
-	if m != nil {
-		return m.Port
-	}
-	return 0
-}
-
-func (m *UpdateMetadataBroker) GetEndpoints() []*UpdateMetadataEndpoint {
-	if m != nil {
-		return m.Endpoints
-	}
-	return nil
-}
-
-type UpdateMetadatRequest struct {
-	ControllerID         int32                       `protobuf:"varint,1,opt,name=controllerID,proto3" json:"controllerID,omitempty"`
-	TopicStates          []*UpdateMetadataTopicState `protobuf:"bytes,2,rep,name=topicStates,proto3" json:"topicStates,omitempty"`
-	LiveBrokers          []*UpdateMetadataBroker     `protobuf:"bytes,3,rep,name=liveBrokers,proto3" json:"liveBrokers,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}                    `json:"-"`
-	XXX_unrecognized     []byte                      `json:"-"`
-	XXX_sizecache        int32                       `json:"-"`
-}
-
-func (m *UpdateMetadatRequest) Reset()         { *m = UpdateMetadatRequest{} }
-func (m *UpdateMetadatRequest) String() string { return proto.CompactTextString(m) }
-func (*UpdateMetadatRequest) ProtoMessage()    {}
-func (*UpdateMetadatRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_b89f257325c17cfa, []int{15}
-}
-
-func (m *UpdateMetadatRequest) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_UpdateMetadatRequest.Unmarshal(m, b)
-}
-func (m *UpdateMetadatRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_UpdateMetadatRequest.Marshal(b, m, deterministic)
-}
-func (m *UpdateMetadatRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_UpdateMetadatRequest.Merge(m, src)
-}
-func (m *UpdateMetadatRequest) XXX_Size() int {
-	return xxx_messageInfo_UpdateMetadatRequest.Size(m)
-}
-func (m *UpdateMetadatRequest) XXX_DiscardUnknown() {
-	xxx_messageInfo_UpdateMetadatRequest.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_UpdateMetadatRequest proto.InternalMessageInfo
-
-func (m *UpdateMetadatRequest) GetControllerID() int32 {
-	if m != nil {
-		return m.ControllerID
-	}
-	return 0
-}
-
-func (m *UpdateMetadatRequest) GetTopicStates() []*UpdateMetadataTopicState {
-	if m != nil {
-		return m.TopicStates
-	}
-	return nil
-}
-
-func (m *UpdateMetadatRequest) GetLiveBrokers() []*UpdateMetadataBroker {
-	if m != nil {
-		return m.LiveBrokers
-	}
-	return nil
-}
-
-type UpdateMetadataResponse struct {
-	Response             *commonpb.ResponseMsg `protobuf:"bytes,1,opt,name=response,proto3" json:"response,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}              `json:"-"`
-	XXX_unrecognized     []byte                `json:"-"`
-	XXX_sizecache        int32                 `json:"-"`
-}
-
-func (m *UpdateMetadataResponse) Reset()         { *m = UpdateMetadataResponse{} }
-func (m *UpdateMetadataResponse) String() string { return proto.CompactTextString(m) }
-func (*UpdateMetadataResponse) ProtoMessage()    {}
-func (*UpdateMetadataResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_b89f257325c17cfa, []int{16}
-}
-
-func (m *UpdateMetadataResponse) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_UpdateMetadataResponse.Unmarshal(m, b)
-}
-func (m *UpdateMetadataResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_UpdateMetadataResponse.Marshal(b, m, deterministic)
-}
-func (m *UpdateMetadataResponse) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_UpdateMetadataResponse.Merge(m, src)
-}
-func (m *UpdateMetadataResponse) XXX_Size() int {
-	return xxx_messageInfo_UpdateMetadataResponse.Size(m)
-}
-func (m *UpdateMetadataResponse) XXX_DiscardUnknown() {
-	xxx_messageInfo_UpdateMetadataResponse.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_UpdateMetadataResponse proto.InternalMessageInfo
-
-func (m *UpdateMetadataResponse) GetResponse() *commonpb.ResponseMsg {
-	if m != nil {
-		return m.Response
-	}
-	return nil
-}
-
-func init() {
-	proto.RegisterType((*ControllerElectionRequest)(nil), "proto.adminpb.ControllerElectionRequest")
-	proto.RegisterType((*ControllerElectionResponse)(nil), "proto.adminpb.ControllerElectionResponse")
-	proto.RegisterType((*AdminClientNewTopicRequest)(nil), "proto.adminpb.AdminClientNewTopicRequest")
-	proto.RegisterType((*AdminClientNewTopicResponse)(nil), "proto.adminpb.AdminClientNewTopicResponse")
-	proto.RegisterType((*AdminClientNewPartitionRequest)(nil), "proto.adminpb.AdminClientNewPartitionRequest")
-	proto.RegisterType((*AdminClientNewPartitionResponse)(nil), "proto.adminpb.AdminClientNewPartitionResponse")
-	proto.RegisterType((*LeaderAndIsrPartitionState)(nil), "proto.adminpb.LeaderAndIsrPartitionState")
-	proto.RegisterType((*LeaderAndIsrTopicState)(nil), "proto.adminpb.LeaderAndIsrTopicState")
-	proto.RegisterType((*LeaderAndIsrLiveLeader)(nil), "proto.adminpb.LeaderAndIsrLiveLeader")
-	proto.RegisterType((*LeaderAndIsrRequest)(nil), "proto.adminpb.LeaderAndIsrRequest")
-	proto.RegisterType((*LeaderAndIsrResponse)(nil), "proto.adminpb.LeaderAndIsrResponse")
-	proto.RegisterType((*UpdateMetadataPartitionState)(nil), "proto.adminpb.UpdateMetadataPartitionState")
-	proto.RegisterType((*UpdateMetadataTopicState)(nil), "proto.adminpb.UpdateMetadataTopicState")
-	proto.RegisterType((*UpdateMetadataEndpoint)(nil), "proto.adminpb.UpdateMetadataEndpoint")
-	proto.RegisterType((*UpdateMetadataBroker)(nil), "proto.adminpb.UpdateMetadataBroker")
-	proto.RegisterType((*UpdateMetadatRequest)(nil), "proto.adminpb.UpdateMetadatRequest")
-	proto.RegisterType((*UpdateMetadataResponse)(nil), "proto.adminpb.UpdateMetadataResponse")
-}
-
 func init() {
 	proto.RegisterFile("proto/adminpb/admin.proto", fileDescriptor_b89f257325c17cfa)
 }
 
 var fileDescriptor_b89f257325c17cfa = []byte{
-	// 817 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xcc, 0x56, 0x4d, 0x6f, 0xd3, 0x4c,
-	0x10, 0x7e, 0x9d, 0x34, 0x7d, 0x93, 0x49, 0xbf, 0xde, 0x6d, 0xdf, 0xe2, 0xba, 0x05, 0x22, 0x97,
-	0x8f, 0xb4, 0x40, 0x2a, 0x95, 0x03, 0x57, 0xd2, 0xa6, 0x45, 0x51, 0x3f, 0x00, 0x97, 0x22, 0xd1,
-	0x03, 0x92, 0x1b, 0x6f, 0x8b, 0x55, 0xc7, 0x6b, 0xd6, 0xdb, 0x14, 0xf1, 0x03, 0xb8, 0x70, 0x40,
-	0x82, 0x7f, 0xc0, 0xdf, 0x81, 0x23, 0x3f, 0x08, 0xed, 0xda, 0x5e, 0x7f, 0x24, 0x31, 0x41, 0xe1,
-	0xc0, 0xc9, 0x9e, 0xf1, 0xb3, 0x33, 0xf3, 0xcc, 0x3e, 0xb3, 0x5e, 0x58, 0xf2, 0x28, 0x61, 0x64,
-	0xc3, 0xb4, 0xba, 0xb6, 0xeb, 0x9d, 0x06, 0xcf, 0x86, 0xf0, 0xa1, 0x69, 0xf1, 0x68, 0x84, 0x9f,
-	0xb4, 0xeb, 0x01, 0xb2, 0x43, 0xba, 0x5d, 0xc2, 0xa1, 0x14, 0xfb, 0x1e, 0x71, 0x7d, 0x1c, 0xa0,
-	0xf5, 0x73, 0x58, 0xda, 0x26, 0x2e, 0xa3, 0xc4, 0x71, 0x30, 0xdd, 0x71, 0x70, 0x87, 0xd9, 0xc4,
-	0x35, 0xf0, 0xdb, 0x4b, 0xec, 0x33, 0xa4, 0x41, 0xf9, 0x94, 0x92, 0x0b, 0x4c, 0xdb, 0x2d, 0x55,
-	0xa9, 0x29, 0xf5, 0x92, 0x21, 0x6d, 0xfe, 0xed, 0x0d, 0xf1, 0xd9, 0xa1, 0xd9, 0xc5, 0x6a, 0xa1,
-	0xa6, 0xd4, 0x2b, 0x86, 0xb4, 0x11, 0x82, 0x09, 0x8f, 0x50, 0xa6, 0x16, 0xc5, 0x1a, 0xf1, 0xae,
-	0x1f, 0x83, 0x36, 0x28, 0x51, 0x50, 0x0c, 0x7a, 0x04, 0xe5, 0xa8, 0x30, 0x91, 0xa9, 0xba, 0xb9,
-	0x1c, 0x14, 0xd8, 0x88, 0x0a, 0x6f, 0x44, 0xd8, 0x03, 0xff, 0xdc, 0x90, 0x60, 0xfd, 0x83, 0x02,
-	0x5a, 0x93, 0x53, 0xdd, 0x76, 0x6c, 0xec, 0xb2, 0x43, 0x7c, 0xf5, 0x82, 0x78, 0x76, 0x27, 0x62,
-	0xb0, 0x00, 0x25, 0xc6, 0x6d, 0x11, 0xb4, 0x62, 0x04, 0x06, 0xba, 0x05, 0xd3, 0xee, 0x65, 0xf7,
-	0x99, 0x49, 0x99, 0xcd, 0xab, 0xf0, 0x05, 0x81, 0x92, 0x91, 0x76, 0xa2, 0xfb, 0xf0, 0x1f, 0xc5,
-	0x9e, 0x63, 0x77, 0x4c, 0x6e, 0xef, 0x9a, 0x1d, 0x46, 0x68, 0x48, 0xa9, 0xff, 0x83, 0xfe, 0x12,
-	0x96, 0x07, 0xd6, 0x31, 0x2e, 0xc1, 0x1e, 0xdc, 0x48, 0xc7, 0x95, 0x15, 0xe6, 0x73, 0xac, 0x41,
-	0xd5, 0x8b, 0x90, 0xed, 0x96, 0x5a, 0xa8, 0x15, 0xeb, 0x25, 0x23, 0xe9, 0x42, 0x2b, 0x50, 0x09,
-	0x69, 0xb4, 0x5b, 0x21, 0xaf, 0xd8, 0xa1, 0x9f, 0xc0, 0xcd, 0xa1, 0x79, 0xc7, 0xe5, 0xf4, 0xb9,
-	0x00, 0xda, 0x3e, 0x36, 0x2d, 0x4c, 0x9b, 0xae, 0xd5, 0xf6, 0xa9, 0x0c, 0x7d, 0xc4, 0x4c, 0x86,
-	0x79, 0x61, 0x82, 0x83, 0xd0, 0x56, 0x40, 0x2a, 0x76, 0xa0, 0x3b, 0x30, 0x13, 0xb3, 0x70, 0x2d,
-	0xfc, 0x2e, 0xdc, 0xbd, 0x8c, 0x17, 0x2d, 0xc2, 0xa4, 0x23, 0x72, 0x84, 0xdc, 0x42, 0x0b, 0xcd,
-	0x41, 0xd1, 0xf6, 0xa9, 0x3a, 0x21, 0x1a, 0xc2, 0x5f, 0xb9, 0x94, 0x43, 0xde, 0xbe, 0x5a, 0x12,
-	0x6e, 0x69, 0xf3, 0x6c, 0xa6, 0x65, 0xd9, 0xee, 0xb9, 0x11, 0x21, 0x26, 0x05, 0x22, 0xe3, 0x45,
-	0xeb, 0x30, 0x47, 0x71, 0x97, 0xf4, 0x92, 0xc8, 0x7f, 0x05, 0xb2, 0xcf, 0xcf, 0x37, 0xcc, 0xf6,
-	0x0f, 0xf1, 0x95, 0x5a, 0xae, 0x29, 0xf5, 0xb2, 0x11, 0x18, 0xfa, 0x47, 0x05, 0x16, 0x93, 0x4d,
-	0x11, 0xfa, 0x19, 0xa5, 0x21, 0x47, 0x30, 0xeb, 0xa5, 0x1a, 0xe8, 0x8b, 0xdd, 0xae, 0x6e, 0xae,
-	0x35, 0x52, 0x47, 0x41, 0x63, 0x78, 0xcb, 0x8d, 0x6c, 0x04, 0xdd, 0x4a, 0x17, 0xb3, 0x6f, 0xf7,
-	0x70, 0x60, 0xff, 0xd1, 0x43, 0xe1, 0x9b, 0x02, 0xf3, 0xc9, 0x34, 0x91, 0xa4, 0x75, 0x98, 0xea,
-	0xc8, 0xc3, 0x42, 0xe6, 0x49, 0xf9, 0xd0, 0x13, 0xa8, 0x32, 0xd9, 0xa2, 0x88, 0xf2, 0xed, 0x1c,
-	0xca, 0x71, 0x43, 0x8d, 0xe4, 0x4a, 0x1e, 0xc8, 0x91, 0xf4, 0x7c, 0xb5, 0xf8, 0xcb, 0x40, 0x71,
-	0x33, 0x8c, 0xe4, 0x4a, 0xfd, 0x29, 0x2c, 0xa4, 0xc9, 0x8c, 0x3b, 0x27, 0x3f, 0x14, 0x58, 0x39,
-	0xf6, 0x2c, 0x93, 0xe1, 0x03, 0xcc, 0x4c, 0xcb, 0x64, 0xe6, 0x5f, 0x3c, 0x29, 0x75, 0x98, 0x25,
-	0x67, 0x67, 0x8e, 0xed, 0xe2, 0xcc, 0xa8, 0x64, 0xdd, 0xfa, 0x27, 0x05, 0xd4, 0x34, 0xad, 0x91,
-	0xb5, 0x7e, 0x3c, 0x4c, 0xeb, 0xf7, 0x32, 0xfb, 0x95, 0xd7, 0xb6, 0x7e, 0xb5, 0x3f, 0x86, 0xc5,
-	0xf4, 0x82, 0x1d, 0xd7, 0xf2, 0x88, 0xed, 0x32, 0xa9, 0x5a, 0x25, 0x56, 0x2d, 0xf7, 0x71, 0x55,
-	0x87, 0x0a, 0x17, 0xef, 0xfa, 0x17, 0x05, 0x16, 0xd2, 0x21, 0xb6, 0xc4, 0x50, 0xa0, 0x19, 0x28,
-	0x48, 0x01, 0x17, 0xda, 0xad, 0x41, 0x8b, 0x07, 0x8d, 0x06, 0xda, 0x86, 0x0a, 0x0e, 0x8b, 0xf0,
-	0xc5, 0x16, 0xf4, 0x6b, 0x72, 0x70, 0xc9, 0x46, 0xbc, 0x4e, 0xff, 0x9e, 0xad, 0xea, 0x77, 0x06,
-	0xac, 0x3d, 0x68, 0xc0, 0xee, 0xe6, 0xd6, 0x30, 0x6c, 0xc4, 0x76, 0x82, 0x11, 0x0b, 0x5a, 0x12,
-	0x8d, 0xd8, 0x6a, 0x6e, 0xa8, 0x00, 0x6b, 0x24, 0xd7, 0xe9, 0xcf, 0xb3, 0xdb, 0x34, 0xf6, 0x88,
-	0x6d, 0x7e, 0x9d, 0x80, 0x29, 0xf1, 0x9f, 0x3b, 0xc2, 0xb4, 0x67, 0x77, 0x30, 0xba, 0x00, 0xd4,
-	0x7f, 0x4f, 0x41, 0xf5, 0x4c, 0xad, 0x43, 0xef, 0x4c, 0xda, 0xda, 0x08, 0xc8, 0x70, 0xbc, 0xff,
-	0x41, 0x2e, 0xcc, 0x0f, 0xb8, 0x34, 0xa0, 0x6c, 0x8c, 0xe1, 0x17, 0x1c, 0x6d, 0x7d, 0x14, 0xa8,
-	0xcc, 0xf7, 0x1e, 0xae, 0x0d, 0xf9, 0xa9, 0xa3, 0x07, 0xb9, 0x81, 0xb2, 0x97, 0x0e, 0xad, 0x31,
-	0x2a, 0x5c, 0xe6, 0x7e, 0x05, 0x53, 0xc9, 0xd3, 0x11, 0xe9, 0x39, 0x27, 0x6c, 0x94, 0x65, 0x35,
-	0x17, 0x23, 0x43, 0xbf, 0x86, 0x99, 0xb4, 0x2e, 0x50, 0xae, 0xb6, 0xa2, 0xe8, 0xf9, 0xf3, 0x14,
-	0xc7, 0xdf, 0xfa, 0xff, 0x64, 0xbe, 0xb9, 0xb7, 0xdb, 0xdc, 0xdb, 0x48, 0xdd, 0xba, 0x4f, 0x27,
-	0x85, 0xf9, 0xf0, 0x67, 0x00, 0x00, 0x00, 0xff, 0xff, 0xba, 0x8f, 0xdf, 0x8b, 0x8d, 0x0b, 0x00,
-	0x00,
+	// 315 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x94, 0x93, 0xcf, 0x4a, 0xc3, 0x30,
+	0x1c, 0xc7, 0x15, 0xc4, 0x43, 0x98, 0x1e, 0x32, 0x44, 0xec, 0xd1, 0xd3, 0x86, 0xd8, 0x0e, 0xb7,
+	0x17, 0xa8, 0x43, 0x41, 0xa6, 0x22, 0xfe, 0xb9, 0x78, 0x09, 0x59, 0xf3, 0x3b, 0x44, 0xba, 0x24,
+	0xa6, 0x99, 0x05, 0x1f, 0xc0, 0xd7, 0xf4, 0x55, 0x64, 0x69, 0x52, 0x5b, 0x0c, 0x98, 0x9d, 0x42,
+	0xda, 0xcf, 0xf7, 0x0f, 0xc9, 0x2f, 0xe8, 0x44, 0x69, 0x69, 0x64, 0x46, 0xd9, 0x8a, 0x0b, 0xb5,
+	0x6c, 0xd6, 0xd4, 0x7e, 0xc3, 0x07, 0x76, 0x49, 0xdd, 0xaf, 0x64, 0xd6, 0x21, 0x8b, 0x92, 0x83,
+	0x30, 0x9e, 0x27, 0xcd, 0x96, 0x08, 0xa8, 0x89, 0xa2, 0xda, 0x70, 0xc3, 0xa5, 0x33, 0x49, 0x26,
+	0x51, 0x2a, 0x23, 0x15, 0x2f, 0x9c, 0xe2, 0x3c, 0xa4, 0x28, 0xa4, 0x30, 0x5a, 0x96, 0x25, 0x68,
+	0x02, 0x25, 0x14, 0x9d, 0x80, 0x51, 0x08, 0x2f, 0x81, 0x32, 0xd0, 0x84, 0x0a, 0x46, 0x78, 0xa5,
+	0x1d, 0x39, 0x0e, 0x91, 0x6b, 0xc5, 0xa8, 0x01, 0xb2, 0x02, 0x43, 0x19, 0x35, 0xb4, 0x41, 0x2f,
+	0xbe, 0xf7, 0xd0, 0x20, 0xdf, 0x70, 0x4f, 0xa0, 0x3f, 0x78, 0x01, 0xb8, 0x46, 0x78, 0xde, 0x56,
+	0xb8, 0x72, 0x0d, 0x70, 0x9a, 0x76, 0x8e, 0xc8, 0x5b, 0xa6, 0x7f, 0xc1, 0x47, 0x78, 0x5f, 0x43,
+	0x65, 0x92, 0x2c, 0x9a, 0xaf, 0x94, 0x14, 0x15, 0x9c, 0xee, 0xe0, 0x4f, 0x34, 0xb4, 0x45, 0xe6,
+	0x96, 0xbe, 0x87, 0xfa, 0x79, 0x73, 0x54, 0x38, 0xec, 0x14, 0x20, 0x7d, 0xf4, 0x24, 0x5e, 0xd0,
+	0x66, 0x7f, 0xed, 0xa2, 0xe3, 0x3e, 0xf1, 0xe0, 0x6f, 0x17, 0x4f, 0x23, 0xfc, 0x5a, 0xda, 0x97,
+	0x98, 0x6d, 0x27, 0x6a, 0x8b, 0x00, 0x1a, 0xdc, 0xda, 0x1b, 0xcd, 0x05, 0xbb, 0xa9, 0x34, 0x1e,
+	0x05, 0x7d, 0xba, 0x88, 0x4f, 0x1c, 0x47, 0x90, 0x6d, 0xcc, 0x1b, 0x3a, 0x7c, 0xb1, 0xe3, 0x70,
+	0xe7, 0xa6, 0x01, 0x87, 0xe5, 0x3d, 0xc8, 0x27, 0x9d, 0xfd, 0x8f, 0xd2, 0xdf, 0xac, 0xcb, 0xa3,
+	0xd7, 0x61, 0xbe, 0xb8, 0xce, 0x17, 0x59, 0xef, 0xfd, 0x2d, 0xf7, 0xed, 0x76, 0xfa, 0x13, 0x00,
+	0x00, 0xff, 0xff, 0x5e, 0x69, 0x4c, 0x1f, 0x97, 0x03, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -1025,11 +65,11 @@ const _ = grpc.SupportPackageIsVersion6
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
 type AdminServiceClient interface {
-	ControllerElection(ctx context.Context, in *ControllerElectionRequest, opts ...grpc.CallOption) (*ControllerElectionResponse, error)
-	AdminClientNewTopic(ctx context.Context, in *AdminClientNewTopicRequest, opts ...grpc.CallOption) (*AdminClientNewTopicResponse, error)
-	AdminClientNewPartition(ctx context.Context, in *AdminClientNewPartitionRequest, opts ...grpc.CallOption) (*AdminClientNewPartitionResponse, error)
-	LeaderAndIsr(ctx context.Context, in *LeaderAndIsrRequest, opts ...grpc.CallOption) (*LeaderAndIsrResponse, error)
-	UpdateMetadata(ctx context.Context, in *UpdateMetadatRequest, opts ...grpc.CallOption) (*UpdateMetadataResponse, error)
+	ControllerElection(ctx context.Context, in *adminclientpb.ControllerElectionRequest, opts ...grpc.CallOption) (*adminclientpb.ControllerElectionResponse, error)
+	AdminClientNewTopic(ctx context.Context, in *adminclientpb.AdminClientNewTopicRequest, opts ...grpc.CallOption) (*adminclientpb.AdminClientNewTopicResponse, error)
+	AdminClientNewPartition(ctx context.Context, in *adminclientpb.AdminClientNewPartitionRequest, opts ...grpc.CallOption) (*adminclientpb.AdminClientNewPartitionResponse, error)
+	LeaderAndIsr(ctx context.Context, in *adminclientpb.LeaderAndIsrRequest, opts ...grpc.CallOption) (*adminclientpb.LeaderAndIsrResponse, error)
+	UpdateMetadata(ctx context.Context, in *adminclientpb.UpdateMetadatRequest, opts ...grpc.CallOption) (*adminclientpb.UpdateMetadataResponse, error)
 }
 
 type adminServiceClient struct {
@@ -1040,8 +80,8 @@ func NewAdminServiceClient(cc grpc.ClientConnInterface) AdminServiceClient {
 	return &adminServiceClient{cc}
 }
 
-func (c *adminServiceClient) ControllerElection(ctx context.Context, in *ControllerElectionRequest, opts ...grpc.CallOption) (*ControllerElectionResponse, error) {
-	out := new(ControllerElectionResponse)
+func (c *adminServiceClient) ControllerElection(ctx context.Context, in *adminclientpb.ControllerElectionRequest, opts ...grpc.CallOption) (*adminclientpb.ControllerElectionResponse, error) {
+	out := new(adminclientpb.ControllerElectionResponse)
 	err := c.cc.Invoke(ctx, "/proto.adminpb.AdminService/ControllerElection", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -1049,8 +89,8 @@ func (c *adminServiceClient) ControllerElection(ctx context.Context, in *Control
 	return out, nil
 }
 
-func (c *adminServiceClient) AdminClientNewTopic(ctx context.Context, in *AdminClientNewTopicRequest, opts ...grpc.CallOption) (*AdminClientNewTopicResponse, error) {
-	out := new(AdminClientNewTopicResponse)
+func (c *adminServiceClient) AdminClientNewTopic(ctx context.Context, in *adminclientpb.AdminClientNewTopicRequest, opts ...grpc.CallOption) (*adminclientpb.AdminClientNewTopicResponse, error) {
+	out := new(adminclientpb.AdminClientNewTopicResponse)
 	err := c.cc.Invoke(ctx, "/proto.adminpb.AdminService/AdminClientNewTopic", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -1058,8 +98,8 @@ func (c *adminServiceClient) AdminClientNewTopic(ctx context.Context, in *AdminC
 	return out, nil
 }
 
-func (c *adminServiceClient) AdminClientNewPartition(ctx context.Context, in *AdminClientNewPartitionRequest, opts ...grpc.CallOption) (*AdminClientNewPartitionResponse, error) {
-	out := new(AdminClientNewPartitionResponse)
+func (c *adminServiceClient) AdminClientNewPartition(ctx context.Context, in *adminclientpb.AdminClientNewPartitionRequest, opts ...grpc.CallOption) (*adminclientpb.AdminClientNewPartitionResponse, error) {
+	out := new(adminclientpb.AdminClientNewPartitionResponse)
 	err := c.cc.Invoke(ctx, "/proto.adminpb.AdminService/AdminClientNewPartition", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -1067,8 +107,8 @@ func (c *adminServiceClient) AdminClientNewPartition(ctx context.Context, in *Ad
 	return out, nil
 }
 
-func (c *adminServiceClient) LeaderAndIsr(ctx context.Context, in *LeaderAndIsrRequest, opts ...grpc.CallOption) (*LeaderAndIsrResponse, error) {
-	out := new(LeaderAndIsrResponse)
+func (c *adminServiceClient) LeaderAndIsr(ctx context.Context, in *adminclientpb.LeaderAndIsrRequest, opts ...grpc.CallOption) (*adminclientpb.LeaderAndIsrResponse, error) {
+	out := new(adminclientpb.LeaderAndIsrResponse)
 	err := c.cc.Invoke(ctx, "/proto.adminpb.AdminService/LeaderAndIsr", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -1076,8 +116,8 @@ func (c *adminServiceClient) LeaderAndIsr(ctx context.Context, in *LeaderAndIsrR
 	return out, nil
 }
 
-func (c *adminServiceClient) UpdateMetadata(ctx context.Context, in *UpdateMetadatRequest, opts ...grpc.CallOption) (*UpdateMetadataResponse, error) {
-	out := new(UpdateMetadataResponse)
+func (c *adminServiceClient) UpdateMetadata(ctx context.Context, in *adminclientpb.UpdateMetadatRequest, opts ...grpc.CallOption) (*adminclientpb.UpdateMetadataResponse, error) {
+	out := new(adminclientpb.UpdateMetadataResponse)
 	err := c.cc.Invoke(ctx, "/proto.adminpb.AdminService/UpdateMetadata", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -1087,30 +127,30 @@ func (c *adminServiceClient) UpdateMetadata(ctx context.Context, in *UpdateMetad
 
 // AdminServiceServer is the server API for AdminService service.
 type AdminServiceServer interface {
-	ControllerElection(context.Context, *ControllerElectionRequest) (*ControllerElectionResponse, error)
-	AdminClientNewTopic(context.Context, *AdminClientNewTopicRequest) (*AdminClientNewTopicResponse, error)
-	AdminClientNewPartition(context.Context, *AdminClientNewPartitionRequest) (*AdminClientNewPartitionResponse, error)
-	LeaderAndIsr(context.Context, *LeaderAndIsrRequest) (*LeaderAndIsrResponse, error)
-	UpdateMetadata(context.Context, *UpdateMetadatRequest) (*UpdateMetadataResponse, error)
+	ControllerElection(context.Context, *adminclientpb.ControllerElectionRequest) (*adminclientpb.ControllerElectionResponse, error)
+	AdminClientNewTopic(context.Context, *adminclientpb.AdminClientNewTopicRequest) (*adminclientpb.AdminClientNewTopicResponse, error)
+	AdminClientNewPartition(context.Context, *adminclientpb.AdminClientNewPartitionRequest) (*adminclientpb.AdminClientNewPartitionResponse, error)
+	LeaderAndIsr(context.Context, *adminclientpb.LeaderAndIsrRequest) (*adminclientpb.LeaderAndIsrResponse, error)
+	UpdateMetadata(context.Context, *adminclientpb.UpdateMetadatRequest) (*adminclientpb.UpdateMetadataResponse, error)
 }
 
 // UnimplementedAdminServiceServer can be embedded to have forward compatible implementations.
 type UnimplementedAdminServiceServer struct {
 }
 
-func (*UnimplementedAdminServiceServer) ControllerElection(ctx context.Context, req *ControllerElectionRequest) (*ControllerElectionResponse, error) {
+func (*UnimplementedAdminServiceServer) ControllerElection(ctx context.Context, req *adminclientpb.ControllerElectionRequest) (*adminclientpb.ControllerElectionResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ControllerElection not implemented")
 }
-func (*UnimplementedAdminServiceServer) AdminClientNewTopic(ctx context.Context, req *AdminClientNewTopicRequest) (*AdminClientNewTopicResponse, error) {
+func (*UnimplementedAdminServiceServer) AdminClientNewTopic(ctx context.Context, req *adminclientpb.AdminClientNewTopicRequest) (*adminclientpb.AdminClientNewTopicResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AdminClientNewTopic not implemented")
 }
-func (*UnimplementedAdminServiceServer) AdminClientNewPartition(ctx context.Context, req *AdminClientNewPartitionRequest) (*AdminClientNewPartitionResponse, error) {
+func (*UnimplementedAdminServiceServer) AdminClientNewPartition(ctx context.Context, req *adminclientpb.AdminClientNewPartitionRequest) (*adminclientpb.AdminClientNewPartitionResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AdminClientNewPartition not implemented")
 }
-func (*UnimplementedAdminServiceServer) LeaderAndIsr(ctx context.Context, req *LeaderAndIsrRequest) (*LeaderAndIsrResponse, error) {
+func (*UnimplementedAdminServiceServer) LeaderAndIsr(ctx context.Context, req *adminclientpb.LeaderAndIsrRequest) (*adminclientpb.LeaderAndIsrResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method LeaderAndIsr not implemented")
 }
-func (*UnimplementedAdminServiceServer) UpdateMetadata(ctx context.Context, req *UpdateMetadatRequest) (*UpdateMetadataResponse, error) {
+func (*UnimplementedAdminServiceServer) UpdateMetadata(ctx context.Context, req *adminclientpb.UpdateMetadatRequest) (*adminclientpb.UpdateMetadataResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateMetadata not implemented")
 }
 
@@ -1119,7 +159,7 @@ func RegisterAdminServiceServer(s *grpc.Server, srv AdminServiceServer) {
 }
 
 func _AdminService_ControllerElection_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ControllerElectionRequest)
+	in := new(adminclientpb.ControllerElectionRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -1131,13 +171,13 @@ func _AdminService_ControllerElection_Handler(srv interface{}, ctx context.Conte
 		FullMethod: "/proto.adminpb.AdminService/ControllerElection",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AdminServiceServer).ControllerElection(ctx, req.(*ControllerElectionRequest))
+		return srv.(AdminServiceServer).ControllerElection(ctx, req.(*adminclientpb.ControllerElectionRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _AdminService_AdminClientNewTopic_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(AdminClientNewTopicRequest)
+	in := new(adminclientpb.AdminClientNewTopicRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -1149,13 +189,13 @@ func _AdminService_AdminClientNewTopic_Handler(srv interface{}, ctx context.Cont
 		FullMethod: "/proto.adminpb.AdminService/AdminClientNewTopic",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AdminServiceServer).AdminClientNewTopic(ctx, req.(*AdminClientNewTopicRequest))
+		return srv.(AdminServiceServer).AdminClientNewTopic(ctx, req.(*adminclientpb.AdminClientNewTopicRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _AdminService_AdminClientNewPartition_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(AdminClientNewPartitionRequest)
+	in := new(adminclientpb.AdminClientNewPartitionRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -1167,13 +207,13 @@ func _AdminService_AdminClientNewPartition_Handler(srv interface{}, ctx context.
 		FullMethod: "/proto.adminpb.AdminService/AdminClientNewPartition",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AdminServiceServer).AdminClientNewPartition(ctx, req.(*AdminClientNewPartitionRequest))
+		return srv.(AdminServiceServer).AdminClientNewPartition(ctx, req.(*adminclientpb.AdminClientNewPartitionRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _AdminService_LeaderAndIsr_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(LeaderAndIsrRequest)
+	in := new(adminclientpb.LeaderAndIsrRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -1185,13 +225,13 @@ func _AdminService_LeaderAndIsr_Handler(srv interface{}, ctx context.Context, de
 		FullMethod: "/proto.adminpb.AdminService/LeaderAndIsr",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AdminServiceServer).LeaderAndIsr(ctx, req.(*LeaderAndIsrRequest))
+		return srv.(AdminServiceServer).LeaderAndIsr(ctx, req.(*adminclientpb.LeaderAndIsrRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _AdminService_UpdateMetadata_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UpdateMetadatRequest)
+	in := new(adminclientpb.UpdateMetadatRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -1203,7 +243,7 @@ func _AdminService_UpdateMetadata_Handler(srv interface{}, ctx context.Context, 
 		FullMethod: "/proto.adminpb.AdminService/UpdateMetadata",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AdminServiceServer).UpdateMetadata(ctx, req.(*UpdateMetadatRequest))
+		return srv.(AdminServiceServer).UpdateMetadata(ctx, req.(*adminclientpb.UpdateMetadatRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }

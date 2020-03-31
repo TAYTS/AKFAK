@@ -4,102 +4,21 @@ package proto.adminpb;
 
 option go_package = "AKFAK/proto/adminpb";
 
-import "proto/commonpb/response.proto";
-
-/* ControllerElection */
-// TODO: Need to update again after ZK is finalised
-message ControllerElectionRequest {
-  int32 brokerID = 1;
-  string hostName = 2;
-  int32 port = 3;
-}
-message ControllerElectionResponse { commonpb.ResponseMsg response = 1; }
-/* ControllerElection */
-
-/* AdminClientNewTopic */
-message AdminClientNewTopicRequest {
-  string topic = 1;
-  int32 numPartitions = 2;
-  int32 replicationFactor = 3;
-}
-message AdminClientNewTopicResponse { commonpb.ResponseMsg response = 1; }
-/* AdminClientNewTopic  */
-
-/* AdminClientNewPartition  */
-message AdminClientNewPartitionRequest {
-  string topic = 1;
-  repeated int32 partitionID = 2;
-  int32 replicaID = 3; // broker ID
-}
-message AdminClientNewPartitionResponse { commonpb.ResponseMsg response = 1; }
-/* AdminClientNewPartition  */
-
-/* LeaderAndIsr */
-message LeaderAndIsrPartitionState {
-  string topicName = 1;
-  int32 partitionIndex = 2;
-  int32 leader = 3;
-  repeated int32 isr = 4;
-  repeated int32 replicas = 5;
-  repeated int32 addingReplicas = 6;
-  repeated int32 removingReplicas = 7;
-  bool isNew = 8;
-}
-message LeaderAndIsrTopicState {
-  string topicName = 1;
-  repeated LeaderAndIsrPartitionState partitionStates = 2;
-}
-message LeaderAndIsrLiveLeader {
-  int32 brokerID = 1;
-  string hostName = 2;
-  int32 port = 3;
-}
-message LeaderAndIsrRequest {
-  int32 controllerID = 1;
-  repeated LeaderAndIsrTopicState topicStates = 2;
-  repeated LeaderAndIsrLiveLeader liveLeaders = 3;
-}
-message LeaderAndIsrResponse { commonpb.ResponseMsg response = 1; }
-/* LeaderAndIsr */
-
-/* UpdateMetadata */
-message UpdateMetadataPartitionState {
-  string topicName = 1;
-  int32 partitionIndex = 2;
-  int32 leader = 3;
-  repeated int32 isr = 4;
-  repeated int32 replicas = 5;
-  repeated int32 offlineReplicas = 6;
-}
-message UpdateMetadataTopicState {
-  string topicName = 1;
-  repeated UpdateMetadataPartitionState partitionStates = 2;
-}
-message UpdateMetadataEndpoint {
-  int32 port = 1;
-  string host = 2;
-}
-message UpdateMetadataBroker {
-  int32 ID = 1;
-  string host = 2;
-  int32 port = 3;
-  repeated UpdateMetadataEndpoint endpoints = 4;
-}
-message UpdateMetadatRequest {
-  int32 controllerID = 1;
-  repeated UpdateMetadataTopicState topicStates = 2;
-  repeated UpdateMetadataBroker liveBrokers = 3;
-}
-message UpdateMetadataResponse { commonpb.ResponseMsg response = 1; }
-/* UpdateMetadata */
+import "proto/adminclientpb/admin_client_new_partition.proto";
+import "proto/adminclientpb/admin_client_new_topic.proto";
+import "proto/adminclientpb/controller_election.proto";
+import "proto/adminclientpb/leader_and_isr.proto";
+import "proto/adminclientpb/update_metadata.proto";
 
 service AdminService {
-  rpc ControllerElection(ControllerElectionRequest)
-      returns (ControllerElectionResponse) {}
-  rpc AdminClientNewTopic(AdminClientNewTopicRequest)
-      returns (AdminClientNewTopicResponse) {}
-  rpc AdminClientNewPartition(AdminClientNewPartitionRequest)
-      returns (AdminClientNewPartitionResponse) {}
-  rpc LeaderAndIsr(LeaderAndIsrRequest) returns (LeaderAndIsrResponse) {}
-  rpc UpdateMetadata(UpdateMetadatRequest) returns (UpdateMetadataResponse) {}
+  rpc ControllerElection(adminclientpb.ControllerElectionRequest)
+      returns (adminclientpb.ControllerElectionResponse) {}
+  rpc AdminClientNewTopic(adminclientpb.AdminClientNewTopicRequest)
+      returns (adminclientpb.AdminClientNewTopicResponse) {}
+  rpc AdminClientNewPartition(adminclientpb.AdminClientNewPartitionRequest)
+      returns (adminclientpb.AdminClientNewPartitionResponse) {}
+  rpc LeaderAndIsr(adminclientpb.LeaderAndIsrRequest)
+      returns (adminclientpb.LeaderAndIsrResponse) {}
+  rpc UpdateMetadata(adminclientpb.UpdateMetadatRequest)
+      returns (adminclientpb.UpdateMetadataResponse) {}
 }

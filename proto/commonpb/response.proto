@@ -9,7 +9,7 @@ enum ResponseStatus {
   FAIL = 1;
 }
 
-message ResponseMsg {
+message Response {
   ResponseStatus status = 1;
   string message = 2;
 }

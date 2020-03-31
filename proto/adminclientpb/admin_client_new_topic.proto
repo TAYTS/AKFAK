@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package proto.adminclientpb;
+
+option go_package = "AKFAK/proto/adminclientpb";
+
+import "proto/commonpb/response.proto";
+
+message AdminClientNewTopicRequest {
+  string topic = 1;
+  int32 numPartitions = 2;
+  int32 replicationFactor = 3;
+}
+message AdminClientNewTopicResponse { commonpb.Response response = 1; }
