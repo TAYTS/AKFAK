@@ -1,11 +1,11 @@
 package broker
 
 import (
-	"AKFAK/proto/adminpb"
+	"AKFAK/proto/adminclientpb"
 	"errors"
 )
 
-func (n *Node) newPartitionRequestData(topicName string, numPartitions int, replicaFactor int) (map[int]*adminpb.AdminClientNewPartitionRequest, error) {
+func (n *Node) newPartitionRequestData(topicName string, numPartitions int, replicaFactor int) (map[int]*adminclientpb.AdminClientNewPartitionRequest, error) {
 	// check if the topic exist
 	topicExist := false // TODO: Verify if the topic exist
 
@@ -13,7 +13,7 @@ func (n *Node) newPartitionRequestData(topicName string, numPartitions int, repl
 	numBrokers := len(n.peerCon) + 1
 
 	if !topicExist {
-		newTopicPartitionRequests := make(map[int]*adminpb.AdminClientNewPartitionRequest)
+		newTopicPartitionRequests := make(map[int]*adminclientpb.AdminClientNewPartitionRequest)
 
 		for partID := 0; partID < numPartitions; partID++ {
 			// TODO: Update this after implement ZK Metadata
@@ -27,7 +27,7 @@ func (n *Node) newPartitionRequestData(topicName string, numPartitions int, repl
 				if exist {
 					request.PartitionID = append(request.PartitionID, int32(partID))
 				} else {
-					request := &adminpb.AdminClientNewPartitionRequest{
+					request := &adminclientpb.AdminClientNewPartitionRequest{
 						Topic:       topicName,
 						PartitionID: []int32{int32(partID)},
 						ReplicaID:   int32(replicaBrokerID),
