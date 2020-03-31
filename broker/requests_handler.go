@@ -3,10 +3,48 @@ package broker
 import (
 	"AKFAK/broker/partition"
 	"AKFAK/proto/adminclientpb"
+	"AKFAK/proto/clientpb"
 	"AKFAK/proto/commonpb"
+	"AKFAK/proto/messagepb"
+	"AKFAK/proto/metadatapb"
 	"context"
 	"fmt"
+	"io"
+	"log"
 )
+
+// MessageBatch used to send message batch to the kafka cluster
+func (*Node) MessageBatch(stream clientpb.ClientService_MessageBatchServer) error {
+	for {
+		// TODO: implement the message batch logic
+		req, err := stream.Recv()
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			log.Fatalf("Error while reading client stream: %v", err)
+			return err
+		}
+		recordBatch := req.GetRecords()
+		fmt.Println(recordBatch)
+
+		sendErr := stream.Send(&messagepb.MessageBatchResponse{Response: &commonpb.Response{Status: commonpb.ResponseStatus_SUCCESS, Message: "Thank you"}})
+		if sendErr != nil {
+			log.Fatalf("Error while sending data to client: %v", sendErr)
+			return sendErr
+		}
+	}
+}
+
+// WaitOnMetadata get the metadata about the kafka cluster
+func (*Node) WaitOnMetadata(ctx context.Context, req *metadatapb.MetadataRequest) (*metadatapb.MetadataResponse, error) {
+	// TODO: implement the fetch metadata logic
+	return &metadatapb.MetadataResponse{
+		Brokers: []*metadatapb.Broker{
+			&metadatapb.Broker{NodeID: 1, Host: "0.0.0.0", Port: 5001},
+		},
+	}, nil
+}
 
 // ControllerElection used for the ZK to inform the broker to start the controller routine
 func (n *Node) ControllerElection(ctx context.Context, req *adminclientpb.ControllerElectionRequest) (*adminclientpb.ControllerElectionResponse, error) {

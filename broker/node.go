@@ -2,6 +2,7 @@ package broker
 
 import (
 	"AKFAK/proto/adminpb"
+	"AKFAK/proto/clientpb"
 	"fmt"
 	"log"
 	"net"
@@ -38,6 +39,7 @@ func (n *Node) InitAdminListener() {
 	server := grpc.NewServer(opts...)
 
 	adminpb.RegisterAdminServiceServer(server, n)
+	clientpb.RegisterClientServiceServer(server, n)
 
 	// TODO: call ZK to get the update metadata
 	// TODO: initialise the internal state cache
