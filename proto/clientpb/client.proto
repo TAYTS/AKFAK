@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package proto.clientpb;
+
+option go_package = "AKFAK/proto/clientpb";
+
+import "proto/messagepb/message.proto";
+import "proto/metadatapb/metadata.proto";
+
+service ClientService {
+  /* Producer RPC */
+  rpc MessageBatch(stream messagepb.MessageBatchRequest)
+      returns (stream messagepb.MessageBatchResponse) {}
+  rpc WaitOnMetadata(metadatapb.MetadataRequest)
+      returns (metadatapb.MetadataResponse) {}
+  /* Producer RPC */
+}

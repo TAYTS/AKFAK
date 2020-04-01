@@ -1,4 +1,3 @@
-
 syntax = "proto3";
 
 package proto.metadatapb;
@@ -15,7 +14,7 @@ message MetadataRequest {
 }
 
 message MetadataResponse {
-  Broker broker = 1;
+  repeated Broker brokers = 1;
   Topic topic = 2;
 }
 
@@ -45,8 +44,4 @@ message Partition {
   // partition
   repeated int32 isrNodes = 5;
   // set subset of replicas that in sync with leader of partition
-}
-
-service MetadataService {
-  rpc GetMetadata(MetadataRequest) returns (MetadataResponse) {}
 }

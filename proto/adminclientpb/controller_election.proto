@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package proto.adminclientpb;
+
+option go_package = "AKFAK/proto/adminclientpb";
+
+import "proto/commonpb/response.proto";
+
+// TODO: Need to update again after ZK is finalised
+message ControllerElectionRequest {
+  int32 brokerID = 1;
+  string hostName = 2;
+  int32 port = 3;
+}
+message ControllerElectionResponse { commonpb.Response response = 1; }

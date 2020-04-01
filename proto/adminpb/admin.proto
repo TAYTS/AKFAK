@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package proto.adminpb;
+
+option go_package = "AKFAK/proto/adminpb";
+
+import "proto/adminclientpb/admin_client_new_partition.proto";
+import "proto/adminclientpb/admin_client_new_topic.proto";
+import "proto/adminclientpb/controller_election.proto";
+import "proto/adminclientpb/leader_and_isr.proto";
+import "proto/adminclientpb/update_metadata.proto";
+
+service AdminService {
+  rpc ControllerElection(adminclientpb.ControllerElectionRequest)
+      returns (adminclientpb.ControllerElectionResponse) {}
+  rpc AdminClientNewTopic(adminclientpb.AdminClientNewTopicRequest)
+      returns (adminclientpb.AdminClientNewTopicResponse) {}
+  rpc AdminClientNewPartition(adminclientpb.AdminClientNewPartitionRequest)
+      returns (adminclientpb.AdminClientNewPartitionResponse) {}
+  rpc LeaderAndIsr(adminclientpb.LeaderAndIsrRequest)
+      returns (adminclientpb.LeaderAndIsrResponse) {}
+  rpc UpdateMetadata(adminclientpb.UpdateMetadatRequest)
+      returns (adminclientpb.UpdateMetadataResponse) {}
+}
