@@ -34,30 +34,35 @@ func getCurrentTimeinMs() int64 {
 func producerRecordsToRecordBatch(pRecords []ProducerRecord) *recordpb.RecordBatch {
 
 	recordBatch := recordpb.InitialiseEmptyRecordBatch()
-	recordBatch.FirstTimestamp = getCurrentTimeinMs()
+	recordBatch.Magic = 2
 
 	// convert []ProducerRecord to []recordpb.Record
-	for _, pRecord := range pRecords {
+	for i, pRecord := range pRecords {
+		
 		// assign current time in ms if record.timestamp is nil (0)
-		if pRecord.timestamp == 0 {
+		if pRecord.timestamp == 0 { 
 			pRecord.timestamp = getCurrentTimeinMs()
 		}
+
+		recordBatch.FirstTimestamp = pRecord.timestamp
+		
 		// append record to record batch
 		recordBatch.AppendRecord(&recordpb.Record{
 			Length:         1,
 			Attributes:     0,
-			TimestampDelta: int32(getCurrentTimeinMs() - pRecord.timestamp), // current time-record.timestamp
-			OffsetDelta:    1,
+			TimestampDelta: int32(getCurrentTimeinMs() - recordBatch.GetFirstTimestamp()), // current time-firstTimeStamp
+			OffsetDelta:    int32(i),
 			ValueLen:       int32(len(pRecord.value)),
 			Value:          pRecord.value,
 		})
-	}
 
-	// timestamp when last record is added
-	recordBatch.MaxTimestamp = getCurrentTimeinMs()
-	recordBatch.Magic = 2
-	recordBatch.LastOffsetDelta = 1 // still unsure about this
-
+		if i == len(pRecords) - 1{
+			// timestamp when last record is added
+			recordBatch.MaxTimestamp = pRecord.timestamp
+			// offset of last message in RecordBatch
+			recordBatch.LastOffsetDelta = int32(i)
+		}
+	}	
 	return recordBatch
 }
 
