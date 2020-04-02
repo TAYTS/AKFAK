@@ -13,9 +13,8 @@ import (
 
 // ConsumerMessage encapsulates a Kafka message returned by the consumer.
 type ConsumerMessage struct {
-	Headers        []*RecordHeader // only set if kafka is version 0.11+
-	Timestamp      time.Time       // only set if kafka is version 0.10+, inner message timestamp
-	BlockTimestamp time.Time       // only set if kafka is version 0.10+, outer (compressed) block timestamp
+	Timestamp      time.Time
+	BlockTimestamp time.Time
 
 	Key, Value []byte
 	Topic      string
@@ -63,9 +62,9 @@ type Consumer interface {
 	// or OffsetOldest
 	ConsumePartition(topic string, partition int32, offset int64) (PartitionConsumer, error)
 
-	// HighWaterMarks returns the current high water marks for each topic and partition.
-	// Consistency between partitions is not guaranteed since high water marks are updated separately.
-	HighWaterMarks() map[string]map[int32]int64
+	// // HighWaterMarks returns the current high water marks for each topic and partition.
+	// // Consistency between partitions is not guaranteed since high water marks are updated separately.
+	// HighWaterMarks() map[string]map[int32]int64
 
 	// Close shuts down the consumer. It must be called after all child
 	// PartitionConsumers have already been closed.
@@ -161,22 +160,6 @@ func (c *consumer) ConsumePartition(topic string, partition int32, offset int64)
 	child.broker.input <- child
 
 	return child, nil
-}
-
-func (c *consumer) HighWaterMarks() map[string]map[int32]int64 {
-	c.lock.Lock()
-	defer c.lock.Unlock()
-
-	hwms := make(map[string]map[int32]int64)
-	for topic, p := range c.children {
-		hwm := make(map[int32]int64, len(p))
-		for partition, pc := range p {
-			hwm[partition] = pc.HighWaterMarkOffset()
-		}
-		hwms[topic] = hwm
-	}
-
-	return hwms
 }
 
 func (c *consumer) addChild(child *partitionConsumer) error {
@@ -286,11 +269,11 @@ type PartitionConsumer interface {
 	// HighWaterMarkOffset returns the high water mark offset of the partition,
 	// i.e. the offset that will be used for the next message that will be produced.
 	// You can use this to determine how far behind the processing is.
-	HighWaterMarkOffset() int64
+	// HighWaterMarkOffset() int64
 }
 
 type partitionConsumer struct {
-	highWaterMarkOffset int64 // must be at the top of the struct because https://golang.org/pkg/sync/atomic/#pkg-note-BUG
+	// highWaterMarkOffset int64 // must be at the top of the struct because https://golang.org/pkg/sync/atomic/#pkg-note-BUG
 
 	consumer *consumer
 	conf     *Config
@@ -323,58 +306,6 @@ func (child *partitionConsumer) sendError(err error) {
 	} else {
 		Logger.Println(cErr)
 	}
-}
-
-func (child *partitionConsumer) computeBackoff() time.Duration {
-	if child.conf.Consumer.Retry.BackoffFunc != nil {
-		retries := atomic.AddInt32(&child.retries, 1)
-		return child.conf.Consumer.Retry.BackoffFunc(int(retries))
-	}
-	return child.conf.Consumer.Retry.Backoff
-}
-
-func (child *partitionConsumer) dispatcher() {
-	for range child.trigger {
-		select {
-		case <-child.dying:
-			close(child.trigger)
-		case <-time.After(child.computeBackoff()):
-			if child.broker != nil {
-				child.consumer.unrefBrokerConsumer(child.broker)
-				child.broker = nil
-			}
-
-			Logger.Printf("consumer/%s/%d finding new broker\n", child.topic, child.partition)
-			if err := child.dispatch(); err != nil {
-				child.sendError(err)
-				child.trigger <- none{}
-			}
-		}
-	}
-
-	if child.broker != nil {
-		child.consumer.unrefBrokerConsumer(child.broker)
-	}
-	child.consumer.removeChild(child)
-	close(child.feeder)
-}
-
-func (child *partitionConsumer) dispatch() error {
-	if err := child.consumer.client.RefreshMetadata(child.topic); err != nil {
-		return err
-	}
-
-	var leader *Broker
-	var err error
-	if leader, err = child.consumer.client.Leader(child.topic, child.partition); err != nil {
-		return err
-	}
-
-	child.broker = child.consumer.refBrokerConsumer(leader)
-
-	child.broker.input <- child
-
-	return nil
 }
 
 func (child *partitionConsumer) chooseStartingOffset(offset int64) error {
@@ -431,10 +362,6 @@ func (child *partitionConsumer) Close() error {
 		return errors
 	}
 	return nil
-}
-
-func (child *partitionConsumer) HighWaterMarkOffset() int64 {
-	return atomic.LoadInt64(&child.highWaterMarkOffset)
 }
 
 func (child *partitionConsumer) responseFeeder() {
@@ -542,7 +469,6 @@ func (child *partitionConsumer) parseRecords(batch *RecordBatch) ([]*ConsumerMes
 			Value:     rec.Value,
 			Offset:    offset,
 			Timestamp: timestamp,
-			Headers:   rec.Headers,
 		})
 		child.offset = offset + 1
 	}
