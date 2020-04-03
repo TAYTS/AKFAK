@@ -35,7 +35,7 @@ type Record struct {
 func InitProducer(id int, brokersAddr map[int]string) *Producer {
 	p := Producer{ID: id}
 	// set up connection to all brokers. key - address : val - stream
-	p.brokerCon = dialBrokers(brokersAddr)
+	p.dialBrokers(brokersAddr)
 	conn, err := grpc.Dial(brokersAddr[0], grpc.WithInsecure(), grpc.WithBlock())
 	if err != nil {
 		log.Fatalf("could not connect to broker: %v", err)
@@ -82,7 +82,7 @@ func (p *Producer) Send(records []Record) {
 			p.brokerCon[topicBrokers[partition]].Send(req)
 			time.Sleep(1000 * time.Millisecond)
 		}
-		// brokersConnections[partition].CloseSend()
+		// p.brokerCon[topicBrokers[partition]].CloseSend()
 	}()
 
 	// receive messages from broker
@@ -141,7 +141,7 @@ func producerRecordsToRecordBatch(pRecords []Record) *recordpb.RecordBatch {
 	return recordBatch
 }
 
-func dialBrokers(brokersAddr map[int]string) map[string]clientpb.ClientService_MessageBatchClient {
+func (p *Producer) dialBrokers(brokersAddr map[int]string) {
 	opts := grpc.WithInsecure()
 	time.Sleep(time.Second)
 	brokersConnections := make(map[string]clientpb.ClientService_MessageBatchClient)
@@ -171,7 +171,7 @@ func dialBrokers(brokersAddr map[int]string) map[string]clientpb.ClientService_M
 		<-waitc
 	}
 
-	return brokersConnections
+	p.brokerCon = brokersConnections
 }
 
 // wait for cluster metadata including partitions for the given topic
