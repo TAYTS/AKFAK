@@ -143,7 +143,6 @@ func producerRecordsToRecordBatch(pRecords []Record) *recordpb.RecordBatch {
 
 func (p *Producer) dialBrokers(brokersAddr map[int]string) {
 	opts := grpc.WithInsecure()
-	time.Sleep(time.Second)
 	brokersConnections := make(map[string]clientpb.ClientService_MessageBatchClient)
 
 	for _, addr := range brokersAddr {
