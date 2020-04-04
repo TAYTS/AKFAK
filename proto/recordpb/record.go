@@ -5,12 +5,12 @@ package recordpb
 ///////////////////////////////////
 
 // InitialiseEmptyRecord return a Record pointer type with default value
-func (*Record) InitialiseEmptyRecord() *Record {
+func InitialiseEmptyRecord() *Record {
 	return &Record{}
 }
 
 // InitialiseRecordWithMsg return a Record pointer type with message
-func (*Record) InitialiseRecordWithMsg(message string) *Record {
+func InitialiseRecordWithMsg(message string) *Record {
 	msgLen, msg := convertStringToBytes(message)
 	return &Record{
 		ValueLen: int32(msgLen),
