@@ -7,8 +7,13 @@ option go_package = "AKFAK/proto/producepb";
 import "proto/recordpb/record.proto";
 import "proto/commonpb/response.proto";
 
+message TopicData {
+  int32 partition = 1; // partition index
+  recordpb.RecordBatch recordSet = 2;
+}
+
 message ProduceRequest {
-  recordpb.RecordBatch records = 1;
+  repeated TopicData topicData = 1;
   string topicName = 2;
   int32 requiredAcks = 3;
   /*
@@ -18,6 +23,5 @@ message ProduceRequest {
    * -1 - server will block until the message is committed
    *      by all in sync replicas before sending a response
    */
-  int32 partition = 4; // partition index
 }
 message ProduceResponse { commonpb.Response response = 1; }
