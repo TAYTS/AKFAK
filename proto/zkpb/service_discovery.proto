@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package proto.zkpb;
+
+option go_package = "AKFAK/proto/zkpb";
+
+import "proto/commonpb/response.proto";
+
+// Discover brokers in broker_config.json
+message ServiceDiscoveryRequest {
+    repeated Broker brokerList = 1;
+}
+
+message ServiceDiscoveryResponse {
+    commonpb.Response response = 1;
+}
+
+message Broker {
+    int32 id = 1;
+    string host = 2;
+    int32 port = 3;
+    bool isCoordinator = 4;
+}
