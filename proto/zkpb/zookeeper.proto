@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package proto.zkpb;
+
+option go_package = "AKFAK/proto/zkpb";
+
+import "proto/zkpb/service_discovery.proto";
+
+service ZookeeperService {
+    rpc GetBrokers(zkpb.ServiceDiscoveryRequest)
+        returns (zkpb.ServiceDiscoveryResponse) {}
+}
