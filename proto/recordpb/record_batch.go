@@ -23,10 +23,11 @@ func InitialiseEmptyRecordBatch() *RecordBatch {
 }
 
 // InitialiseRecordBatchWithData return a RecordBatch pointer type with header set based on the input data
-func InitialiseRecordBatchWithData(records []*Record) *RecordBatch {
+func InitialiseRecordBatchWithData(records ...*Record) *RecordBatch {
 	rcdBatch := InitialiseEmptyRecordBatch()
 
 	rcdBatch.Records = records
+	rcdBatch.FirstTimestamp = getCurrentTimeinMs()
 	rcdBatch.updateBatchLength()
 
 	return rcdBatch
@@ -39,6 +40,10 @@ func (rcdBatch *RecordBatch) GetBatchLengthInt() int {
 
 // AppendRecord add one or more new Record to the Recordbatch
 func (rcdBatch *RecordBatch) AppendRecord(records ...*Record) {
+	if len(rcdBatch.GetRecords()) == 0 {
+		rcdBatch.FirstTimestamp = getCurrentTimeinMs()
+	}
+
 	for _, record := range records {
 		// update record field relative to the batch
 		record.TimestampDelta = int32(getCurrentTimeinMs() - rcdBatch.GetFirstTimestamp())
