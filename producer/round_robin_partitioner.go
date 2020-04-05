@@ -1,6 +1,7 @@
 package producer
 
 import (
+	"AKFAK/proto/metadatapb"
 	"sync"
 
 	cmap "github.com/orcaman/concurrent-map"
@@ -37,18 +38,14 @@ func (a *AtomicCounter) getCount() int {
 	return a.counter
 }
 
-// where cluster.partitionsForTopic(topic) gives an empty list or a list from the Map of the topic
-func (r *RoundRobinPartitioner) getPartition(topic string, cluster Cluster) int {
-	var partitions []PartitionInfo = cluster.partitionsForTopic(topic)
-	var availablePartitions []PartitionInfo = cluster.availablePartitionsForTopic(topic)
+// getPartition return the next partition index for a topic
+func (r *RoundRobinPartitioner) getPartition(topic string, partitions []*metadatapb.Partition) int {
 	numPartitions := len(partitions)
-	numAvailPartitions := len(partitions)
-
 	nextValue := r.getNextValue(topic)
 
-	if len(availablePartitions) == 0 {
-		part := nextValue % numAvailPartitions
-		return availablePartitions[part].partition()
+	if numPartitions > 0 {
+		part := nextValue % numPartitions
+		return int(partitions[part].GetPartitionIndex())
 	}
 	return nextValue % numPartitions
 }
