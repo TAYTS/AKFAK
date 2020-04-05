@@ -27,7 +27,7 @@ type Producer struct {
 	rr               *RoundRobinPartitioner
 	inflightRequests map[int]*inflightRequest
 	timers           map[int]*time.Timer
-	mux              map[int]*sync.Mutex // used to unsure only one routine can send/modify a request to a broker
+	mux              map[int]*sync.Mutex // used to ensure only one routine can send/modify a request to a broker
 }
 
 type inflightRequest struct {
@@ -67,6 +67,12 @@ func (p *Producer) Send(message string) {
 
 	// get broker ID for a partition
 	brkID := p.getBrkIDByPartition(partIdx)
+
+	// try to access another partition if unable to find broker ID for given partition
+	for (brkID == -1){
+		partIdx = p.getNextPartition()
+		brkID = p.getBrkIDByPartition(partIdx)
+	}
 
 	// create new record
 	newRcd := recordpb.InitialiseRecordWithMsg(message)
@@ -266,4 +272,6 @@ func (p *Producer) getBrkIDByPartition(partitionIdx int) int {
 			return int(part.GetLeaderID())
 		}
 	}
+	fmt.Println("could not find broker id corresponding to partition", partitionIdx)
+	return -1;
 }
