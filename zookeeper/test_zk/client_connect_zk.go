@@ -16,7 +16,7 @@ type GrpcClient struct {
 
 func main() {
 	opts := grpc.WithInsecure()
-	conn, err := grpc.Dial("127.0.0.1:3000", opts)
+	conn, err := grpc.Dial("127.0.0.1:3001", opts)
 	if err != nil {
 		log.Fatalf("could not connect: %v", err)
 	}
@@ -38,7 +38,8 @@ func main() {
 		responseBrokers = append(responseBrokers, &broker)
 	}
 	req := zkpb.ServiceDiscoveryRequest{
-		BrokerList: responseBrokers,
+		Request: zkpb.ServiceDiscoveryRequest_BROKER,
+		Query: "/home/yijie/go/src/AKFAK/broker_config.json",
 	}
 	res, err := client.GetBrokers(context.Background(), &req)
 	if err == nil {
