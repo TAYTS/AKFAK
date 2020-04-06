@@ -5,35 +5,117 @@ import (
 	"AKFAK/proto/adminclientpb"
 	"AKFAK/proto/clientpb"
 	"AKFAK/proto/commonpb"
-	"AKFAK/proto/messagepb"
 	"AKFAK/proto/metadatapb"
+	"AKFAK/proto/producepb"
+	"AKFAK/proto/recordpb"
 	"context"
 	"fmt"
 	"io"
 	"log"
+
+	"google.golang.org/grpc"
 )
 
-// MessageBatch used to send message batch to the kafka cluster
-func (*Node) MessageBatch(stream clientpb.ClientService_MessageBatchServer) error {
+var topicMapping = map[string][]*partition.Partition{
+	"topic1": []*partition.Partition{
+		partition.InitPartition("topic1", 0, 0, []int{0, 1, 2}, []int{1, 2}, []int{}),
+		partition.InitPartition("topic1", 1, 1, []int{0, 1, 2}, []int{0, 2}, []int{}),
+		partition.InitPartition("topic1", 2, 2, []int{0, 1, 2}, []int{0, 1}, []int{}),
+	},
+}
+
+var brkMapping = map[int]string{
+	0: "0.0.0.0:5001",
+	1: "0.0.0.0:5002",
+	2: "0.0.0.0:5003",
+}
+
+// Produce used to receive message batch from Producer and forward other brokers in the cluster
+func (n *Node) Produce(stream clientpb.ClientService_ProduceServer) error {
+	// define the mapping for replicaConn & fileHandlers
+	replicaConn := make(map[int]clientpb.ClientService_ProduceClient)
+	fileHandlerMapping := make(map[int]*recordpb.FileRecord)
+
 	for {
 		// TODO: implement the message batch logic
 		req, err := stream.Recv()
 		if err == io.EOF {
-			return nil
+			break
 		}
 		if err != nil {
 			log.Fatalf("Error while reading client stream: %v", err)
 			return err
 		}
-		recordBatch := req.GetRecords()
-		fmt.Println(recordBatch)
+		topicName := req.GetTopicName()
+		topicData := req.GetTopicData()
 
-		sendErr := stream.Send(&messagepb.MessageBatchResponse{Response: &commonpb.Response{Status: commonpb.ResponseStatus_SUCCESS, Message: "Thank you"}})
+		// setup connection with all the insync replicas
+		for _, partInfo := range topicMapping[topicName] {
+			// get all insync replicas for each partition of the specific topic
+			insycBrks := partInfo.GetInSyncReplicas()
+			// create stream connection to each insync replica
+			for _, brkID := range insycBrks {
+				if _, exist := replicaConn[brkID]; !exist {
+					// setup gRPC connection
+					opts := []grpc.DialOption{grpc.WithInsecure(), grpc.WithBlock()}
+					conn, _ := grpc.Dial(brkMapping[brkID], opts...)
+					if err != nil {
+						// TODO: Fault handling
+					}
+					// setup gRPC service
+					prdClient := clientpb.NewClientServiceClient(conn)
+					// setup the stream connection
+					stream, err := prdClient.Produce(context.Background())
+					if err != nil {
+						// TODO: Fault handling
+					}
+					replicaConn[brkID] = stream
+				}
+			}
+		}
+
+		for _, tpData := range topicData {
+			for _, partInfo := range topicMapping[topicName] {
+				partID := partInfo.GetPartitionID()
+				if partID == int(tpData.GetPartition()) {
+					// current broker is the leader of the partition
+					if partInfo.GetLeader() == n.ID {
+						// save to local
+						WriteRecordBatchToLocal(topicName, partID, fileHandlerMapping, tpData.GetRecordSet())
+
+						// broadcast to all insync replica
+						for _, brkID := range partInfo.GetInSyncReplicas() {
+							replicaConn[brkID].Send(producepb.InitProduceRequest(topicName, partID, tpData.GetRecordSet().GetRecords()...))
+
+							// TODO: Handling the response message, for now is just to clear the buffer
+							_, err = replicaConn[brkID].Recv()
+						}
+					} else {
+						// insync replica broker, save to local
+						WriteRecordBatchToLocal(topicName, partID, fileHandlerMapping, tpData.GetRecordSet())
+					}
+				}
+			}
+		}
+
+		// TODO: Update this when dealing with fault tolerance
+		sendErr := stream.Send(&producepb.ProduceResponse{Response: &commonpb.Response{Status: commonpb.ResponseStatus_SUCCESS, Message: "Thank you"}})
 		if sendErr != nil {
 			log.Fatalf("Error while sending data to client: %v", sendErr)
 			return sendErr
 		}
 	}
+
+	// clean up resources
+	for _, rCon := range replicaConn {
+		rCon.CloseSend()
+	}
+
+	for _, fileHandler := range fileHandlerMapping {
+		fileHandler.CloseFile()
+	}
+
+	return nil
 }
 
 // WaitOnMetadata get the metadata about the kafka cluster
