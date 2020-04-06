@@ -47,14 +47,15 @@ func (rcdBatch *RecordBatch) AppendRecord(records ...*Record) {
 	for _, record := range records {
 		// update record field relative to the batch
 		record.TimestampDelta = int32(getCurrentTimeinMs() - rcdBatch.GetFirstTimestamp())
-		record.OffsetDelta = int32(len(rcdBatch.GetRecords()))
+		record.OffsetDelta = int32(len(rcdBatch.GetRecords()) - 1)
 		// add record
 		rcdBatch.Records = append(rcdBatch.GetRecords(), record)
-		// update MaxTimestamp
-		rcdBatch.MaxTimestamp = getCurrentTimeinMs()
-		// update LastOffsetDelta
-		rcdBatch.LastOffsetDelta = int32(len(rcdBatch.GetRecords()) - 1)
 	}
+	// update MaxTimestamp
+	rcdBatch.MaxTimestamp = getCurrentTimeinMs()
+	// update LastOffsetDelta
+	rcdBatch.LastOffsetDelta = int32(len(rcdBatch.GetRecords()) - 1)
+
 	rcdBatch.updateBatchLength()
 }
 
