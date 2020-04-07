@@ -1,20 +1,14 @@
 package utils
 
 import (
+	"AKFAK/proto/zkpb"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
 )
 
-type Broker struct {
-	Id int32 `json:"id"`
-	Host string `json:"host"`
-	Port int32 `json:"port"`
-	IsCoordinator bool `json:"isCoordinator"`
-}
-
-func GetBrokers(path string) []Broker {
+func GetBrokers(path string) []*zkpb.Broker {
 	jsonFile, err := os.Open(path)
 	if err != nil {
 		fmt.Println(err)
@@ -23,7 +17,7 @@ func GetBrokers(path string) []Broker {
 	}
 
 	byteValue, _ := ioutil.ReadAll(jsonFile)
-	var brokers []Broker
+	var brokers []*zkpb.Broker
 	if err := json.Unmarshal([]byte(byteValue), &brokers); err!= nil {
 		panic(err)
 	}

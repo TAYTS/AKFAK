@@ -4,15 +4,17 @@ package proto.zkpb;
 
 option go_package = "AKFAK/proto/zkpb";
 
-import "proto/commonpb/response.proto";
-
 // Discover brokers in broker_config.json
 message ServiceDiscoveryRequest {
-    repeated Broker brokerList = 1;
+    string query = 1;
+    enum Request {
+        BROKER = 0;
+    }
+    Request request = 2;
 }
 
 message ServiceDiscoveryResponse {
-    commonpb.Response response = 1;
+    repeated Broker brokerList = 1;
 }
 
 message Broker {

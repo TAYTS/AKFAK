@@ -16,21 +16,27 @@ type Zookeeper struct {
 	Port int
 }
 
-func (z *Zookeeper) GetBrokers(context.Context, *zkpb.ServiceDiscoveryRequest) (*zkpb.ServiceDiscoveryResponse, error) {
-	panic("implement me")
+func (z *Zookeeper) GetBrokers(ctx context.Context, req *zkpb.ServiceDiscoveryRequest) (*zkpb.ServiceDiscoveryResponse, error) {
+	if req.Request == zkpb.ServiceDiscoveryRequest_BROKER {
+		brokerList := z.LoadBrokerConfig(req.GetQuery())
+		res := zkpb.ServiceDiscoveryResponse{
+			BrokerList: brokerList,
+		}
+		return &res, nil
+	} else {
+		return &zkpb.ServiceDiscoveryResponse{}, nil
+	}
 }
 
-func (z *Zookeeper) LoadBrokerConfig(configFilePath string) []utils.Broker {
+func (z *Zookeeper) LoadBrokerConfig(configFilePath string) []*zkpb.Broker {
 	brokers := utils.GetBrokers(configFilePath)
 	return brokers
 }
 
-func (z *Zookeeper) InitBrokerListener(broker utils.Broker) {
+func (z *Zookeeper) InitBrokerListener(broker *zkpb.Broker) {
 	fmt.Printf("Listening to Host: %v on port %v\n", broker.Host, broker.Port)
 
 	listener, err := net.Listen("tcp", fmt.Sprintf("%v:%v", broker.Host, broker.Port))
-	//listener, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:4000"))
-
 	if err != nil {
 		log.Fatalf("Failed to listen: %v\n", err)
 	}
