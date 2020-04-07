@@ -3,7 +3,7 @@ package zookeeper
 import (
 	"AKFAK/proto/zkpb"
 	"AKFAK/utils"
-	"context"
+	"errors"
 	"fmt"
 	"google.golang.org/grpc"
 	"log"
@@ -16,16 +16,19 @@ type Zookeeper struct {
 	Port int
 }
 
-func (z *Zookeeper) GetBrokers(ctx context.Context, req *zkpb.ServiceDiscoveryRequest) (*zkpb.ServiceDiscoveryResponse, error) {
+func (z *Zookeeper) GetBrokers(req *zkpb.ServiceDiscoveryRequest, server zkpb.ZookeeperService_GetBrokersServer) error {
 	if req.Request == zkpb.ServiceDiscoveryRequest_BROKER {
 		brokerList := z.LoadBrokerConfig(req.GetQuery())
 		res := zkpb.ServiceDiscoveryResponse{
 			BrokerList: brokerList,
 		}
-		return &res, nil
+		if err := server.Send(&res); err != nil {
+			return err
+		}
 	} else {
-		return &zkpb.ServiceDiscoveryResponse{}, nil
+		return errors.New("Invalid request type")
 	}
+	return nil
 }
 
 func (z *Zookeeper) LoadBrokerConfig(configFilePath string) []*zkpb.Broker {
@@ -40,7 +43,6 @@ func (z *Zookeeper) InitBrokerListener(broker *zkpb.Broker) {
 	if err != nil {
 		log.Fatalf("Failed to listen: %v\n", err)
 	}
-
 	opts := []grpc.ServerOption{}
 	server := grpc.NewServer(opts...)
 	zkpb.RegisterZookeeperServiceServer(server, z)

@@ -29,17 +29,17 @@ func init() {
 }
 
 var fileDescriptor_793de8d3ef00b337 = []byte{
-	// 152 bytes of a gzipped FileDescriptorProto
+	// 154 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xe2, 0x52, 0x2a, 0x28, 0xca, 0x2f,
 	0xc9, 0xd7, 0xaf, 0xca, 0x2e, 0x48, 0xd2, 0xaf, 0xca, 0xcf, 0xcf, 0x4e, 0x4d, 0x2d, 0x48, 0x2d,
 	0x8a, 0x2f, 0x4e, 0x2d, 0x2a, 0xcb, 0x4c, 0x4e, 0xd5, 0x03, 0x4b, 0x0a, 0x71, 0x81, 0x29, 0x3d,
 	0x90, 0x1a, 0x29, 0x64, 0xf5, 0x50, 0x55, 0xf1, 0x29, 0x99, 0xc5, 0xc9, 0xf9, 0x65, 0xa9, 0x45,
-	0x95, 0x10, 0xf5, 0x46, 0xb9, 0x5c, 0x02, 0x51, 0x30, 0xa3, 0x82, 0x21, 0x6a, 0x84, 0x22, 0xb9,
+	0x95, 0x10, 0xf5, 0x46, 0xf9, 0x5c, 0x02, 0x51, 0x30, 0xa3, 0x82, 0x21, 0x6a, 0x84, 0xa2, 0xb9,
 	0xb8, 0xdc, 0x53, 0x4b, 0x9c, 0x8a, 0xf2, 0xb3, 0x53, 0x8b, 0x8a, 0x85, 0x94, 0xf5, 0x10, 0x46,
 	0xea, 0x41, 0x95, 0xb8, 0xc0, 0x4c, 0x09, 0x4a, 0x2d, 0x2c, 0x4d, 0x2d, 0x2e, 0x91, 0x52, 0xc1,
-	0xaf, 0xa8, 0xb8, 0x20, 0x3f, 0xaf, 0x38, 0x55, 0x89, 0xc1, 0x49, 0x28, 0x4a, 0xc0, 0xd1, 0xdb,
-	0xcd, 0xd1, 0x5b, 0x1f, 0xe1, 0xb4, 0x24, 0x36, 0x30, 0xdb, 0x18, 0x10, 0x00, 0x00, 0xff, 0xff,
-	0x1b, 0x59, 0x59, 0x78, 0xdf, 0x00, 0x00, 0x00,
+	0xaf, 0xa8, 0xb8, 0x20, 0x3f, 0xaf, 0x38, 0x55, 0x89, 0xc1, 0x80, 0xd1, 0x49, 0x28, 0x4a, 0xc0,
+	0xd1, 0xdb, 0xcd, 0xd1, 0x5b, 0x1f, 0xe1, 0xb8, 0x24, 0x36, 0x30, 0xdb, 0x18, 0x10, 0x00, 0x00,
+	0xff, 0xff, 0xde, 0xc9, 0x4d, 0x79, 0xe1, 0x00, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -54,7 +54,7 @@ const _ = grpc.SupportPackageIsVersion6
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
 type ZookeeperServiceClient interface {
-	GetBrokers(ctx context.Context, in *ServiceDiscoveryRequest, opts ...grpc.CallOption) (*ServiceDiscoveryResponse, error)
+	GetBrokers(ctx context.Context, in *ServiceDiscoveryRequest, opts ...grpc.CallOption) (ZookeeperService_GetBrokersClient, error)
 }
 
 type zookeeperServiceClient struct {
@@ -65,59 +65,86 @@ func NewZookeeperServiceClient(cc grpc.ClientConnInterface) ZookeeperServiceClie
 	return &zookeeperServiceClient{cc}
 }
 
-func (c *zookeeperServiceClient) GetBrokers(ctx context.Context, in *ServiceDiscoveryRequest, opts ...grpc.CallOption) (*ServiceDiscoveryResponse, error) {
-	out := new(ServiceDiscoveryResponse)
-	err := c.cc.Invoke(ctx, "/proto.zkpb.ZookeeperService/GetBrokers", in, out, opts...)
+func (c *zookeeperServiceClient) GetBrokers(ctx context.Context, in *ServiceDiscoveryRequest, opts ...grpc.CallOption) (ZookeeperService_GetBrokersClient, error) {
+	stream, err := c.cc.NewStream(ctx, &_ZookeeperService_serviceDesc.Streams[0], "/proto.zkpb.ZookeeperService/GetBrokers", opts...)
 	if err != nil {
 		return nil, err
 	}
-	return out, nil
+	x := &zookeeperServiceGetBrokersClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type ZookeeperService_GetBrokersClient interface {
+	Recv() (*ServiceDiscoveryResponse, error)
+	grpc.ClientStream
+}
+
+type zookeeperServiceGetBrokersClient struct {
+	grpc.ClientStream
+}
+
+func (x *zookeeperServiceGetBrokersClient) Recv() (*ServiceDiscoveryResponse, error) {
+	m := new(ServiceDiscoveryResponse)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
 }
 
 // ZookeeperServiceServer is the server API for ZookeeperService service.
 type ZookeeperServiceServer interface {
-	GetBrokers(context.Context, *ServiceDiscoveryRequest) (*ServiceDiscoveryResponse, error)
+	GetBrokers(*ServiceDiscoveryRequest, ZookeeperService_GetBrokersServer) error
 }
 
 // UnimplementedZookeeperServiceServer can be embedded to have forward compatible implementations.
 type UnimplementedZookeeperServiceServer struct {
 }
 
-func (*UnimplementedZookeeperServiceServer) GetBrokers(ctx context.Context, req *ServiceDiscoveryRequest) (*ServiceDiscoveryResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetBrokers not implemented")
+func (*UnimplementedZookeeperServiceServer) GetBrokers(req *ServiceDiscoveryRequest, srv ZookeeperService_GetBrokersServer) error {
+	return status.Errorf(codes.Unimplemented, "method GetBrokers not implemented")
 }
 
 func RegisterZookeeperServiceServer(s *grpc.Server, srv ZookeeperServiceServer) {
 	s.RegisterService(&_ZookeeperService_serviceDesc, srv)
 }
 
-func _ZookeeperService_GetBrokers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ServiceDiscoveryRequest)
-	if err := dec(in); err != nil {
-		return nil, err
+func _ZookeeperService_GetBrokers_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(ServiceDiscoveryRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
 	}
-	if interceptor == nil {
-		return srv.(ZookeeperServiceServer).GetBrokers(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/proto.zkpb.ZookeeperService/GetBrokers",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ZookeeperServiceServer).GetBrokers(ctx, req.(*ServiceDiscoveryRequest))
-	}
-	return interceptor(ctx, in, info, handler)
+	return srv.(ZookeeperServiceServer).GetBrokers(m, &zookeeperServiceGetBrokersServer{stream})
+}
+
+type ZookeeperService_GetBrokersServer interface {
+	Send(*ServiceDiscoveryResponse) error
+	grpc.ServerStream
+}
+
+type zookeeperServiceGetBrokersServer struct {
+	grpc.ServerStream
+}
+
+func (x *zookeeperServiceGetBrokersServer) Send(m *ServiceDiscoveryResponse) error {
+	return x.ServerStream.SendMsg(m)
 }
 
 var _ZookeeperService_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "proto.zkpb.ZookeeperService",
 	HandlerType: (*ZookeeperServiceServer)(nil),
-	Methods: []grpc.MethodDesc{
+	Methods:     []grpc.MethodDesc{},
+	Streams: []grpc.StreamDesc{
 		{
-			MethodName: "GetBrokers",
-			Handler:    _ZookeeperService_GetBrokers_Handler,
+			StreamName:    "GetBrokers",
+			Handler:       _ZookeeperService_GetBrokers_Handler,
+			ServerStreams: true,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
 	Metadata: "proto/zkpb/zookeeper_service.proto",
 }

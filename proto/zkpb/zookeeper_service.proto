@@ -8,5 +8,5 @@ import "proto/zkpb/service_discovery.proto";
 
 service ZookeeperService {
     rpc GetBrokers(zkpb.ServiceDiscoveryRequest)
-        returns (zkpb.ServiceDiscoveryResponse) {}
+        returns (stream zkpb.ServiceDiscoveryResponse) {}
 }

@@ -4,13 +4,14 @@ package proto.zkpb;
 
 option go_package = "AKFAK/proto/zkpb";
 
-// Discover brokers in broker_config.json
+// Request.Broker refers to getting the brokers information from broker_config.json
 message ServiceDiscoveryRequest {
     string query = 1;
     enum Request {
         BROKER = 0;
     }
     Request request = 2;
+    Broker broker = 3;
 }
 
 message ServiceDiscoveryResponse {
