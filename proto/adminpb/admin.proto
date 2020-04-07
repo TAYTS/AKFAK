@@ -19,6 +19,8 @@ service AdminService {
       returns (adminclientpb.AdminClientNewPartitionResponse) {}
   rpc LeaderAndIsr(adminclientpb.LeaderAndIsrRequest)
       returns (adminclientpb.LeaderAndIsrResponse) {}
-  rpc UpdateMetadata(adminclientpb.UpdateMetadatRequest)
+  rpc UpdateMetadata(adminclientpb.UpdateMetadataRequest)
       returns (adminclientpb.UpdateMetadataResponse) {}
+  rpc GetMetadata(adminclientpb.GetMetadataRequest)
+      returns (adminclientpb.GetMetadataResponse) {}
 }
