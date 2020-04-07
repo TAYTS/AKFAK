@@ -161,7 +161,7 @@ func (*Node) UpdateMetadata(ctx context.Context, req *adminclientpb.UpdateMetada
 }
 
 // GetMetadata gets metadata state of broker
-func (*Node) GetMetadata(ctx context.Context, req *adminclientpb.UpdateMetadataRequest) (*adminclientpb.GetMetadataResponse, error) {
+func (*Node) GetMetadata(ctx context.Context, req *adminclientpb.GetMetadataRequest) (*adminclientpb.GetMetadataResponse, error) {
 	// TODO: Add get metatdata handler function
 	return &adminclientpb.GetMetadataResponse{ControllerID: 1, TopicStates: []*adminclientpb.UpdateMetadataTopicState{}, LiveBrokers: []*adminclientpb.UpdateMetadataBroker{}}, nil
 }
