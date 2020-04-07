@@ -214,7 +214,7 @@ func (p *Producer) doSend(brokerID int) {
 		p.mux.Lock()
 		select {
 		case <-p.timers[brokerID].C:
-			fmt.Printf("Request timeout, sending request to Broker %v\n", brokerID)
+			fmt.Printf("Sending request to Broker %v\n", brokerID)
 			p.brokerCon[brokerID].Send(p.inflightRequests[brokerID].req)
 
 			// get the response
