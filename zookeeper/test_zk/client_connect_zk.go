@@ -11,11 +11,11 @@ import (
 func main() {
 	opts := grpc.WithInsecure()
 	broker := zkpb.Broker{
-		Id:   1,
+		Id:   2,
 		Host: "127.0.0.1",
-		Port: 3001,
+		Port: 3002,
 	}
-	cSock, err := grpc.Dial("127.0.0.1:3001", opts)
+	cSock, err := grpc.Dial("127.0.0.1:3002", opts)
 	if err != nil {
 		log.Fatalf("could not connect: %v", err)
 	}

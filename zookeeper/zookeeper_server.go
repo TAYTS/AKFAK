@@ -8,25 +8,44 @@ import (
 	"google.golang.org/grpc"
 	"log"
 	"net"
+	"sync"
 )
 
 type Zookeeper struct {
 	ID   int
 	Host string
 	Port int
+	hasInit bool
+	mux sync.Mutex
 }
 
 func (z *Zookeeper) GetBrokers(req *zkpb.ServiceDiscoveryRequest, server zkpb.ZookeeperService_GetBrokersServer) error {
-	if req.Request == zkpb.ServiceDiscoveryRequest_BROKER {
-		brokerList := z.LoadBrokerConfig(req.GetQuery())
-		res := zkpb.ServiceDiscoveryResponse{
-			BrokerList: brokerList,
+	if !z.hasInit {
+		switch req.Request {
+		case zkpb.ServiceDiscoveryRequest_BROKER:
+			brokerInfo := req.GetBroker()
+			brokerList := z.LoadBrokerConfig(req.GetQuery())
+			// Assign the first broker to connect to ZK be the coordinator
+			// Temporarily saved in mem and not flush to the config file
+			for i, v := range brokerList {
+				if v.Id == brokerList[i].Id && v.GetHost() == brokerInfo.GetHost() && v.GetPort() == brokerInfo.GetPort(){
+					v.IsCoordinator = true
+					v.Id = int32(len(brokerList))
+				} else {
+					v.IsCoordinator = false
+					v.Id = int32(i)
+				}
+			}
+			res := zkpb.ServiceDiscoveryResponse{
+				BrokerList: brokerList,
+			}
+			if err := server.Send(&res); err != nil {
+				return err
+			}
+			z.hasInit = true
+		default:
+			return errors.New("Invalid request type")
 		}
-		if err := server.Send(&res); err != nil {
-			return err
-		}
-	} else {
-		return errors.New("Invalid request type")
 	}
 	return nil
 }
