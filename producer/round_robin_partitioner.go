@@ -38,6 +38,13 @@ func (a *AtomicCounter) getCount() int {
 	return a.counter
 }
 
+// InitRoundRobin initialise RoundRobin instance
+func InitRoundRobin() *RoundRobinPartitioner {
+	return &RoundRobinPartitioner{
+		topicCounterMap: cmap.New(),
+	}
+}
+
 // getPartition return the next partition index for a topic
 func (r *RoundRobinPartitioner) getPartition(topic string, partitions []*metadatapb.Partition) int {
 	numPartitions := len(partitions)
