@@ -58,7 +58,7 @@ func ParseTopicCommandInput() CommandInput {
 	flag.Parse()
 
 	if *kafkaSvrPtr == "" || *topicPtr == "" {
-		printErrorMessage("-kafka-serveer")
+		printErrorMessage("-kafka-server")
 	}
 
 	operation := ""
