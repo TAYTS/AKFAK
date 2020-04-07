@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package proto.zookeeperpb;
+
+option go_package = "AKFAK/proto/zookeeperpb";
+
+import "proto/zkmessagepb/get_cluster_metadata.proto";
+
+service ZookeeperService {
+  rpc GetClusterMetadata(zkmessagepb.GetClusterMetadataRequest)
+      returns (zkmessagepb.GetClusterMetadataResponse) {}
+}
