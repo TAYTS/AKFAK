@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package proto.producepb;
+
+option go_package = "AKFAK/proto/producepb";
+
+import "proto/recordpb/record.proto";
+import "proto/commonpb/response.proto";
+
+message TopicData {
+  int32 partition = 1; // partition index
+  recordpb.RecordBatch recordSet = 2;
+}
+
+message ProduceRequest {
+  repeated TopicData topicData = 1;
+  string topicName = 2;
+  int32 requiredAcks = 3;
+  /*
+   * 0  - server will not send any response
+   * 1  - server will wait the data written to the
+   *      local log before sending a response
+   * -1 - server will block until the message is committed
+   *      by all in sync replicas before sending a response
+   */
+}
+message ProduceResponse { commonpb.Response response = 1; }

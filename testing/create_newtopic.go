@@ -21,9 +21,9 @@ func main() {
 	c := adminpb.NewAdminServiceClient(cc)
 
 	req := &adminclientpb.AdminClientNewTopicRequest{
-		Topic:             "new_topic",
-		NumPartitions:     7,
-		ReplicationFactor: 1,
+		Topic:             "topic1",
+		NumPartitions:     3,
+		ReplicationFactor: 3,
 	}
 
 	res, err := c.AdminClientNewTopic(context.Background(), req)
