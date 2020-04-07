@@ -22,12 +22,11 @@ type Producer struct {
 	ID               int
 	topic            string
 	brokerCon        map[int]clientpb.ClientService_ProduceClient
-	clientService    clientpb.ClientServiceClient
 	metadata         *metadatapb.MetadataResponse
 	rr               *RoundRobinPartitioner
 	inflightRequests map[int]*inflightRequest
 	timers           map[int]*time.Timer
-	mux              map[int]*sync.Mutex // used to ensure only one routine can send/modify a request to a broker
+	mux              sync.RWMutex // used to ensure only one routine can send/modify a request to a broker
 }
 
 type inflightRequest struct {
@@ -43,13 +42,15 @@ type inflightRequest struct {
 func InitProducer(id int, topic string, brokersAddr map[int]string) *Producer {
 	// initialise the Producer instance
 	p := &Producer{
-		ID:    id,
-		topic: topic,
-		rr:    &RoundRobinPartitioner{},
+		ID:               id,
+		topic:            topic,
+		rr:               InitRoundRobin(),
+		inflightRequests: make(map[int]*inflightRequest),
+		timers:           make(map[int]*time.Timer),
 	}
 
 	// get metadata and wait for 500ms
-	p.waitOnMetadata(brokersAddr, 500*time.Millisecond)
+	p.waitOnMetadata(brokersAddr, 100*time.Millisecond)
 
 	// setup the stream connections to all the required brokers
 	err := p.setupStreamToSendMsg()
@@ -69,7 +70,7 @@ func (p *Producer) Send(message string) {
 	brkID := p.getBrkIDByPartition(partIdx)
 
 	// try to access another partition if unable to find broker ID for given partition
-	for (brkID == -1){
+	for brkID == -1 {
 		partIdx = p.getNextPartition()
 		brkID = p.getBrkIDByPartition(partIdx)
 	}
@@ -78,28 +79,36 @@ func (p *Producer) Send(message string) {
 	newRcd := recordpb.InitialiseRecordWithMsg(message)
 
 	// pass the record to the request
-	p.mux[brkID].Lock()
 	var produceReq *inflightRequest
+	p.mux.RLock()
 	produceReq, exist := p.inflightRequests[brkID]
 	if exist {
 		// if there is inflight request, append the message to it
 		produceReq.req.AddRecord(partIdx, newRcd)
+		produceReq.msgCount++
+		p.mux.RUnlock()
 	} else {
+		p.mux.RUnlock()
 		// else create new ProduceRequest
 		produceReq = &inflightRequest{
 			msgCount: 1,
 			req:      producepb.InitProduceRequest(p.topic, partIdx, newRcd),
 		}
 		// attach new request to the Producer instance
+		p.mux.Lock()
 		p.inflightRequests[brkID] = produceReq
-
 		// set 500ms timeout for the sending the new request
 		p.timers[brkID] = time.NewTimer(500 * time.Millisecond)
+		p.mux.Unlock()
+		go p.doSend(brkID)
 	}
-	produceReq.msgCount++
-	p.mux[brkID].Unlock()
+}
 
-	go p.doSend(brkID)
+// CleanupResources used to cleanup the Producer resources
+func (p *Producer) CleanupResources() {
+	for _, conn := range p.brokerCon {
+		conn.CloseSend()
+	}
 }
 
 ///////////////////////////////////
@@ -166,7 +175,6 @@ func (p *Producer) waitOnMetadata(brokersAddr map[int]string, maxWaitMs time.Dur
 func (p *Producer) setupStreamToSendMsg() error {
 	brkCount := len(p.metadata.GetBrokers())
 	brokersConnections := make(map[int]clientpb.ClientService_ProduceClient)
-	brokersLock := make(map[int]*sync.Mutex)
 
 	for _, brk := range p.metadata.GetBrokers() {
 		// setup gRPC connection
@@ -188,7 +196,6 @@ func (p *Producer) setupStreamToSendMsg() error {
 			continue
 		}
 		brokersConnections[int(brk.GetNodeID())] = stream
-		brokersLock[int(brk.GetNodeID())] = &sync.Mutex{}
 	}
 
 	// return error if no brokers available
@@ -198,16 +205,16 @@ func (p *Producer) setupStreamToSendMsg() error {
 
 	// attach the broker connections and locks mapping to the Producer instance
 	p.brokerCon = brokersConnections
-	p.mux = brokersLock
 
 	return nil
 }
 
 func (p *Producer) doSend(brokerID int) {
 	for {
+		p.mux.Lock()
 		select {
 		case <-p.timers[brokerID].C:
-			p.mux[brokerID].Lock()
+			fmt.Printf("Request timeout, sending request to Broker %v\n", brokerID)
 			p.brokerCon[brokerID].Send(p.inflightRequests[brokerID].req)
 
 			// get the response
@@ -216,10 +223,9 @@ func (p *Producer) doSend(brokerID int) {
 
 			// remove the request
 			delete(p.inflightRequests, brokerID)
-			p.mux[brokerID].Unlock()
+			p.mux.Unlock()
 			return
 		default:
-			p.mux[brokerID].Lock()
 			// Send the request if the req has more than 15 messages
 			if p.inflightRequests[brokerID].msgCount > 15 {
 				p.brokerCon[brokerID].Send(p.inflightRequests[brokerID].req)
@@ -230,10 +236,10 @@ func (p *Producer) doSend(brokerID int) {
 
 				// remove the request
 				delete(p.inflightRequests, brokerID)
-				p.mux[brokerID].Unlock()
+				p.mux.Unlock()
 				return
 			}
-			p.mux[brokerID].Unlock()
+			p.mux.Unlock()
 		}
 	}
 }
@@ -243,7 +249,7 @@ func responseHandler(brokerID int, res *producepb.ProduceResponse, err error) {
 		// TODO: Retry sending the request? Remove broker from the connection? Ignore fail request?
 		fmt.Printf("Error when sending messages to Broker %v\n", err)
 	}
-	fmt.Printf("Successfully send the request to Broker %v\n", brokerID)
+	fmt.Printf("Successfully send the request to Broker %v: %v\n", brokerID, res.GetResponse().GetMessage())
 }
 
 // getAvailablePartition get all the available partition based on the alive brokers
@@ -273,5 +279,5 @@ func (p *Producer) getBrkIDByPartition(partitionIdx int) int {
 		}
 	}
 	fmt.Println("could not find broker id corresponding to partition", partitionIdx)
-	return -1;
+	return -1
 }
