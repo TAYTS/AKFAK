@@ -12,8 +12,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-
-	"google.golang.org/grpc"
 )
 
 var topicMapping = map[string][]*partition.Partition{
@@ -43,7 +41,8 @@ func (n *Node) Produce(stream clientpb.ClientService_ProduceServer) error {
 			break
 		}
 		if err != nil {
-			log.Fatalf("Error while reading client stream: %v", err)
+			log.Printf("Error while reading client stream: %v", err)
+			CleanupProducerResource(replicaConn, fileHandlerMapping)
 			return err
 		}
 		topicName := req.GetTopicName()
@@ -55,17 +54,9 @@ func (n *Node) Produce(stream clientpb.ClientService_ProduceServer) error {
 			insycBrks := partInfo.GetInSyncReplicas()
 			// create stream connection to each insync replica
 			for _, brkID := range insycBrks {
-				if _, exist := replicaConn[brkID]; !exist {
-					// setup gRPC connection
-					opts := []grpc.DialOption{grpc.WithInsecure(), grpc.WithBlock()}
-					conn, _ := grpc.Dial(brkMapping[brkID], opts...)
-					if err != nil {
-						// TODO: Fault handling
-					}
-					// setup gRPC service
-					prdClient := clientpb.NewClientServiceClient(conn)
+				if _, exist := replicaConn[brkID]; !exist && brkID != n.ID {
 					// setup the stream connection
-					stream, err := prdClient.Produce(context.Background())
+					stream, err := n.clientServiceClient[brkID].Produce(context.Background())
 					if err != nil {
 						// TODO: Fault handling
 					}
@@ -81,17 +72,23 @@ func (n *Node) Produce(stream clientpb.ClientService_ProduceServer) error {
 					// current broker is the leader of the partition
 					if partInfo.GetLeader() == n.ID {
 						// save to local
+						fmt.Printf("Broker %v receive message for partition %v\n", n.ID, partID)
 						WriteRecordBatchToLocal(topicName, partID, fileHandlerMapping, tpData.GetRecordSet())
 
+						fmt.Printf("Broker %v broadcast message for partition %v\n", n.ID, partID)
 						// broadcast to all insync replica
 						for _, brkID := range partInfo.GetInSyncReplicas() {
-							replicaConn[brkID].Send(producepb.InitProduceRequest(topicName, partID, tpData.GetRecordSet().GetRecords()...))
+							err := replicaConn[brkID].Send(producepb.InitProduceRequest(topicName, partID, tpData.GetRecordSet().GetRecords()...))
+							if err != nil {
+								// TODO: handling send error
+							}
 
-							// TODO: Handling the response message, for now is just to clear the buffer
+							// TODO: Handling the response message for ACK, for now is just to clear the buffer
 							_, err = replicaConn[brkID].Recv()
 						}
 					} else {
 						// insync replica broker, save to local
+						fmt.Printf("Broker %v receive replica message for partition %v\n", n.ID, partID)
 						WriteRecordBatchToLocal(topicName, partID, fileHandlerMapping, tpData.GetRecordSet())
 					}
 				}
@@ -101,31 +98,60 @@ func (n *Node) Produce(stream clientpb.ClientService_ProduceServer) error {
 		// TODO: Update this when dealing with fault tolerance
 		sendErr := stream.Send(&producepb.ProduceResponse{Response: &commonpb.Response{Status: commonpb.ResponseStatus_SUCCESS, Message: "Thank you"}})
 		if sendErr != nil {
-			log.Fatalf("Error while sending data to client: %v", sendErr)
+			log.Printf("Error while sending data to client: %v", sendErr)
 			return sendErr
 		}
 	}
 
 	// clean up resources
-	for _, rCon := range replicaConn {
-		rCon.CloseSend()
-	}
-
-	for _, fileHandler := range fileHandlerMapping {
-		fileHandler.CloseFile()
-	}
+	CleanupProducerResource(replicaConn, fileHandlerMapping)
 
 	return nil
 }
 
 // WaitOnMetadata get the metadata about the kafka cluster
 func (*Node) WaitOnMetadata(ctx context.Context, req *metadatapb.MetadataRequest) (*metadatapb.MetadataResponse, error) {
-	// TODO: implement the fetch metadata logic
-	return &metadatapb.MetadataResponse{
+	topic := req.GetTopicName()
+
+	// TODO: Get the metadata from the cache
+	metadataResp := &metadatapb.MetadataResponse{
 		Brokers: []*metadatapb.Broker{
-			&metadatapb.Broker{NodeID: 1, Host: "0.0.0.0", Port: 5001},
+			&metadatapb.Broker{
+				NodeID: 0,
+				Host:   "0.0.0.0",
+				Port:   5001,
+			},
+			&metadatapb.Broker{
+				NodeID: 1,
+				Host:   "0.0.0.0",
+				Port:   5002,
+			},
+			&metadatapb.Broker{
+				NodeID: 2,
+				Host:   "0.0.0.0",
+				Port:   5002,
+			},
 		},
-	}, nil
+		Topic: &metadatapb.Topic{
+			Name: topic,
+			Partitions: []*metadatapb.Partition{
+				&metadatapb.Partition{
+					PartitionIndex: 0,
+					LeaderID:       0,
+				},
+				&metadatapb.Partition{
+					PartitionIndex: 1,
+					LeaderID:       1,
+				},
+				&metadatapb.Partition{
+					PartitionIndex: 2,
+					LeaderID:       2,
+				},
+			},
+		},
+	}
+
+	return metadataResp, nil
 }
 
 // ControllerElection used for the ZK to inform the broker to start the controller routine
@@ -179,7 +205,7 @@ func (n *Node) AdminClientNewTopic(ctx context.Context, req *adminclientpb.Admin
 				}
 			}
 		} else {
-			res, err := n.peerCon[brokerID].AdminClientNewPartition(context.Background(), req)
+			res, err := n.adminServiceClient[brokerID].AdminClientNewPartition(context.Background(), req)
 			if err != nil && res.GetResponse().GetStatus() == commonpb.ResponseStatus_FAIL {
 				// Terminate the partition creation
 				// TODO: Clean up partition if the process does not complete fully (nobody care in this school project anyway)
