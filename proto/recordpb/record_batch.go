@@ -2,6 +2,7 @@ package recordpb
 
 import (
 	"AKFAK/utils"
+	"time"
 
 	"github.com/golang/protobuf/proto"
 )
@@ -22,10 +23,11 @@ func InitialiseEmptyRecordBatch() *RecordBatch {
 }
 
 // InitialiseRecordBatchWithData return a RecordBatch pointer type with header set based on the input data
-func InitialiseRecordBatchWithData(records []*Record) *RecordBatch {
+func InitialiseRecordBatchWithData(records ...*Record) *RecordBatch {
 	rcdBatch := InitialiseEmptyRecordBatch()
 
 	rcdBatch.Records = records
+	rcdBatch.FirstTimestamp = getCurrentTimeinMs()
 	rcdBatch.updateBatchLength()
 
 	return rcdBatch
@@ -38,9 +40,22 @@ func (rcdBatch *RecordBatch) GetBatchLengthInt() int {
 
 // AppendRecord add one or more new Record to the Recordbatch
 func (rcdBatch *RecordBatch) AppendRecord(records ...*Record) {
+	if len(rcdBatch.GetRecords()) == 0 {
+		rcdBatch.FirstTimestamp = getCurrentTimeinMs()
+	}
+
 	for _, record := range records {
+		// update record field relative to the batch
+		record.TimestampDelta = int32(getCurrentTimeinMs() - rcdBatch.GetFirstTimestamp())
+		record.OffsetDelta = int32(len(rcdBatch.GetRecords()) - 1)
+		// add record
 		rcdBatch.Records = append(rcdBatch.GetRecords(), record)
 	}
+	// update MaxTimestamp
+	rcdBatch.MaxTimestamp = getCurrentTimeinMs()
+	// update LastOffsetDelta
+	rcdBatch.LastOffsetDelta = int32(len(rcdBatch.GetRecords()) - 1)
+
 	rcdBatch.updateBatchLength()
 }
 
@@ -62,4 +77,9 @@ func (rcdBatch *RecordBatch) updateBatchLength() {
 
 	// Update BatchLength
 	rcdBatch.BatchLength = utils.IntToBytes(length)
+}
+
+// getCurrentTimeinMs return current unix time in ms
+func getCurrentTimeinMs() int64 {
+	return time.Now().UnixNano() / int64(time.Millisecond)
 }

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"AKFAK/proto/adminclientpb"
 	"AKFAK/proto/adminpb"
 	"context"
 	"fmt"
@@ -19,10 +20,10 @@ func main() {
 
 	c := adminpb.NewAdminServiceClient(cc)
 
-	req := &adminpb.AdminClientNewTopicRequest{
-		Topic:             "new_topic",
-		NumPartitions:     7,
-		ReplicationFactor: 1,
+	req := &adminclientpb.AdminClientNewTopicRequest{
+		Topic:             "topic1",
+		NumPartitions:     3,
+		ReplicationFactor: 3,
 	}
 
 	res, err := c.AdminClientNewTopic(context.Background(), req)

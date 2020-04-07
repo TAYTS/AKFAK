@@ -2,15 +2,14 @@ package producer
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"io"
-	"log"
-	"strconv"
+	"sync"
 	"time"
 
 	"AKFAK/proto/clientpb"
-	"AKFAK/proto/messagepb"
 	"AKFAK/proto/metadatapb"
+	"AKFAK/proto/producepb"
 	"AKFAK/proto/recordpb"
 
 	"google.golang.org/grpc"
@@ -18,185 +17,267 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// ProducerRecord will be used to instantiate a record
-type ProducerRecord struct {
-	topic     string // topic the record will be appended to
-	timestamp int64  // timestamp of the record in ms since epoch. If null, assign current time in ms
-	value     []byte // the record contents
+// Producer represents a Kafka producer
+type Producer struct {
+	ID               int
+	topic            string
+	brokerCon        map[int]clientpb.ClientService_ProduceClient
+	metadata         *metadatapb.MetadataResponse
+	rr               *RoundRobinPartitioner
+	inflightRequests map[int]*inflightRequest
+	timers           map[int]*time.Timer
+	mux              sync.RWMutex // used to ensure only one routine can send/modify a request to a broker
 }
 
-// getCurrentTimeinMs return current unix time in ms
-func getCurrentTimeinMs() int64 {
-	return time.Now().UnixNano() / int64(time.Millisecond)
+type inflightRequest struct {
+	msgCount int
+	req      *producepb.ProduceRequest
 }
 
-// converts records from struct ProducerRecords to RecordBatch
-func producerRecordsToRecordBatch(pRecords []ProducerRecord) *recordpb.RecordBatch {
+///////////////////////////////////
+// 		   Public Methods		 //
+///////////////////////////////////
 
-	recordBatch := recordpb.InitialiseEmptyRecordBatch()
-	recordBatch.FirstTimestamp = getCurrentTimeinMs()
-
-	// convert []ProducerRecord to []recordpb.Record
-	for _, pRecord := range pRecords {
-		// assign current time in ms if record.timestamp is nil (0)
-		if pRecord.timestamp == 0 {
-			pRecord.timestamp = getCurrentTimeinMs()
-		}
-		// append record to record batch
-		recordBatch.AppendRecord(&recordpb.Record{
-			Length:         1,
-			Attributes:     0,
-			TimestampDelta: int32(getCurrentTimeinMs() - pRecord.timestamp), // current time-record.timestamp
-			OffsetDelta:    1,
-			ValueLen:       int32(len(pRecord.value)),
-			Value:          pRecord.value,
-		})
+// InitProducer creates a producer and sets up broker connections
+func InitProducer(id int, topic string, brokersAddr map[int]string) *Producer {
+	// initialise the Producer instance
+	p := &Producer{
+		ID:               id,
+		topic:            topic,
+		rr:               InitRoundRobin(),
+		inflightRequests: make(map[int]*inflightRequest),
+		timers:           make(map[int]*time.Timer),
 	}
 
-	// timestamp when last record is added
-	recordBatch.MaxTimestamp = getCurrentTimeinMs()
-	recordBatch.Magic = 2
-	recordBatch.LastOffsetDelta = 1 // still unsure about this
+	// get metadata and wait for 500ms
+	p.waitOnMetadata(brokersAddr, 100*time.Millisecond)
 
-	return recordBatch
-}
-
-func dialBrokers(brokersAddr map[int]string) map[int]clientpb.ClientService_MessageBatchClient {
-	opts := grpc.WithInsecure()
-	time.Sleep(time.Second)
-	brokersConnections := make(map[int]clientpb.ClientService_MessageBatchClient)
-
-	for i, addr := range brokersAddr {
-		fmt.Printf("Dialing %v\n", addr)
-		waitc := make(chan struct{})
-		go func() {
-			for {
-				cSock, err := grpc.Dial(addr, opts)
-				if err != nil {
-					fmt.Printf("Error did not connect: %v\n", err)
-					continue
-				}
-				cRPC := clientpb.NewClientServiceClient(cSock)
-				// Create stream by invoking the client
-				stream, err := cRPC.MessageBatch(context.Background())
-				if err != nil {
-					fmt.Printf("Error while creating stream: %v\n", err)
-					continue
-				}
-				brokersConnections[i] = stream
-				break
-			}
-			close(waitc)
-		}()
-		<-waitc
+	// setup the stream connections to all the required brokers
+	err := p.setupStreamToSendMsg()
+	if err != nil {
+		panic(fmt.Sprintf("Unable to send message to broker: %v\n", err))
 	}
 
-	return brokersConnections
+	return p
 }
 
-// Send takes records and sends to partition decided by round-robin
-func Send(metadataProd clientpb.ClientServiceClient, records []ProducerRecord) {
+// Send used to send ProduceRequest to the broker
+func (p *Producer) Send(message string) {
+	// get partition idx for topic
+	partIdx := p.getNextPartition()
 
-	// all records in a recordbatch should have the same topic
-	topic := records[0].topic
+	// get broker ID for a partition
+	brkID := p.getBrkIDByPartition(partIdx)
 
-	// get brokers for topic
-	brokersAddr := getBrokersForTopic(metadataProd, topic)
-
-	// create connection to all brokers for that topic
-	brokersConnections := dialBrokers(brokersAddr)
-
-	// TODO: obtain cluster from broker
-	// cluster := cluster.getCluster()
-
-	// compute partition to send to
-	// partitioner := RoundRobinPartitioner{}
-	// partition := partitioner.getPartition(topic, cluster)
-	partition := 0
-
-	recordBatch := producerRecordsToRecordBatch(records)
-	msg := &messagepb.MessageBatchRequest{
-		Records: recordBatch,
+	// try to access another partition if unable to find broker ID for given partition
+	for brkID == -1 {
+		partIdx = p.getNextPartition()
+		brkID = p.getBrkIDByPartition(partIdx)
 	}
-	requests := []*messagepb.MessageBatchRequest{msg}
 
-	waitc := make(chan struct{})
+	// create new record
+	newRcd := recordpb.InitialiseRecordWithMsg(message)
 
-	// send messages to broker
-	go func() {
-		for { // TODO: Remove while true loop, this is for demo purposes
-			for _, req := range requests {
-				fmt.Printf("Sending message: %v\n", msg)
-				brokersConnections[partition].Send(req)
-				time.Sleep(1000 * time.Millisecond)
-			}
+	// pass the record to the request
+	var produceReq *inflightRequest
+	p.mux.RLock()
+	produceReq, exist := p.inflightRequests[brkID]
+	if exist {
+		// if there is inflight request, append the message to it
+		produceReq.req.AddRecord(partIdx, newRcd)
+		produceReq.msgCount++
+		p.mux.RUnlock()
+	} else {
+		p.mux.RUnlock()
+		// else create new ProduceRequest
+		produceReq = &inflightRequest{
+			msgCount: 1,
+			req:      producepb.InitProduceRequest(p.topic, partIdx, newRcd),
 		}
-		// brokersConnections[partition].CloseSend()
-	}()
-
-	// receive messages from broker
-	go func() {
-		for {
-			res, err := brokersConnections[partition].Recv()
-			if err == io.EOF {
-				break
-			}
-			if err != nil {
-				log.Fatalf("Error while receiving: %v", err)
-				break
-			}
-			fmt.Printf("Received: %v\n", res)
-		}
-		close(waitc)
-	}()
-
-	//block until everything is done
-	<-waitc
+		// attach new request to the Producer instance
+		p.mux.Lock()
+		p.inflightRequests[brkID] = produceReq
+		// set 500ms timeout for the sending the new request
+		p.timers[brkID] = time.NewTimer(500 * time.Millisecond)
+		p.mux.Unlock()
+		go p.doSend(brkID)
+	}
 }
+
+// CleanupResources used to cleanup the Producer resources
+func (p *Producer) CleanupResources() {
+	for _, conn := range p.brokerCon {
+		conn.CloseSend()
+	}
+}
+
+///////////////////////////////////
+// 		   Private Methods		 //
+///////////////////////////////////
 
 // wait for cluster metadata including partitions for the given topic
 // and partition (if specified, 0 if no preference) to be available
-func waitOnMetadata(producer clientpb.ClientServiceClient, partition int, topicName string, maxWaitMs time.Duration) *metadatapb.MetadataResponse {
-
-	req := &metadatapb.MetadataRequest{
-		TopicName: topicName,
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), maxWaitMs)
-	defer cancel()
-
-	res, err := producer.WaitOnMetadata(ctx, req)
-	if err != nil {
-		statusErr, ok := status.FromError(err)
-		if ok {
-			if statusErr.Code() == codes.DeadlineExceeded {
-				fmt.Println("Metadata not received for topics %v after %d ms", topicName, maxWaitMs)
-			} else {
-				fmt.Printf("Unexpected error: %v", statusErr)
-			}
-		} else {
-			log.Fatalf("could not get metadata. error: %v", err)
+func (p *Producer) waitOnMetadata(brokersAddr map[int]string, maxWaitMs time.Duration) {
+	// dial one of the broker to get the topic metadata
+	for _, addr := range brokersAddr {
+		// connect to one of the broker
+		opts := []grpc.DialOption{grpc.WithInsecure(), grpc.WithBlock()}
+		conn, err := grpc.Dial(addr, opts...)
+		if err != nil {
+			// move to the next broker if fail to connect
+			continue
 		}
+
+		// create gRPC client
+		prdClient := clientpb.NewClientServiceClient(conn)
+
+		// send get metadata request
+		req := &metadatapb.MetadataRequest{
+			TopicName: p.topic,
+		}
+
+		// create context with timeout
+		ctx, cancel := context.WithTimeout(context.Background(), maxWaitMs)
+
+		// send request to get metadata
+		res, err := prdClient.WaitOnMetadata(ctx, req)
+		if err != nil {
+			statusErr, ok := status.FromError(err)
+			if ok {
+				if statusErr.Code() == codes.DeadlineExceeded {
+					fmt.Printf("Metadata not received for topic %v after %d ms", p.topic, maxWaitMs)
+				} else {
+					fmt.Printf("Unexpected error: %v", statusErr)
+				}
+			} else {
+				fmt.Printf("could not get metadata. error: %v", err)
+			}
+
+			// move to the next broker if fail to connect
+			cancel()
+			conn.Close()
+			continue
+		}
+
+		// save the metadata response to the producer
+		p.metadata = res
+
+		// clean up resources
+		cancel()
+		conn.Close()
+
+		// stop contacting other brokers
+		break
 	}
-
-	log.Print("received metadata: ", res)
-
-	return res
 }
 
-func getBrokersForTopic(producer clientpb.ClientServiceClient, topic string) map[int]string {
-	fmt.Println("in get brokers for topic")
+// setupStreamToSendMsg setup the gRPC stream for sending message batch to the broker and attach to the producer instance
+func (p *Producer) setupStreamToSendMsg() error {
+	brkCount := len(p.metadata.GetBrokers())
+	brokersConnections := make(map[int]clientpb.ClientService_ProduceClient)
 
-	brokers := make(map[int]string)
+	for _, brk := range p.metadata.GetBrokers() {
+		// setup gRPC connection
+		opts := []grpc.DialOption{grpc.WithInsecure(), grpc.WithBlock()}
+		conn, err := grpc.Dial(fmt.Sprintf("%v:%v", brk.GetHost(), brk.GetPort()), opts...)
+		if err != nil {
+			brkCount--
+			// try the next broker
+			continue
+		}
 
-	// get metadata on topic
-	metadata := waitOnMetadata(producer, 0, topic, 3000*time.Millisecond)
+		// setup gRPC service
+		prdClient := clientpb.NewClientServiceClient(conn)
 
-	// get addresses of other brokers having partitions of topic in request
-	for i, broker := range metadata.GetBrokers() {
-		brokers[i] = broker.GetHost() + strconv.Itoa(int(broker.GetPort()))
+		stream, err := prdClient.Produce(context.Background())
+		if err != nil {
+			brkCount--
+			// try the next broker
+			continue
+		}
+		brokersConnections[int(brk.GetNodeID())] = stream
 	}
 
-	fmt.Println(brokers)
-	return brokers
+	// return error if no brokers available
+	if brkCount == 0 {
+		return errors.New("No brokers available")
+	}
+
+	// attach the broker connections and locks mapping to the Producer instance
+	p.brokerCon = brokersConnections
+
+	return nil
+}
+
+func (p *Producer) doSend(brokerID int) {
+	for {
+		p.mux.Lock()
+		select {
+		case <-p.timers[brokerID].C:
+			fmt.Printf("Sending request to Broker %v\n", brokerID)
+			p.brokerCon[brokerID].Send(p.inflightRequests[brokerID].req)
+
+			// get the response
+			res, err := p.brokerCon[brokerID].Recv()
+			responseHandler(brokerID, res, err)
+
+			// remove the request
+			delete(p.inflightRequests, brokerID)
+			p.mux.Unlock()
+			return
+		default:
+			// Send the request if the req has more than 15 messages
+			if p.inflightRequests[brokerID].msgCount > 15 {
+				p.brokerCon[brokerID].Send(p.inflightRequests[brokerID].req)
+
+				// get the response
+				res, err := p.brokerCon[brokerID].Recv()
+				responseHandler(brokerID, res, err)
+
+				// remove the request
+				delete(p.inflightRequests, brokerID)
+				p.mux.Unlock()
+				return
+			}
+			p.mux.Unlock()
+		}
+	}
+}
+
+func responseHandler(brokerID int, res *producepb.ProduceResponse, err error) {
+	if err != nil {
+		// TODO: Retry sending the request? Remove broker from the connection? Ignore fail request?
+		fmt.Printf("Error when sending messages to Broker %v\n", err)
+	}
+	fmt.Printf("Successfully send the request to Broker %v: %v\n", brokerID, res.GetResponse().GetMessage())
+}
+
+// getAvailablePartition get all the available partition based on the alive brokers
+func (p *Producer) getAvailablePartition() []*metadatapb.Partition {
+	availablePartition := []*metadatapb.Partition{}
+
+	for _, part := range p.metadata.GetTopic().GetPartitions() {
+		leaderID := int(part.GetLeaderID())
+		if _, exist := p.brokerCon[leaderID]; exist {
+			availablePartition = append(availablePartition, part)
+		}
+	}
+	return availablePartition
+}
+
+// getNextBroker find the next broker to send the message using Round Robin method and return the broker ID
+func (p *Producer) getNextPartition() int {
+	// get the next partition using Round Robin
+	return p.rr.getPartition(p.topic, p.getAvailablePartition())
+
+}
+
+func (p *Producer) getBrkIDByPartition(partitionIdx int) int {
+	for _, part := range p.metadata.GetTopic().GetPartitions() {
+		if int(part.GetPartitionIndex()) == partitionIdx {
+			return int(part.GetLeaderID())
+		}
+	}
+	fmt.Println("could not find broker id corresponding to partition", partitionIdx)
+	return -1
 }

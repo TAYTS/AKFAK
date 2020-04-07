@@ -10,7 +10,7 @@ func (n *Node) newPartitionRequestData(topicName string, numPartitions int, repl
 	topicExist := false // TODO: Verify if the topic exist
 
 	// TODO: Get from ZK
-	numBrokers := len(n.peerCon) + 1
+	numBrokers := len(n.adminServiceClient) + 1
 
 	if !topicExist {
 		newTopicPartitionRequests := make(map[int]*adminclientpb.AdminClientNewPartitionRequest)
