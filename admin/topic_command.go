@@ -3,6 +3,7 @@ package admin
 import (
 	"flag"
 	"fmt"
+	"log"
 )
 
 type CommandInput struct {
@@ -57,8 +58,13 @@ func ParseTopicCommandInput() CommandInput {
 
 	flag.Parse()
 
-	if *kafkaSvrPtr == "" || *topicPtr == "" {
+	if *kafkaSvrPtr == "" {
 		printErrorMessage("-kafka-server")
+		log.Fatalf("Invalid argument for kafka server")
+	}
+	if *topicPtr == "" {
+		printErrorMessage("-topic")
+		log.Fatalf("Invalid argument for topic")
 	}
 
 	operation := ""
