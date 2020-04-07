@@ -72,7 +72,7 @@ func CreatePartitionDir(rootPath string, topicName string, partition int) error 
 	os.MkdirAll(filePath, os.ModePerm)
 
 	// create the log file inside the directory
-	fileName := fmt.Sprintf("%v/%v.log", filePath, ContructPartitionLogName(topicName))
+	fileName := fmt.Sprintf("%v/%v", filePath, ContructPartitionLogName(topicName))
 	f, err := os.Create(fileName)
 	if err != nil {
 		log.Printf("Fail to create file: %v\n", err)
