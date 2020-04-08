@@ -1,11 +1,12 @@
 FROM golang:latest
 
-RUN go get google.golang.org/grpc
-
-RUN apt-get update -y && apt-get install vim -y
-
 WORKDIR /go/src/AKFAK
+
+RUN go mod init AKFAK && \
+  go mod tidy && \
+  apt-get update -y && \
+  apt-get install vim -y
 
 COPY . .
 
-CMD [ "go", "run", "/go/src/AKFAK/broker/server/server.go" ]
+RUN go install ./...
