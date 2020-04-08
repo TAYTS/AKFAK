@@ -30,12 +30,12 @@ func ParseTopicCommandInput() CommandInput {
 		"Topic to create")
 	partitionPtr := createCommand.Int(
 		"partitions",
-		1,
-		"Number of partitions for the topic. Default to 1.")
+		0,
+		"Number of partitions for the topic")
 	replicaFactorPtr := createCommand.Int(
 		"replica-factor",
-		1,
-		"The replication factor for each partition in the topic being created. Default to 1.")
+		0,
+		"The replication factor for each partition in the topic being created")
 	// CREATE COMMAND //
 
 	// LIST COMMAND //
@@ -54,9 +54,11 @@ func ParseTopicCommandInput() CommandInput {
 	if len(os.Args) <= 3 {
 		fmt.Println("usage: admin-topic -kafka-server <server_address:port> <command> [<args>]")
 		fmt.Println("Command:")
-		fmt.Println("create     : Create new topic")
-		fmt.Println("list       : List all topic")
-		fmt.Println("delete     : Delete a topic")
+		fmt.Println("create       : Create new topic")
+		createCommand.PrintDefaults()
+		fmt.Println("list         : List all topic")
+		fmt.Println("delete       : Delete a topic")
+		deleteCommand.PrintDefaults()
 		os.Exit(2)
 	}
 
@@ -76,6 +78,16 @@ func ParseTopicCommandInput() CommandInput {
 		operation = string(CREATE_TOPIC)
 		if *createTopicPtr == "" {
 			printErrorMessage("-topic")
+			createCommand.PrintDefaults()
+			os.Exit(2)
+		} else if *partitionPtr == 0 {
+			printErrorMessage("-partitions")
+			createCommand.PrintDefaults()
+			os.Exit(2)
+		} else if *replicaFactorPtr == 0 {
+			printErrorMessage("-replica-factor")
+			createCommand.PrintDefaults()
+			os.Exit(2)
 		}
 		topic = *createTopicPtr
 	case string(LIST_TOPIC):
@@ -85,6 +97,8 @@ func ParseTopicCommandInput() CommandInput {
 		operation = string(DELETE_TOPIC)
 		if *deleteTopicPtr == "" {
 			printErrorMessage("-topic")
+			deleteCommand.PrintDefaults()
+			os.Exit(2)
 		}
 		topic = *deleteTopicPtr
 	default:

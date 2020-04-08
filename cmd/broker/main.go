@@ -5,7 +5,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"os/signal"
 )
 
 func main() {
@@ -16,15 +15,15 @@ func main() {
 	// 	"",
 	// 	"Config to setup the Kafka broker")
 	brkIDPtr := flag.Int(
-		"-brokerID",
+		"brokerID",
 		0,
 		"Broker unique ID")
 	hostPtr := flag.String(
-		"-host",
+		"host",
 		"0.0.0.0",
 		"Address for the broker to listen for connection")
 	portPtr := flag.Int(
-		"-port",
+		"port",
 		5000,
 		"Port for the broker to listen for connection")
 
@@ -37,12 +36,5 @@ func main() {
 
 	// start the broker
 	node := broker.InitNode(*brkIDPtr, *hostPtr, *portPtr)
-	go node.InitAdminListener()
-
-	// Wait for Ctrl-C to exit
-	ch := make(chan os.Signal, 1)
-	signal.Notify(ch, os.Interrupt)
-
-	// Block until a signal is received
-	<-ch
+	node.InitAdminListener()
 }

@@ -30,8 +30,8 @@ func main() {
 	// Maybe used the server that the user provide to initialise the producer instead
 	brokerAddrs := map[int]string{
 		0: "broker-0:5000",
-		1: "broker-1:5000",
-		2: "broker-2:5000",
+		1: "broker-1:5001",
+		2: "broker-2:5002",
 	}
 
 	fmt.Println("Initialise the Producer...")
