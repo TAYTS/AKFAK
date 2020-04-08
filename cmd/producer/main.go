@@ -29,9 +29,9 @@ func main() {
 	// TODO: Load all the brokers from config & rethink about this part
 	// Maybe used the server that the user provide to initialise the producer instead
 	brokerAddrs := map[int]string{
-		0: "broker-1:5000",
-		1: "broker-2:5000",
-		2: "broker-3:5000",
+		0: "broker-0:5000",
+		1: "broker-1:5000",
+		2: "broker-2:5000",
 	}
 
 	fmt.Println("Initialise the Producer...")

@@ -23,10 +23,15 @@ type Node struct {
 }
 
 // TODO: Get the node list from metadata
+// var nodes = map[int]string{
+// 	0: "0.0.0.0:5001",
+// 	1: "0.0.0.0:5002",
+// 	2: "0.0.0.0:5003",
+// }
 var nodes = map[int]string{
-	0: "0.0.0.0:5001",
-	1: "0.0.0.0:5002",
-	2: "0.0.0.0:5003",
+	0: "broker-0:5000",
+	1: "broker-1:5000",
+	2: "broker-2:5000",
 }
 
 // InitNode create new broker node instance
