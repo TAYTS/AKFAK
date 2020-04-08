@@ -263,7 +263,13 @@ func (*Node) LeaderAndIsr(ctx context.Context, req *adminclientpb.LeaderAndIsrRe
 }
 
 // UpdateMetadata update the Metadata state of the broker
-func (*Node) UpdateMetadata(ctx context.Context, req *adminclientpb.UpdateMetadatRequest) (*adminclientpb.UpdateMetadataResponse, error) {
+func (*Node) UpdateMetadata(ctx context.Context, req *adminclientpb.UpdateMetadataRequest) (*adminclientpb.UpdateMetadataResponse, error) {
 	// TODO: Add update metatdata handler function
 	return &adminclientpb.UpdateMetadataResponse{Response: &commonpb.Response{Status: commonpb.ResponseStatus_SUCCESS}}, nil
+}
+
+// GetController gets infomation about the controller
+func (*Node) GetController(ctx context.Context, req *adminclientpb.GetControllerRequest) (*adminclientpb.GetControllerResponse, error) {
+	// TODO: Get the controller ID
+	return &adminclientpb.GetControllerResponse{ControllerID: 0, Host: "0.0.0.0", Port: 5001}, nil
 }

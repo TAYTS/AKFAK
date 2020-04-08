@@ -28,7 +28,7 @@ message UpdateMetadataBroker {
   int32 port = 3;
   repeated UpdateMetadataEndpoint endpoints = 4;
 }
-message UpdateMetadatRequest {
+message UpdateMetadataRequest {
   int32 controllerID = 1;
   repeated UpdateMetadataTopicState topicStates = 2;
   repeated UpdateMetadataBroker liveBrokers = 3;

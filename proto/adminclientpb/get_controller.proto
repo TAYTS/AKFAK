@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package proto.adminclientpb;
+
+option go_package = "AKFAK/proto/adminclientpb";
+
+message GetControllerRequest {}
+message GetControllerResponse {
+  int32 controllerID = 1;
+  string host = 2;
+  int32 port = 3;
+}

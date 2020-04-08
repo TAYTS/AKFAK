@@ -9,6 +9,7 @@ import "proto/adminclientpb/admin_client_new_topic.proto";
 import "proto/adminclientpb/controller_election.proto";
 import "proto/adminclientpb/leader_and_isr.proto";
 import "proto/adminclientpb/update_metadata.proto";
+import "proto/adminclientpb/get_controller.proto";
 
 service AdminService {
   rpc ControllerElection(adminclientpb.ControllerElectionRequest)
@@ -19,6 +20,8 @@ service AdminService {
       returns (adminclientpb.AdminClientNewPartitionResponse) {}
   rpc LeaderAndIsr(adminclientpb.LeaderAndIsrRequest)
       returns (adminclientpb.LeaderAndIsrResponse) {}
-  rpc UpdateMetadata(adminclientpb.UpdateMetadatRequest)
+  rpc UpdateMetadata(adminclientpb.UpdateMetadataRequest)
       returns (adminclientpb.UpdateMetadataResponse) {}
+  rpc GetController(adminclientpb.GetControllerRequest)
+      returns (adminclientpb.GetControllerResponse) {}
 }
