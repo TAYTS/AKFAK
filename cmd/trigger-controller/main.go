@@ -13,7 +13,7 @@ import (
 func main() {
 	// TODO: Remove this after the ZK is done!!!!
 	brkPtr := flag.String(
-		"-broker",
+		"broker",
 		"broker-0:5000",
 		"Broker connection string")
 	flag.Parse()
