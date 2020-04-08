@@ -34,13 +34,3 @@ message UpdateMetadataRequest {
   repeated UpdateMetadataBroker liveBrokers = 3;
 }
 message UpdateMetadataResponse { commonpb.Response response = 1; }
-
-message GetMetadataRequest {
-  // no need any fields
-}
-
-message GetMetadataResponse {
-  int32 controllerID = 1;
-  repeated UpdateMetadataTopicState topicStates = 2;
-  repeated UpdateMetadataBroker liveBrokers = 3;
-}
