@@ -1,0 +1,27 @@
+version: "2.1"
+services:
+  broker-1:
+    image: kafka-demo:latest
+    container_name: broker-1
+    environment:
+      - ALL_HOSTNAMES=broker-1,broker-2,broker-3
+      - HOSTNAME=broker-1
+
+  broker-2:
+    image: kafka-demo:latest
+    container_name: broker-2
+    environment:
+      - ALL_HOSTNAMES=broker-1,broker-2,broker-3
+      - HOSTNAME=broker-2
+
+  broker-3:
+    image: kafka-demo:latest
+    container_name: broker-3
+    environment:
+      - ALL_HOSTNAMES=broker-1,broker-2,broker-3
+      - HOSTNAME=broker-3
+
+networks:
+  default:
+    external:
+      name: kafka-net
