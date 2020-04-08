@@ -160,8 +160,8 @@ func (*Node) UpdateMetadata(ctx context.Context, req *adminclientpb.UpdateMetada
 	return &adminclientpb.UpdateMetadataResponse{Response: &commonpb.Response{Status: commonpb.ResponseStatus_SUCCESS}}, nil
 }
 
-// GetMetadata gets metadata state of broker
-func (*Node) GetMetadata(ctx context.Context, req *adminclientpb.GetMetadataRequest) (*adminclientpb.GetMetadataResponse, error) {
-	// TODO: Add get metatdata handler function
-	return &adminclientpb.GetMetadataResponse{ControllerID: 1, TopicStates: []*adminclientpb.UpdateMetadataTopicState{}, LiveBrokers: []*adminclientpb.UpdateMetadataBroker{}}, nil
+// GetController gets infomation about the controller
+func (*Node) GetController(ctx context.Context, req *adminclientpb.GetControllerRequest) (*adminclientpb.GetControllerResponse, error) {
+	// TODO: Get the controller ID
+	return &adminclientpb.GetControllerResponse{ControllerID: 0, Host: "0.0.0.0", Port: 5001}, nil
 }
