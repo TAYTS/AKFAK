@@ -52,7 +52,7 @@ func ParseTopicCommandInput() CommandInput {
 
 	// print usage if user does not provide kafka server address and the entry command
 	if len(os.Args) <= 3 {
-		fmt.Println("usage: admin -kafka-server [server_address:port] <command> [<args>]")
+		fmt.Println("usage: admin-topic -kafka-server <server_address:port> <command> [<args>]")
 		fmt.Println("Command:")
 		fmt.Println("create     : Create new topic")
 		fmt.Println("list       : List all topic")
