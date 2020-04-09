@@ -28,5 +28,5 @@ func CreateNewTopic(ctrlConnectionStr string, userInput CommandInput) {
 	if err != nil {
 		log.Fatalf("Fail to send operation request to Kafka controller: %v", err)
 	}
-	log.Printf("Response from Kafka controller: %v\n", res.GetResponse())
+	log.Printf("Response from Kafka controller: %v\n", res.GetResponse().GetMessage())
 }

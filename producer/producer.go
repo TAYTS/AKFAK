@@ -52,6 +52,8 @@ func InitProducer(id int, topic string, brokersAddr map[int]string) *Producer {
 	// get metadata and wait for 500ms
 	p.waitOnMetadata(brokersAddr, 100*time.Millisecond)
 
+	// TODO: Check if the topic is available/exist
+
 	// setup the stream connections to all the required brokers
 	err := p.setupStreamToSendMsg()
 	if err != nil {
