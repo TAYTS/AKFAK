@@ -22,16 +22,17 @@ var topicMapping = map[string][]*partition.Partition{
 	},
 }
 
-// var brkMapping = map[int]string{
-// 	0: "0.0.0.0:5001",
-// 	1: "0.0.0.0:5002",
-// 	2: "0.0.0.0:5003",
-// }
 var brkMapping = map[int]string{
-	0: "broker-0:5000",
-	1: "broker-1:5000",
-	2: "broker-2:5000",
+	0: "0.0.0.0:5001",
+	1: "0.0.0.0:5002",
+	2: "0.0.0.0:5003",
 }
+
+// var brkMapping = map[int]string{
+// 	0: "broker-0:5000",
+// 	1: "broker-1:5000",
+// 	2: "broker-2:5000",
+// }
 
 // Produce used to receive message batch from Producer and forward other brokers in the cluster
 func (n *Node) Produce(stream clientpb.ClientService_ProduceServer) error {
@@ -121,38 +122,38 @@ func (*Node) WaitOnMetadata(ctx context.Context, req *metadatapb.MetadataRequest
 	// TODO: Get the metadata from the cache
 	metadataResp := &metadatapb.MetadataResponse{
 		Brokers: []*metadatapb.Broker{
+			// 	&metadatapb.Broker{
+			// 		NodeID: 0,
+			// 		Host:   "broker-0",
+			// 		Port:   5000,
+			// 	},
+			// 	&metadatapb.Broker{
+			// 		NodeID: 1,
+			// 		Host:   "broker-1",
+			// 		Port:   5000,
+			// 	},
+			// 	&metadatapb.Broker{
+			// 		NodeID: 2,
+			// 		Host:   "broker-2",
+			// 		Port:   5000,
+			// 	},
+			// },
 			&metadatapb.Broker{
 				NodeID: 0,
-				Host:   "broker-0",
-				Port:   5000,
+				Host:   "0.0.0.0",
+				Port:   5001,
 			},
 			&metadatapb.Broker{
 				NodeID: 1,
-				Host:   "broker-1",
-				Port:   5000,
+				Host:   "0.0.0.0",
+				Port:   5002,
 			},
 			&metadatapb.Broker{
 				NodeID: 2,
-				Host:   "broker-2",
-				Port:   5000,
+				Host:   "0.0.0.0",
+				Port:   5003,
 			},
 		},
-		// 	&metadatapb.Broker{
-		// 		NodeID: 0,
-		// 		Host:   "0.0.0.0",
-		// 		Port:   5001,
-		// 	},
-		// 	&metadatapb.Broker{
-		// 		NodeID: 1,
-		// 		Host:   "0.0.0.0",
-		// 		Port:   5002,
-		// 	},
-		// 	&metadatapb.Broker{
-		// 		NodeID: 2,
-		// 		Host:   "0.0.0.0",
-		// 		Port:   5003,
-		// 	},
-		// },
 		Topic: &metadatapb.Topic{
 			Name: topic,
 			Partitions: []*metadatapb.Partition{
@@ -293,6 +294,6 @@ func (*Node) UpdateMetadata(ctx context.Context, req *adminclientpb.UpdateMetada
 // GetController gets infomation about the controller
 func (*Node) GetController(ctx context.Context, req *adminclientpb.GetControllerRequest) (*adminclientpb.GetControllerResponse, error) {
 	// TODO: Get the controller ID
-	// return &adminclientpb.GetControllerResponse{ControllerID: 0, Host: "0.0.0.0", Port: 5001}, nil
-	return &adminclientpb.GetControllerResponse{ControllerID: 0, Host: "broker-0", Port: 5000}, nil
+	return &adminclientpb.GetControllerResponse{ControllerID: 0, Host: "0.0.0.0", Port: 5001}, nil
+	// return &adminclientpb.GetControllerResponse{ControllerID: 0, Host: "broker-0", Port: 5000}, nil
 }

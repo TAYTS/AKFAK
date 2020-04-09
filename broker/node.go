@@ -23,16 +23,17 @@ type Node struct {
 }
 
 // TODO: Get the node list from metadata
-// var nodes = map[int]string{
-// 	0: "0.0.0.0:5001",
-// 	1: "0.0.0.0:5002",
-// 	2: "0.0.0.0:5003",
-// }
 var nodes = map[int]string{
-	0: "broker-0:5000",
-	1: "broker-1:5000",
-	2: "broker-2:5000",
+	0: "0.0.0.0:5001",
+	1: "0.0.0.0:5002",
+	2: "0.0.0.0:5003",
 }
+
+// var nodes = map[int]string{
+// 	0: "broker-0:5000",
+// 	1: "broker-1:5000",
+// 	2: "broker-2:5000",
+// }
 
 // InitNode create new broker node instance
 func InitNode(ID int, host string, port int) *Node {
