@@ -1,0 +1,21 @@
+version: "3.7"
+services:
+  broker-0:
+    image: kafka-demo3:latest
+    container_name: broker-0
+    command: broker -brokerID 0 -host 0.0.0.0 -port 5000
+
+  broker-1:
+    image: kafka-demo3:latest
+    container_name: broker-1
+    command: broker -brokerID 1 -host 0.0.0.0 -port 5000
+
+  broker-2:
+    image: kafka-demo3:latest
+    container_name: broker-2
+    command: broker -brokerID 2 -host 0.0.0.0 -port 5000
+
+networks:
+  default:
+    external:
+      name: kafka-net

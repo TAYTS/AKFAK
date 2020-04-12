@@ -28,6 +28,12 @@ var brkMapping = map[int]string{
 	2: "0.0.0.0:5003",
 }
 
+// var brkMapping = map[int]string{
+// 	0: "broker-0:5000",
+// 	1: "broker-1:5000",
+// 	2: "broker-2:5000",
+// }
+
 // Produce used to receive message batch from Producer and forward other brokers in the cluster
 func (n *Node) Produce(stream clientpb.ClientService_ProduceServer) error {
 	// define the mapping for replicaConn & fileHandlers
@@ -116,6 +122,22 @@ func (*Node) WaitOnMetadata(ctx context.Context, req *metadatapb.MetadataRequest
 	// TODO: Get the metadata from the cache
 	metadataResp := &metadatapb.MetadataResponse{
 		Brokers: []*metadatapb.Broker{
+			// 	&metadatapb.Broker{
+			// 		NodeID: 0,
+			// 		Host:   "broker-0",
+			// 		Port:   5000,
+			// 	},
+			// 	&metadatapb.Broker{
+			// 		NodeID: 1,
+			// 		Host:   "broker-1",
+			// 		Port:   5000,
+			// 	},
+			// 	&metadatapb.Broker{
+			// 		NodeID: 2,
+			// 		Host:   "broker-2",
+			// 		Port:   5000,
+			// 	},
+			// },
 			&metadatapb.Broker{
 				NodeID: 0,
 				Host:   "0.0.0.0",
@@ -129,7 +151,7 @@ func (*Node) WaitOnMetadata(ctx context.Context, req *metadatapb.MetadataRequest
 			&metadatapb.Broker{
 				NodeID: 2,
 				Host:   "0.0.0.0",
-				Port:   5002,
+				Port:   5003,
 			},
 		},
 		Topic: &metadatapb.Topic{
@@ -159,10 +181,9 @@ func (n *Node) ControllerElection(ctx context.Context, req *adminclientpb.Contro
 	// get the selected brokerID to be the controller from ZK
 	brokerID := int(req.GetBrokerID())
 
-	fmt.Printf("Node %v received controller election request for broker %v\n", n.ID, req.GetBrokerID())
-
 	// if the broker got selected start the controller routine
 	if brokerID == n.ID {
+		fmt.Printf("Node %v received controller election request for broker %v\n", n.ID, req.GetBrokerID())
 		n.InitControllerRoutine()
 	}
 
@@ -237,13 +258,15 @@ func (n *Node) AdminClientNewTopic(ctx context.Context, req *adminclientpb.Admin
 
 	// response
 	return &adminclientpb.AdminClientNewTopicResponse{
-		Response: &commonpb.Response{Status: commonpb.ResponseStatus_SUCCESS}}, nil
+		Response: &commonpb.Response{Status: commonpb.ResponseStatus_SUCCESS, Message: "Topic created successfully"}}, nil
 }
 
 // AdminClientNewPartition create new partition
-func (*Node) AdminClientNewPartition(ctx context.Context, req *adminclientpb.AdminClientNewPartitionRequest) (*adminclientpb.AdminClientNewPartitionResponse, error) {
+func (n *Node) AdminClientNewPartition(ctx context.Context, req *adminclientpb.AdminClientNewPartitionRequest) (*adminclientpb.AdminClientNewPartitionResponse, error) {
 	topicName := req.GetTopic()
 	partitionID := req.GetPartitionID()
+
+	fmt.Printf("Node %v: Create partition %v\n", n.ID, partitionID)
 
 	for _, partID := range partitionID {
 		// TODO: Get the log root directory
@@ -263,7 +286,14 @@ func (*Node) LeaderAndIsr(ctx context.Context, req *adminclientpb.LeaderAndIsrRe
 }
 
 // UpdateMetadata update the Metadata state of the broker
-func (*Node) UpdateMetadata(ctx context.Context, req *adminclientpb.UpdateMetadatRequest) (*adminclientpb.UpdateMetadataResponse, error) {
+func (*Node) UpdateMetadata(ctx context.Context, req *adminclientpb.UpdateMetadataRequest) (*adminclientpb.UpdateMetadataResponse, error) {
 	// TODO: Add update metatdata handler function
 	return &adminclientpb.UpdateMetadataResponse{Response: &commonpb.Response{Status: commonpb.ResponseStatus_SUCCESS}}, nil
+}
+
+// GetController gets infomation about the controller
+func (*Node) GetController(ctx context.Context, req *adminclientpb.GetControllerRequest) (*adminclientpb.GetControllerResponse, error) {
+	// TODO: Get the controller ID
+	return &adminclientpb.GetControllerResponse{ControllerID: 0, Host: "0.0.0.0", Port: 5001}, nil
+	// return &adminclientpb.GetControllerResponse{ControllerID: 0, Host: "broker-0", Port: 5000}, nil
 }
