@@ -4,27 +4,7 @@ package proto.zkmessagepb;
 
 option go_package = "AKFAK/proto/zkmessagepb";
 
-message MetadataPartitionState {
-  string topicName = 1;
-  int32 partitionIndex = 2;
-  int32 leader = 3;                   // BrokerID of the leader partition
-  repeated int32 isr = 4;             // BrokerID which in-sync with the leader
-  repeated int32 replicas = 5;        // All brokerID which hold the partition
-  repeated int32 offlineReplicas = 6; // BrokerID which are offline/out-of-sync
-}
-message MetadataTopicState {
-  string topicName = 1;
-  repeated MetadataPartitionState partitionStates = 2;
-}
-
-message MetadataBroker {
-  int32 id = 1;
-  string host = 2;
-  int32 port = 3;
-}
+import "proto/zkmessagepb/cluster_metadata.proto";
 
 message GetClusterMetadataRequest { MetadataBroker broker = 1; }
-message GetClusterMetadataResponse {
-  repeated MetadataBroker liveBrokers = 1;
-  repeated MetadataTopicState topicStates = 2;
-}
+message GetClusterMetadataResponse { MetadataCluster clusterInfo = 1; }
