@@ -1,7 +1,7 @@
 package zookeeper
 
 import (
-	"AKFAK/proto/zkmessagepb"
+	"AKFAK/proto/clustermetadatapb"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -9,7 +9,7 @@ import (
 )
 
 // LoadClusterStateFromFile parse the cluster state JSON and return in-memory cache of the cluster metadata
-func LoadClusterStateFromFile(path string) zkmessagepb.MetadataCluster {
+func LoadClusterStateFromFile(path string) clustermetadatapb.MetadataCluster {
 	// load the JSON byte data
 	clusterData, err := ioutil.ReadFile(path)
 	if err != nil {
@@ -17,26 +17,26 @@ func LoadClusterStateFromFile(path string) zkmessagepb.MetadataCluster {
 	}
 
 	// parse the JSON byte into structs
-	var clusterDataJSON zkmessagepb.MetadataCluster
+	var clusterDataJSON clustermetadatapb.MetadataCluster
 	if err := json.Unmarshal([]byte(clusterData), &clusterDataJSON); err != nil {
 		panic(err)
 	}
 
 	// Set the Controller to be invalid
-	clusterDataJSON.Controller = &zkmessagepb.MetadataBroker{
+	clusterDataJSON.Controller = &clustermetadatapb.MetadataBroker{
 		ID:   -1,
 		Host: "",
 		Port: -1,
 	}
 
 	// Clear the LiveBrokers
-	clusterDataJSON.LiveBrokers = []*zkmessagepb.MetadataBroker{}
+	clusterDataJSON.LiveBrokers = []*clustermetadatapb.MetadataBroker{}
 
 	return clusterDataJSON
 }
 
 // WriteClusterStateToFile flush the cluster metadata to file
-func WriteClusterStateToFile(path string, metadata zkmessagepb.MetadataCluster) error {
+func WriteClusterStateToFile(path string, metadata clustermetadatapb.MetadataCluster) error {
 	// parse the data into JSON byte
 	metadataBytes, marshallErr := json.MarshalIndent(metadata, "", " ")
 	if marshallErr != nil {

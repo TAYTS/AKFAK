@@ -1,7 +1,7 @@
 package zookeeper
 
 import (
-	"AKFAK/proto/zkmessagepb"
+	"AKFAK/proto/clustermetadatapb"
 	"AKFAK/proto/zookeeperpb"
 	"fmt"
 	"log"
@@ -15,7 +15,7 @@ import (
 type Zookeeper struct {
 	Host            string
 	Port            int
-	clusterMetadata zkmessagepb.MetadataCluster
+	clusterMetadata clustermetadatapb.MetadataCluster
 	mux             sync.Mutex
 }
 

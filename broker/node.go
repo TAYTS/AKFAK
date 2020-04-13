@@ -3,6 +3,7 @@ package broker
 import (
 	"AKFAK/proto/adminpb"
 	"AKFAK/proto/clientpb"
+	"AKFAK/proto/clustermetadatapb"
 	"AKFAK/proto/zkmessagepb"
 	"AKFAK/proto/zookeeperpb"
 	"context"
@@ -19,7 +20,7 @@ type Node struct {
 	ID                  int
 	Host                string
 	Port                int
-	Metadata            *zkmessagepb.MetadataCluster
+	Metadata            *clustermetadatapb.MetadataCluster
 	adminServiceClient  map[int]adminpb.AdminServiceClient
 	clientServiceClient map[int]clientpb.ClientServiceClient
 }
@@ -139,7 +140,7 @@ func (n *Node) InitClusterMetadataCache() {
 
 	// create request with the current broker info
 	req := &zkmessagepb.GetClusterMetadataRequest{
-		Broker: &zkmessagepb.MetadataBroker{
+		Broker: &clustermetadatapb.MetadataBroker{
 			ID:   int32(n.ID),
 			Host: n.Host,
 			Port: int32(n.Port),
