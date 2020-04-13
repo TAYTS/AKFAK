@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package proto.zkmessagepb;
+
+option go_package = "AKFAK/proto/zkmessagepb";
+
+import "proto/commonpb/response.proto";
+import "proto/clustermetadatapb/cluster_metadata.proto";
+
+message UpdateClusterMetadataRequest {
+  clustermetadatapb.MetadataCluster newClusterInfo = 1;
+}
+message UpdateClusterMetadataResponse { commonpb.Response response = 1; }
