@@ -1,8 +1,8 @@
 syntax = "proto3";
 
-package proto.zkmessagepb;
+package proto.clustermetadatapb;
 
-option go_package = "AKFAK/proto/zkmessagepb";
+option go_package = "AKFAK/proto/clustermetadatapb";
 
 message MetadataPartitionState {
   string topicName = 1;

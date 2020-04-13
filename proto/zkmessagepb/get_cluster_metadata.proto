@@ -4,7 +4,11 @@ package proto.zkmessagepb;
 
 option go_package = "AKFAK/proto/zkmessagepb";
 
-import "proto/zkmessagepb/cluster_metadata.proto";
+import "proto/clustermetadatapb/cluster_metadata.proto";
 
-message GetClusterMetadataRequest { MetadataBroker broker = 1; }
-message GetClusterMetadataResponse { MetadataCluster clusterInfo = 1; }
+message GetClusterMetadataRequest {
+  clustermetadatapb.MetadataBroker broker = 1;
+}
+message GetClusterMetadataResponse {
+  clustermetadatapb.MetadataCluster clusterInfo = 1;
+}
