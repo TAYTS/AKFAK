@@ -3,6 +3,9 @@ package broker
 import (
 	"AKFAK/proto/adminpb"
 	"AKFAK/proto/clientpb"
+	"AKFAK/proto/clustermetadatapb"
+	"AKFAK/proto/zkmessagepb"
+	"AKFAK/proto/zookeeperpb"
 	"context"
 	"fmt"
 	"log"
@@ -17,7 +20,7 @@ type Node struct {
 	ID                  int
 	Host                string
 	Port                int
-	Metadata            []int // Get the cluster metadata
+	Metadata            *clustermetadatapb.MetadataCluster
 	adminServiceClient  map[int]adminpb.AdminServiceClient
 	clientServiceClient map[int]clientpb.ClientServiceClient
 }
@@ -54,11 +57,17 @@ func (n *Node) InitAdminListener() {
 	opts := []grpc.ServerOption{}
 	server := grpc.NewServer(opts...)
 
+	// bind the rpc server service
 	adminpb.RegisterAdminServiceServer(server, n)
 	clientpb.RegisterClientServiceServer(server, n)
 
-	// TODO: call ZK to get the update metadata
-	// TODO: initialise the internal state cache
+	// setup the cluster metadata cache
+	n.InitClusterMetadataCache()
+
+	// start controller routine if the broker is select as the controller
+	if int(n.Metadata.GetController().GetID()) == n.ID {
+		go n.InitControllerRoutine()
+	}
 
 	// setup ClientService peer connection
 	go n.EstablishClientServicePeerConn()
@@ -114,4 +123,36 @@ func (n *Node) EstablishClientServicePeerConn() {
 			cancel()
 		}
 	}
+}
+
+// InitClusterMetadataCache call the ZK to get the Cluster Metadata
+func (n *Node) InitClusterMetadataCache() {
+	// set up grpc dial
+	opts := grpc.WithInsecure()
+	zkAddress := "0.0.0.0:9092"
+	zkCon, err := grpc.Dial(zkAddress, opts)
+	if err != nil {
+		log.Fatalf("Fail to connect to %v: %v\n", zkAddress, err)
+	}
+
+	// set rpc client
+	zkClient := zookeeperpb.NewZookeeperServiceClient(zkCon)
+
+	// create request with the current broker info
+	req := &zkmessagepb.GetClusterMetadataRequest{
+		Broker: &clustermetadatapb.MetadataBroker{
+			ID:   int32(n.ID),
+			Host: n.Host,
+			Port: int32(n.Port),
+		},
+	}
+
+	// send the GetClusterMetadata request
+	res, err := zkClient.GetClusterMetadata(context.Background(), req)
+	if err != nil {
+		log.Fatalf("Fail to get the cluster metada from Zk")
+	}
+
+	// store the cluster metadata to cache
+	n.Metadata = res.GetClusterInfo()
 }
