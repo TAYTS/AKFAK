@@ -1,6 +1,7 @@
 package broker
 
 import (
+	"AKFAK/cluster"
 	"AKFAK/proto/adminpb"
 	"AKFAK/proto/clientpb"
 	"AKFAK/proto/clustermetadatapb"
@@ -20,7 +21,7 @@ type Node struct {
 	ID                  int
 	Host                string
 	Port                int
-	ClusterMetadata     *clustermetadatapb.MetadataCluster
+	ClusterMetadata     *cluster.Cluster
 	adminServiceClient  map[int]adminpb.AdminServiceClient
 	clientServiceClient map[int]clientpb.ClientServiceClient
 }
@@ -159,5 +160,5 @@ func (n *Node) InitClusterMetadataCache() {
 	}
 
 	// store the cluster metadata to cache
-	n.ClusterMetadata = res.GetClusterInfo()
+	n.ClusterMetadata = cluster.InitCluster(res.GetClusterInfo())
 }
