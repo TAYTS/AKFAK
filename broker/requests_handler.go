@@ -9,30 +9,11 @@ import (
 	"AKFAK/proto/producepb"
 	"AKFAK/proto/recordpb"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log"
 )
-
-var topicMapping = map[string][]*partition.Partition{
-	"topic1": []*partition.Partition{
-		partition.InitPartition("topic1", 0, 0, []int{0, 1, 2}, []int{1, 2}, []int{}),
-		partition.InitPartition("topic1", 1, 1, []int{0, 1, 2}, []int{0, 2}, []int{}),
-		partition.InitPartition("topic1", 2, 2, []int{0, 1, 2}, []int{0, 1}, []int{}),
-	},
-}
-
-var brkMapping = map[int]string{
-	0: "0.0.0.0:5001",
-	1: "0.0.0.0:5002",
-	2: "0.0.0.0:5003",
-}
-
-// var brkMapping = map[int]string{
-// 	0: "broker-0:5000",
-// 	1: "broker-1:5000",
-// 	2: "broker-2:5000",
-// }
 
 // Produce used to receive message batch from Producer and forward other brokers in the cluster
 func (n *Node) Produce(stream clientpb.ClientService_ProduceServer) error {
@@ -41,7 +22,6 @@ func (n *Node) Produce(stream clientpb.ClientService_ProduceServer) error {
 	fileHandlerMapping := make(map[int]*recordpb.FileRecord)
 
 	for {
-		// TODO: implement the message batch logic
 		req, err := stream.Recv()
 		if err == io.EOF {
 			break
@@ -54,43 +34,49 @@ func (n *Node) Produce(stream clientpb.ClientService_ProduceServer) error {
 		topicName := req.GetTopicName()
 		topicData := req.GetTopicData()
 
-		// setup connection with all the insync replicas
-		for _, partInfo := range topicMapping[topicName] {
+		// check if the topic exist or the partition for requested topic is available
+		partitions := n.ClusterMetadata.GetAvailablePartitionsByTopic(topicName)
+		if partitions == nil {
+			// TODO: Test this part
+			return errors.New("Topic Not Available")
+		}
+
+		// setup Produce RPC call to all the insync replicas
+		for _, partState := range partitions {
 			// get all insync replicas for each partition of the specific topic
-			insycBrks := partInfo.GetInSyncReplicas()
+			insycBrks := partState.GetIsr()
 			// create stream connection to each insync replica
 			for _, brkID := range insycBrks {
-				if _, exist := replicaConn[brkID]; !exist && brkID != n.ID {
-					// setup the stream connection
-					stream, err := n.clientServiceClient[brkID].Produce(context.Background())
-					if err != nil {
-						// TODO: Fault handling
-					}
-					replicaConn[brkID] = stream
+				// setup the stream connection
+				stream, err := n.clientServiceClient[int(brkID)].Produce(context.Background())
+				if err != nil {
+					// TODO: Update controller about the fail broker
 				}
+				replicaConn[int(brkID)] = stream
 			}
 		}
 
 		for _, tpData := range topicData {
-			for _, partInfo := range topicMapping[topicName] {
-				partID := partInfo.GetPartitionID()
+			for _, partState := range partitions {
+				// find the partition state that match the request partition ID
+				partID := int(partState.GetPartitionIndex())
 				if partID == int(tpData.GetPartition()) {
 					// current broker is the leader of the partition
-					if partInfo.GetLeader() == n.ID {
+					if int(partState.GetLeader()) == n.ID {
 						// save to local
 						fmt.Printf("Broker %v receive message for partition %v\n", n.ID, partID)
 						WriteRecordBatchToLocal(topicName, partID, fileHandlerMapping, tpData.GetRecordSet())
 
-						fmt.Printf("Broker %v broadcast message for partition %v\n", n.ID, partID)
 						// broadcast to all insync replica
-						for _, brkID := range partInfo.GetInSyncReplicas() {
-							err := replicaConn[brkID].Send(producepb.InitProduceRequest(topicName, partID, tpData.GetRecordSet().GetRecords()...))
+						fmt.Printf("Broker %v broadcast message for partition %v\n", n.ID, partID)
+						for _, brkID := range partState.GetIsr() {
+							err := replicaConn[int(brkID)].Send(producepb.InitProduceRequest(topicName, partID, tpData.GetRecordSet().GetRecords()...))
 							if err != nil {
-								// TODO: handling send error
+								// TODO: Update controller about the fail broker
+								// TODO: Exclude the current broker from the ISR
 							}
 
-							// TODO: Handling the response message for ACK, for now is just to clear the buffer
-							_, err = replicaConn[brkID].Recv()
+							_, err = replicaConn[int(brkID)].Recv()
 						}
 					} else {
 						// insync replica broker, save to local
@@ -116,60 +102,52 @@ func (n *Node) Produce(stream clientpb.ClientService_ProduceServer) error {
 }
 
 // WaitOnMetadata get the metadata about the kafka cluster
-func (*Node) WaitOnMetadata(ctx context.Context, req *metadatapb.MetadataRequest) (*metadatapb.MetadataResponse, error) {
+func (n *Node) WaitOnMetadata(ctx context.Context, req *metadatapb.MetadataRequest) (*metadatapb.MetadataResponse, error) {
+	// retrieve the requested topic name
 	topic := req.GetTopicName()
 
-	// TODO: Get the metadata from the cache
+	// get all the partitions of the requested topic from the cluster metadata cache
+	partitions := n.ClusterMetadata.GetAvailablePartitionsByTopic(topic)
+
+	// check if the partitions exist, if not return error
+	if partitions == nil {
+		return nil, errors.New("Topic Not Available")
+	}
+
+	// slice to store all the leader ID which used to construct the brokers info in the response
+	leaderIDs := []int{}
+
+	// slice to store the partitions of the response
+	resPartitions := []*metadatapb.Partition{}
+
+	for _, partStates := range partitions {
+		// get the partition info
+		leader := partStates.GetLeader()
+		partIdx := partStates.GetPartitionIndex()
+
+		// add to the leaderIDs slice to get the brokers info later
+		leaderIDs = append(leaderIDs, int(leader))
+
+		// update the partition of the response
+		resPartitions = append(resPartitions, &metadatapb.Partition{PartitionIndex: partIdx, LeaderID: leader})
+	}
+
+	// slice to store the brokers of the response
+	resBrokers := []*metadatapb.Broker{}
+	for _, ID := range leaderIDs {
+		brk := n.ClusterMetadata.GetNodesByID(ID)
+		resBrokers = append(resBrokers, &metadatapb.Broker{
+			NodeID: brk.GetID(),
+			Host:   brk.GetHost(),
+			Port:   brk.GetPort(),
+		})
+	}
+
 	metadataResp := &metadatapb.MetadataResponse{
-		Brokers: []*metadatapb.Broker{
-			// 	&metadatapb.Broker{
-			// 		NodeID: 0,
-			// 		Host:   "broker-0",
-			// 		Port:   5000,
-			// 	},
-			// 	&metadatapb.Broker{
-			// 		NodeID: 1,
-			// 		Host:   "broker-1",
-			// 		Port:   5000,
-			// 	},
-			// 	&metadatapb.Broker{
-			// 		NodeID: 2,
-			// 		Host:   "broker-2",
-			// 		Port:   5000,
-			// 	},
-			// },
-			&metadatapb.Broker{
-				NodeID: 0,
-				Host:   "0.0.0.0",
-				Port:   5001,
-			},
-			&metadatapb.Broker{
-				NodeID: 1,
-				Host:   "0.0.0.0",
-				Port:   5002,
-			},
-			&metadatapb.Broker{
-				NodeID: 2,
-				Host:   "0.0.0.0",
-				Port:   5003,
-			},
-		},
+		Brokers: resBrokers,
 		Topic: &metadatapb.Topic{
-			Name: topic,
-			Partitions: []*metadatapb.Partition{
-				&metadatapb.Partition{
-					PartitionIndex: 0,
-					LeaderID:       0,
-				},
-				&metadatapb.Partition{
-					PartitionIndex: 1,
-					LeaderID:       1,
-				},
-				&metadatapb.Partition{
-					PartitionIndex: 2,
-					LeaderID:       2,
-				},
-			},
+			Name:       topic,
+			Partitions: resPartitions,
 		},
 	}
 
@@ -292,8 +270,12 @@ func (*Node) UpdateMetadata(ctx context.Context, req *adminclientpb.UpdateMetada
 }
 
 // GetController gets infomation about the controller
-func (*Node) GetController(ctx context.Context, req *adminclientpb.GetControllerRequest) (*adminclientpb.GetControllerResponse, error) {
-	// TODO: Get the controller ID
-	return &adminclientpb.GetControllerResponse{ControllerID: 0, Host: "0.0.0.0", Port: 5001}, nil
-	// return &adminclientpb.GetControllerResponse{ControllerID: 0, Host: "broker-0", Port: 5000}, nil
+func (n *Node) GetController(ctx context.Context, req *adminclientpb.GetControllerRequest) (*adminclientpb.GetControllerResponse, error) {
+	controller := n.ClusterMetadata.GetController()
+
+	return &adminclientpb.GetControllerResponse{
+		ControllerID: controller.GetID(),
+		Host:         controller.GetHost(),
+		Port:         controller.GetPort(),
+	}, nil
 }
