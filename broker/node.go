@@ -20,7 +20,7 @@ type Node struct {
 	ID                  int
 	Host                string
 	Port                int
-	Metadata            *clustermetadatapb.MetadataCluster
+	ClusterMetadata     *clustermetadatapb.MetadataCluster
 	adminServiceClient  map[int]adminpb.AdminServiceClient
 	clientServiceClient map[int]clientpb.ClientServiceClient
 }
@@ -65,7 +65,7 @@ func (n *Node) InitAdminListener() {
 	n.InitClusterMetadataCache()
 
 	// start controller routine if the broker is select as the controller
-	if int(n.Metadata.GetController().GetID()) == n.ID {
+	if int(n.ClusterMetadata.GetController().GetID()) == n.ID {
 		go n.InitControllerRoutine()
 	}
 
@@ -84,9 +84,10 @@ func (n *Node) InitControllerRoutine() {
 	}
 
 	// Connect to all brokers
-	// TODO: Get the correct brokerID from metadata
-	for nodeID, peerAddr := range nodes {
-		if nodeID != n.ID { // TODO: Need to update this after finalise the metadata
+	for _, brk := range n.ClusterMetadata.GetLiveBrokers() {
+		peerID := int(brk.GetID())
+		if peerID != n.ID {
+			peerAddr := fmt.Sprintf("%v:%v", brk.GetHost(), brk.GetPort())
 			clientCon, err := grpc.Dial(peerAddr, opts)
 			if err != nil {
 				fmt.Printf("Fail to connect to %v: %v\n", peerAddr, err)
@@ -94,7 +95,7 @@ func (n *Node) InitControllerRoutine() {
 				continue
 			}
 			adminServiceClient := adminpb.NewAdminServiceClient(clientCon)
-			n.adminServiceClient[nodeID] = adminServiceClient
+			n.adminServiceClient[peerID] = adminServiceClient
 		}
 	}
 }
@@ -108,8 +109,10 @@ func (n *Node) EstablishClientServicePeerConn() {
 
 	// Connect to all brokers
 	// TODO: Get the correct brokerID from metadata
-	for nodeID, peerAddr := range nodes {
-		if nodeID != n.ID {
+	for _, brk := range n.ClusterMetadata.GetLiveBrokers() {
+		peerID := int(brk.GetID())
+		if peerID != n.ID {
+			peerAddr := fmt.Sprintf("%v:%v", brk.GetHost(), brk.GetPort())
 			ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 			clientCon, err := grpc.DialContext(ctx, peerAddr, opts)
 			if err != nil {
@@ -119,7 +122,7 @@ func (n *Node) EstablishClientServicePeerConn() {
 				continue
 			}
 			clientServiceClient := clientpb.NewClientServiceClient(clientCon)
-			n.clientServiceClient[nodeID] = clientServiceClient
+			n.clientServiceClient[peerID] = clientServiceClient
 			cancel()
 		}
 	}
@@ -129,6 +132,8 @@ func (n *Node) EstablishClientServicePeerConn() {
 func (n *Node) InitClusterMetadataCache() {
 	// set up grpc dial
 	opts := grpc.WithInsecure()
+
+	// TODO: Get the zookeeper address from CLI or config
 	zkAddress := "0.0.0.0:9092"
 	zkCon, err := grpc.Dial(zkAddress, opts)
 	if err != nil {
@@ -154,5 +159,5 @@ func (n *Node) InitClusterMetadataCache() {
 	}
 
 	// store the cluster metadata to cache
-	n.Metadata = res.GetClusterInfo()
+	n.ClusterMetadata = res.GetClusterInfo()
 }
