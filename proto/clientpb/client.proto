@@ -14,4 +14,7 @@ service ClientService {
   rpc WaitOnMetadata(metadatapb.MetadataRequest)
       returns (metadatapb.MetadataResponse) {}
   /* Producer RPC */
+
+  //RPC Message
+  //RPC Response
 }
