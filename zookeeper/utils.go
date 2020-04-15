@@ -2,23 +2,16 @@ package zookeeper
 
 import (
 	"AKFAK/proto/clustermetadatapb"
-	"encoding/json"
-	"fmt"
-	"io/ioutil"
-	"log"
+	"AKFAK/utils"
 )
 
 // LoadClusterStateFromFile parse the cluster state JSON and return in-memory cache of the cluster metadata
 func LoadClusterStateFromFile(path string) clustermetadatapb.MetadataCluster {
-	// load the JSON byte data
-	clusterData, err := ioutil.ReadFile(path)
-	if err != nil {
-		fmt.Println(err)
-	}
-
 	// parse the JSON byte into structs
 	var clusterDataJSON clustermetadatapb.MetadataCluster
-	if err := json.Unmarshal([]byte(clusterData), &clusterDataJSON); err != nil {
+	err := utils.LoadJSONData(path, &clusterDataJSON)
+	if err != nil {
+		// load JSON data should not fail at ZK in our case
 		panic(err)
 	}
 
@@ -37,18 +30,10 @@ func LoadClusterStateFromFile(path string) clustermetadatapb.MetadataCluster {
 
 // WriteClusterStateToFile flush the cluster metadata to file
 func WriteClusterStateToFile(path string, metadata clustermetadatapb.MetadataCluster) error {
-	// parse the data into JSON byte
-	metadataBytes, marshallErr := json.MarshalIndent(metadata, "", " ")
-	if marshallErr != nil {
-		log.Println("Unable to convert data into JSON:", marshallErr)
-		return marshallErr
-	}
-
-	// flush the JSON byte intp file
-	writeErr := ioutil.WriteFile(path, metadataBytes, 0644)
-	if writeErr != nil {
-		log.Println("Unable to save JSON to file:", writeErr)
-		return writeErr
+	err := utils.FlushJSONData(path, metadata)
+	// flush JSON data should not fail at ZK in our case
+	if err != nil {
+		panic(err)
 	}
 
 	return nil
