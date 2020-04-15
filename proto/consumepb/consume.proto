@@ -15,7 +15,9 @@ message ConsumeRequest {
 }
 
 message ConsumeResponse {
-    recordpb.Record record = 1;
+    string topicName = 1;
+    int32 partition = 2;
+    recordpb.RecordBatch recordSet = 3;
 }
 
 message GetReplicasRequest {
