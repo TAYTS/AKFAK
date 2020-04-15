@@ -24,6 +24,7 @@ type Node struct {
 	ClusterMetadata     *cluster.Cluster
 	adminServiceClient  map[int]adminpb.AdminServiceClient
 	clientServiceClient map[int]clientpb.ClientServiceClient
+	zkClient            zookeeperpb.ZookeeperServiceClient
 }
 
 // TODO: Get the node list from metadata
@@ -65,6 +66,8 @@ func (n *Node) InitAdminListener() {
 	// setup the cluster metadata cache
 	n.InitClusterMetadataCache()
 
+	// TODO [Fault tolerance]: check if the broker is not insync
+
 	// start controller routine if the broker is select as the controller
 	if int(n.ClusterMetadata.GetController().GetID()) == n.ID {
 		go n.InitControllerRoutine()
@@ -99,6 +102,13 @@ func (n *Node) InitControllerRoutine() {
 			n.adminServiceClient[peerID] = adminServiceClient
 		}
 	}
+
+	// Connect to ZK
+	// TODO: Get the zookeeper address from CLI or config
+	zkAddress := "0.0.0.0:9092"
+
+	// store ZK rpc client
+	n.zkClient = getZKClient(zkAddress)
 }
 
 // EstablishClientServicePeerConn start the ClientService peer connection
@@ -109,7 +119,6 @@ func (n *Node) EstablishClientServicePeerConn() {
 	}
 
 	// Connect to all brokers
-	// TODO: Get the correct brokerID from metadata
 	for _, brk := range n.ClusterMetadata.GetLiveBrokers() {
 		peerID := int(brk.GetID())
 		if peerID != n.ID {
@@ -127,22 +136,16 @@ func (n *Node) EstablishClientServicePeerConn() {
 			cancel()
 		}
 	}
+
 }
 
 // InitClusterMetadataCache call the ZK to get the Cluster Metadata
 func (n *Node) InitClusterMetadataCache() {
-	// set up grpc dial
-	opts := grpc.WithInsecure()
-
 	// TODO: Get the zookeeper address from CLI or config
 	zkAddress := "0.0.0.0:9092"
-	zkCon, err := grpc.Dial(zkAddress, opts)
-	if err != nil {
-		log.Fatalf("Fail to connect to %v: %v\n", zkAddress, err)
-	}
 
-	// set rpc client
-	zkClient := zookeeperpb.NewZookeeperServiceClient(zkCon)
+	// set ZK rpc client
+	zkClient := getZKClient(zkAddress)
 
 	// create request with the current broker info
 	req := &zkmessagepb.GetClusterMetadataRequest{
@@ -161,4 +164,17 @@ func (n *Node) InitClusterMetadataCache() {
 
 	// store the cluster metadata to cache
 	n.ClusterMetadata = cluster.InitCluster(res.GetClusterInfo())
+}
+
+func getZKClient(zkAddress string) zookeeperpb.ZookeeperServiceClient {
+	// set up grpc dial
+	opts := grpc.WithInsecure()
+
+	zkCon, err := grpc.Dial(zkAddress, opts)
+	if err != nil {
+		log.Fatalf("Fail to connect to ZK: %v\n", zkAddress, err)
+	}
+
+	// return rpc client
+	return zookeeperpb.NewZookeeperServiceClient(zkCon)
 }
