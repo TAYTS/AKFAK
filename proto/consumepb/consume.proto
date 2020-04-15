@@ -20,10 +20,6 @@ message ConsumeResponse {
     recordpb.RecordBatch recordSet = 3;
 }
 
-message GetReplicasRequest {
-    int32 groupID = 1;
-    string topicName = 2;
-}
 
 message MetadataReplicaState {
     string topicName = 1;
@@ -32,9 +28,16 @@ message MetadataReplicaState {
     clustermetadatapb.MetadataBroker broker = 3;
 }
 
+message GetReplicasRequest {
+    int32 groupID = 1;
+    int32 consumerID = 2;
+    string topicName = 3;
+}
+
 message GetReplicasResponse {
     // need to connect to controller to receive changes on replica assignments
     clustermetadatapb.MetadataBroker controller = 1;
     // assigned replicas. len(replicas) == len(partitions)
     repeated MetadataReplicaState replicas = 2;
+    bool replicaStateChange = 3;
 }

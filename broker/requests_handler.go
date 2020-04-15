@@ -7,6 +7,7 @@ import (
 	"AKFAK/proto/commonpb"
 	"AKFAK/proto/metadatapb"
 	"AKFAK/proto/producepb"
+	"AKFAK/proto/consumepb"
 	"AKFAK/proto/recordpb"
 	"context"
 	"fmt"
@@ -296,4 +297,48 @@ func (*Node) GetController(ctx context.Context, req *adminclientpb.GetController
 	// TODO: Get the controller ID
 	return &adminclientpb.GetControllerResponse{ControllerID: 0, Host: "0.0.0.0", Port: 5001}, nil
 	// return &adminclientpb.GetControllerResponse{ControllerID: 0, Host: "broker-0", Port: 5000}, nil
+}
+
+// Consume responds to pull request fron consumer, sending record batch on topic-X partition-Y
+func (n *Node) Consume(stream clientpb.ClientService_ConsumeServer) error {
+	// TODO: get 
+	return nil
+}
+
+// GetReplicas assigns replicas for partitions of a topic
+func (*Node) GetReplicas(ctx context.Context, req *consumepb.GetReplicasRequest) (*consumepb.GetReplicasResponse, error) {
+
+	cg := req.GetGroupID()
+	topicName := req.GetTopicName()
+
+	// TODO check if replicas already assigned to consumer group for that topic
+	// TODO check if there is a change in state of brokers such that assignments are affected 
+	if AlreadyAssigned(cg, topicName) && NoChangeInState(cg, topicName){
+		
+		return nil, nil
+	}
+
+	replicas := []*consumepb.MetadataReplicaState{}
+
+	res := &consumepb.GetReplicasResponse{
+		ReplicaStateChange:	NoChangeInState(cg, topicName),
+	}
+
+	// else assign replicas to consumer group
+	// get replicas
+	for _, partInfo := range topicMapping[topicName] {
+		broker := partInfo.GetInSyncReplicas()[0]
+		replica := &consumepb.MetadataReplicaState{
+			TopicName: topicName,
+			PartitionIndex: partInfo.GetPartitionID(),
+			Broker:	broker,
+			
+		}
+		
+	}
+	
+	// TODO update metadata cache
+	// TODO update zookeeper?
+
+	return res, nil
 }

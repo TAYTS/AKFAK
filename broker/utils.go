@@ -51,3 +51,17 @@ func CleanupProducerResource(replicaConn map[int]clientpb.ClientService_ProduceC
 		}
 	}
 }
+
+// AlreadyAssigned checks if a consumer group has already been given replicas on a topic
+func AlreadyAssigned(consumerGroup int32, topicName string) bool {
+	// TODO
+	return false
+}
+
+
+// NoChangeInState checks if there is a change in the replicas assigned to the consumer group
+// for the topic
+func NoChangeInState(consumerGroup int32, topicName string) bool {
+	// TODO
+	return true
+}
