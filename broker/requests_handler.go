@@ -3,10 +3,12 @@ package broker
 import (
 	"AKFAK/proto/adminclientpb"
 	"AKFAK/proto/clientpb"
+	"AKFAK/proto/clustermetadatapb"
 	"AKFAK/proto/commonpb"
 	"AKFAK/proto/metadatapb"
 	"AKFAK/proto/producepb"
 	"AKFAK/proto/recordpb"
+	"AKFAK/proto/zkmessagepb"
 	"context"
 	"errors"
 	"fmt"
@@ -182,9 +184,12 @@ func (n *Node) AdminClientNewTopic(ctx context.Context, req *adminclientpb.Admin
 			Response: &commonpb.Response{Status: commonpb.ResponseStatus_FAIL}}, err
 	}
 
-	// store the partition leader and isr
-	partitionLeader := make(map[int]int)
-	partitionISR := make(map[int][]int)
+	// create MetadataTopicState to store the information about the
+	// newly created topic and its partitions
+	metaTopicState := &clustermetadatapb.MetadataTopicState{
+		TopicName:       topicName,
+		PartitionStates: make([]*clustermetadatapb.MetadataPartitionState, numPartitions),
+	}
 
 	// send request to each broker to create the partition
 	for brokerID, req := range newPartitionReqMap {
@@ -196,34 +201,78 @@ func (n *Node) AdminClientNewTopic(ctx context.Context, req *adminclientpb.Admin
 					Response: &commonpb.Response{Status: commonpb.ResponseStatus_FAIL}}, err
 			}
 		} else {
-			res, err := n.adminServiceClient[brokerID].AdminClientNewPartition(context.Background(), req)
-			if err != nil && res.GetResponse().GetStatus() == commonpb.ResponseStatus_FAIL {
+			_, err := n.adminServiceClient[brokerID].AdminClientNewPartition(context.Background(), req)
+			if err != nil {
 				// Terminate the partition creation
 				return &adminclientpb.AdminClientNewTopicResponse{
 					Response: &commonpb.Response{Status: commonpb.ResponseStatus_FAIL}}, err
 			}
 		}
 
-		// update the partition leader and isr mapping
 		for _, partID := range req.GetPartitionID() {
+			brokerIDint32 := int32(brokerID)
+
 			partIDInt := int(partID)
-			if _, exist := partitionLeader[partIDInt]; !exist {
-				partitionLeader[partIDInt] = brokerID
-				continue
+			partitionState := metaTopicState.GetPartitionStates()[partIDInt]
+			if partitionState == nil {
+				replicas := make([]int32, 0, replicaFactor)
+				replicas = append(replicas, brokerIDint32)
+
+				metaTopicState.GetPartitionStates()[partIDInt] = &clustermetadatapb.MetadataPartitionState{
+					TopicName:       topicName,
+					PartitionIndex:  partID,
+					Leader:          brokerIDint32,
+					Isr:             make([]int32, 0, replicaFactor-1),
+					Replicas:        replicas,
+					OfflineReplicas: []int32{},
+				}
+			} else {
+				partitionState.Isr = append(partitionState.Isr, brokerIDint32)
+				partitionState.Replicas = append(partitionState.Replicas, brokerIDint32)
 			}
-			if _, exist := partitionISR[partIDInt]; !exist {
-				partitionISR[partIDInt] = []int{brokerID}
-				continue
-			}
-			partitionISR[partIDInt] = append(partitionISR[partIDInt], brokerID)
 		}
 	}
 
-	// update ZK with the leader and isr
+	// create new MetadataCluster instead of update the local cache
+	// as ZK might fail (ZK is the persistent store)
+	newTopicStates := append(n.ClusterMetadata.GetTopicStates(), metaTopicState)
+	newClusterState := &clustermetadatapb.MetadataCluster{
+		LiveBrokers: n.ClusterMetadata.GetLiveBrokers(),
+		Brokers:     n.ClusterMetadata.GetBrokers(),
+		Controller:  n.ClusterMetadata.GetController(),
+		TopicStates: newTopicStates,
+	}
 
-	// send LeaderAndIsrRequest to every live replica
+	// send UpdateMetadata request to ZK
+	_, err = n.zkClient.UpdateClusterMetadata(
+		context.Background(),
+		&zkmessagepb.UpdateClusterMetadataRequest{
+			NewClusterInfo: newClusterState,
+		})
+	if err != nil {
+		return &adminclientpb.AdminClientNewTopicResponse{
+			Response: &commonpb.Response{Status: commonpb.ResponseStatus_FAIL}}, errors.New("Fail to update ZK")
+	}
+
+	// update local cluster metadata cache
+	n.ClusterMetadata.UpdateTopicState(newTopicStates)
 
 	// send UpdateMetadata request to every live broker
+	for _, brk := range n.ClusterMetadata.GetLiveBrokers() {
+		brkID := int(brk.GetID())
+		// update other broker
+		if brkID != n.ID {
+			_, err := n.adminServiceClient[brkID].UpdateMetadata(
+				context.Background(),
+				&adminclientpb.UpdateMetadataRequest{
+					NewClusterInfo: newClusterState,
+				},
+			)
+			if err != nil {
+				// update ZK about the fail broker
+			}
+		}
+	}
 
 	// response
 	return &adminclientpb.AdminClientNewTopicResponse{
@@ -247,8 +296,11 @@ func (*Node) LeaderAndIsr(ctx context.Context, req *adminclientpb.LeaderAndIsrRe
 }
 
 // UpdateMetadata update the Metadata state of the broker
-func (*Node) UpdateMetadata(ctx context.Context, req *adminclientpb.UpdateMetadataRequest) (*adminclientpb.UpdateMetadataResponse, error) {
-	// TODO: Add update metatdata handler function
+func (n *Node) UpdateMetadata(ctx context.Context, req *adminclientpb.UpdateMetadataRequest) (*adminclientpb.UpdateMetadataResponse, error) {
+	newClsInfo := req.GetNewClusterInfo()
+
+	n.ClusterMetadata.UpdateClusterMetadata(newClsInfo)
+
 	return &adminclientpb.UpdateMetadataResponse{Response: &commonpb.Response{Status: commonpb.ResponseStatus_SUCCESS}}, nil
 }
 
