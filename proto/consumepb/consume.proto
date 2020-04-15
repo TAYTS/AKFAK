@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+package proto.consumepb;
+
+option go_package = "AKFAK/proto/consumepb";
+
+import "proto/recordpb/record.proto";
+import "proto/clustermetadatapb/cluster_metadata.proto";
+
+message ConsumeRequest {
+    int32 groupID = 1;
+    int32 consumerID = 2;
+    int32 partition = 3;
+    string topicName = 4;
+}
+
+message ConsumeResponse {
+    recordpb.Record record = 1;
+}
+
+message GetReplicasRequest {
+    int32 groupID = 1;
+    string topicName = 2;
+}
+
+message MetadataReplicaState {
+    string topicName = 1;
+    int32 partitionIndex = 2;
+    // broker holding replica that is assigned to consumer for that partition
+    clustermetadatapb.MetadataBroker broker = 3;
+}
+
+message GetReplicasResponse {
+    // need to connect to controller to receive changes on replica assignments
+    clustermetadatapb.MetadataBroker controller = 1;
+    // assigned replicas. len(replicas) == len(partitions)
+    repeated MetadataReplicaState replicas = 2;
+}

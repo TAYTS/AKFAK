@@ -6,6 +6,7 @@ option go_package = "AKFAK/proto/clientpb";
 
 import "proto/producepb/produce.proto";
 import "proto/metadatapb/metadata.proto";
+import "proto/consumepb/consume.proto";
 
 service ClientService {
   /* Producer RPC */
@@ -14,4 +15,11 @@ service ClientService {
   rpc WaitOnMetadata(metadatapb.MetadataRequest)
       returns (metadatapb.MetadataResponse) {}
   /* Producer RPC */
+
+  /* Consumer RPC */
+  rpc Consume(stream consumepb.ConsumeRequest)
+      returns (stream consumepb.ConsumeResponse) {}
+  rpc GetReplicas(consumepb.GetReplicasRequest)
+      returns (consumepb.GetReplicasResponse) {}
+  /* Consumer RPC */
 }
