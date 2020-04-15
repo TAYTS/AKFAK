@@ -1,8 +1,10 @@
 package zookeeper
 
 import (
+	"AKFAK/proto/commonpb"
 	"AKFAK/proto/zkmessagepb"
 	"context"
+	"errors"
 )
 
 // GetClusterMetadata return the current cluster state stored in the ZK
@@ -30,6 +32,21 @@ func (zk *Zookeeper) GetClusterMetadata(ctx context.Context, req *zkmessagepb.Ge
 
 	// return response
 	return &zkmessagepb.GetClusterMetadataResponse{
-		ClusterInfo: &zk.clusterMetadata,
+		ClusterInfo: zk.clusterMetadata.MetadataCluster,
 	}, nil
+}
+
+// UpdateClusterMetadata update the ZK local cluster cache and flush to disk to persist the state
+func (zk *Zookeeper) UpdateClusterMetadata(ctx context.Context, req *zkmessagepb.UpdateClusterMetadataRequest) (*zkmessagepb.UpdateClusterMetadataResponse, error) {
+	newClsInfo := req.GetNewClusterInfo()
+
+	// TODO: get the config file path
+	err := WriteClusterStateToFile("cluster_state.json", *newClsInfo)
+	if err != nil {
+		return &zkmessagepb.UpdateClusterMetadataResponse{Response: &commonpb.Response{Status: commonpb.ResponseStatus_FAIL}}, errors.New("Fail to flush data to disk")
+	}
+
+	zk.clusterMetadata.UpdateClusterMetadata(newClsInfo)
+
+	return &zkmessagepb.UpdateClusterMetadataResponse{Response: &commonpb.Response{Status: commonpb.ResponseStatus_SUCCESS, Message: "Successfully updated the cluster metadata to ZK"}}, nil
 }

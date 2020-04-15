@@ -1,7 +1,7 @@
 package zookeeper
 
 import (
-	"AKFAK/proto/clustermetadatapb"
+	"AKFAK/cluster"
 	"AKFAK/proto/zookeeperpb"
 	"fmt"
 	"log"
@@ -15,7 +15,7 @@ import (
 type Zookeeper struct {
 	Host            string
 	Port            int
-	clusterMetadata clustermetadatapb.MetadataCluster
+	clusterMetadata *cluster.Cluster
 	mux             sync.Mutex
 }
 
@@ -27,7 +27,7 @@ func InitZookeeper() *Zookeeper {
 	return &Zookeeper{
 		Host:            "0.0.0.0",
 		Port:            9092,
-		clusterMetadata: clusterMetadata,
+		clusterMetadata: cluster.InitCluster(&clusterMetadata),
 	}
 }
 
