@@ -1,28 +1,21 @@
 package main
 
 import (
+	consumer "AKFAK/consumer"
 	fmt "fmt"
-	consumer "AKFAK/consumer" 
-	"math/rand"
-	"strconv"
 )
-
 
 func main() {
 
-	num_con := 5
-	for i := 1; i <= num_con; i++ {
-		min := 0
-		max := 5
-		
-		topic := rand.Intn(max - min)
-		topicStr := strconv.Itoa(topic)
-		partition := rand.Intn(max - min)
-		broker := rand.Intn(max - min)
-		consumer.InitConsumer(topicStr, partition, broker)
-		fmt.Printf("Consumer %d initiated\n", i)
-		fmt.Printf("===" + topicStr + "===\n" + "P%d \nB%d \n", partition, broker)
-
+	NUM_CONSUMERGROUP := 2
+	for i := 1; i <= NUM_CONSUMERGROUP; i++ {
+		consumer.InitGroupConsumer(i)
 	}
-	fmt.Printf("====================================== \n Total Consumers = %d \n", num_con)
+	fmt.Printf("Total Consumer Group created: [%d] \n", NUM_CONSUMERGROUP)
+
+	// Assignment(topicName, partitionIdx, brokerIdx)
+	c := consumer.Consumer{}
+	c.Assignment("hello", 1, 1)
+	c.Assignment("bye", 2, 2)
+
 }
