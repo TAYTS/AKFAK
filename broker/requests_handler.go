@@ -1,7 +1,6 @@
 package broker
 
 import (
-	"AKFAK/broker/partition"
 	"AKFAK/proto/adminclientpb"
 	"AKFAK/proto/clientpb"
 	"AKFAK/proto/commonpb"
@@ -101,7 +100,7 @@ func (n *Node) Produce(stream clientpb.ClientService_ProduceServer) error {
 	return nil
 }
 
-// WaitOnMetadata get the metadata about the kafka cluster
+// WaitOnMetadata get the metadata about the kafka cluster related to the requested topic
 func (n *Node) WaitOnMetadata(ctx context.Context, req *metadatapb.MetadataRequest) (*metadatapb.MetadataResponse, error) {
 	// retrieve the requested topic name
 	topic := req.GetTopicName()
@@ -176,11 +175,11 @@ func (n *Node) AdminClientNewTopic(ctx context.Context, req *adminclientpb.Admin
 	replicaFactor := int(req.GetReplicationFactor())
 
 	// handling request
-	newPartitionReqMap, err := n.newPartitionRequestData(topicName, numPartitions, replicaFactor)
+	newPartitionReqMap, err := n.generateNewPartitionRequestData(topicName, numPartitions, replicaFactor)
 	if err != nil {
 		// topic existed
 		return &adminclientpb.AdminClientNewTopicResponse{
-			Response: &commonpb.Response{Status: commonpb.ResponseStatus_SUCCESS}}, nil
+			Response: &commonpb.Response{Status: commonpb.ResponseStatus_FAIL}}, err
 	}
 
 	// store the partition leader and isr
@@ -190,24 +189,16 @@ func (n *Node) AdminClientNewTopic(ctx context.Context, req *adminclientpb.Admin
 	// send request to each broker to create the partition
 	for brokerID, req := range newPartitionReqMap {
 		// local; create partition directly directly
-		// !!! Not a good way of doing this
 		if brokerID == n.ID {
-			topicName := req.GetTopic()
-			partitionID := req.GetPartitionID()
-			fmt.Printf("Node %v: Create partition %v\n", n.ID, partitionID)
-			for _, partID := range partitionID {
-				// TODO: Get the log root directory
-				err := partition.CreatePartitionDir(".", topicName, int(partID))
-				if err != nil {
-					return &adminclientpb.AdminClientNewTopicResponse{
-						Response: &commonpb.Response{Status: commonpb.ResponseStatus_SUCCESS}}, err
-				}
+			err := n.createLocalPartitionFromReq(req)
+			if err != nil {
+				return &adminclientpb.AdminClientNewTopicResponse{
+					Response: &commonpb.Response{Status: commonpb.ResponseStatus_FAIL}}, err
 			}
 		} else {
 			res, err := n.adminServiceClient[brokerID].AdminClientNewPartition(context.Background(), req)
 			if err != nil && res.GetResponse().GetStatus() == commonpb.ResponseStatus_FAIL {
 				// Terminate the partition creation
-				// TODO: Clean up partition if the process does not complete fully (nobody care in this school project anyway)
 				return &adminclientpb.AdminClientNewTopicResponse{
 					Response: &commonpb.Response{Status: commonpb.ResponseStatus_FAIL}}, err
 			}
@@ -241,17 +232,9 @@ func (n *Node) AdminClientNewTopic(ctx context.Context, req *adminclientpb.Admin
 
 // AdminClientNewPartition create new partition
 func (n *Node) AdminClientNewPartition(ctx context.Context, req *adminclientpb.AdminClientNewPartitionRequest) (*adminclientpb.AdminClientNewPartitionResponse, error) {
-	topicName := req.GetTopic()
-	partitionID := req.GetPartitionID()
-
-	fmt.Printf("Node %v: Create partition %v\n", n.ID, partitionID)
-
-	for _, partID := range partitionID {
-		// TODO: Get the log root directory
-		err := partition.CreatePartitionDir(".", topicName, int(partID))
-		if err != nil {
-			return &adminclientpb.AdminClientNewPartitionResponse{Response: &commonpb.Response{Status: commonpb.ResponseStatus_FAIL}}, err
-		}
+	err := n.createLocalPartitionFromReq(req)
+	if err != nil {
+		return &adminclientpb.AdminClientNewPartitionResponse{Response: &commonpb.Response{Status: commonpb.ResponseStatus_FAIL}}, err
 	}
 
 	return &adminclientpb.AdminClientNewPartitionResponse{Response: &commonpb.Response{Status: commonpb.ResponseStatus_SUCCESS}}, nil
