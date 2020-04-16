@@ -3,10 +3,14 @@ package broker
 import (
 	"AKFAK/broker/partition"
 	"AKFAK/proto/adminclientpb"
+	"AKFAK/proto/adminpb"
 	"AKFAK/proto/clientpb"
 	"AKFAK/proto/recordpb"
 	"errors"
 	"fmt"
+	"log"
+
+	"google.golang.org/grpc"
 )
 
 // WriteRecordBatchToLocal is a helper function for Produce request handler to save the RecordBatch to the local log file
@@ -47,18 +51,24 @@ func (n *Node) generateNewPartitionRequestData(topicName string, numPartitions i
 		topicExist = true
 	}
 
-	numBrokers := len(n.ClusterMetadata.GetBrokers())
+	numBrokers := len(n.ClusterMetadata.GetLiveBrokers())
+
+	// check if the current available broker can support replication
+	if numBrokers < replicaFactor {
+		return nil, errors.New("Number of brokers available is less than the replica factor")
+	}
 
 	if !topicExist {
 		newTopicPartitionRequests := make(map[int]*adminclientpb.AdminClientNewPartitionRequest)
 
 		for partID := 0; partID < numPartitions; partID++ {
 			// distribute the partitions among the brokers
-			brokerID := int(n.ClusterMetadata.GetBrokers()[partID%numBrokers].GetID())
+			brokerID := int(n.ClusterMetadata.GetLiveBrokers()[partID%numBrokers].GetID())
 
 			for replicaIdx := 0; replicaIdx < replicaFactor; replicaIdx++ {
 				// distribute the replicas among the brokers
-				replicaBrokerID := (brokerID + replicaIdx + partID) % numBrokers
+				replicaBrokerIdx := (brokerID + replicaIdx + partID) % numBrokers
+				replicaBrokerID := int(n.ClusterMetadata.GetLiveBrokers()[replicaBrokerIdx].GetID())
 
 				request, exist := newTopicPartitionRequests[replicaBrokerID]
 				if exist {
@@ -90,8 +100,36 @@ func (n *Node) createLocalPartitionFromReq(req *adminclientpb.AdminClientNewPart
 	for _, partID := range partitionID {
 		err := partition.CreatePartitionDir(rootPath, topicName, int(partID))
 		if err != nil {
+			log.Println("create partition err", err)
 			return err
 		}
 	}
 	return nil
+}
+
+func (n *Node) updatePeerConnection() {
+	// add new connection
+	for _, brk := range n.ClusterMetadata.GetLiveBrokers() {
+		peerID := int(brk.GetID())
+		if _, exist := n.adminServiceClient[peerID]; !exist && peerID != n.ID {
+			peerAddr := fmt.Sprintf("%v:%v", brk.GetHost(), brk.GetPort())
+			clientCon, err := grpc.Dial(peerAddr, grpc.WithInsecure())
+			if err != nil {
+				fmt.Printf("Fail to connect to %v: %v\n", peerAddr, err)
+				// TODO: Update the ZK about the fail node
+				continue
+			}
+			adminServiceClient := adminpb.NewAdminServiceClient(clientCon)
+			n.adminServiceClient[peerID] = adminServiceClient
+		}
+	}
+
+	// remove dead broker
+	if len(n.ClusterMetadata.GetLiveBrokers()) != len(n.adminServiceClient) {
+		for ID := range n.adminServiceClient {
+			if n.ClusterMetadata.GetNodesByID(ID) == nil {
+				delete(n.adminServiceClient, ID)
+			}
+		}
+	}
 }

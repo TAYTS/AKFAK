@@ -41,7 +41,7 @@ func InitNode(config config.BrokerConfig) *Node {
 
 // InitAdminListener create a server listening connection
 func (n *Node) InitAdminListener() {
-	listener, err := net.Listen("tcp", fmt.Sprintf("%v:%v", n.Host, n.Port))
+	listener, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%v", n.Port))
 	if err != nil {
 		log.Fatalf("Failed to listen: %v\n", err)
 	}
@@ -72,26 +72,15 @@ func (n *Node) InitAdminListener() {
 
 // InitControllerRoutine start the controller routine
 func (n *Node) InitControllerRoutine() {
-	opts := grpc.WithInsecure()
+	log.Printf("Broker %v start controller routine\n", n.ID)
+
+	// setup the peer connection mapping
 	if n.adminServiceClient == nil {
 		n.adminServiceClient = make(map[int]adminpb.AdminServiceClient)
 	}
 
 	// Connect to all brokers
-	for _, brk := range n.ClusterMetadata.GetLiveBrokers() {
-		peerID := int(brk.GetID())
-		if peerID != n.ID {
-			peerAddr := fmt.Sprintf("%v:%v", brk.GetHost(), brk.GetPort())
-			clientCon, err := grpc.Dial(peerAddr, opts)
-			if err != nil {
-				fmt.Printf("Fail to connect to %v: %v\n", peerAddr, err)
-				// TODO: Update the ZK about the fail node
-				continue
-			}
-			adminServiceClient := adminpb.NewAdminServiceClient(clientCon)
-			n.adminServiceClient[peerID] = adminServiceClient
-		}
-	}
+	n.updatePeerConnection()
 
 	// connect and store ZK rpc client
 	n.zkClient = getZKClient(n.config.ZKConn)
@@ -155,7 +144,7 @@ func getZKClient(zkAddress string) zookeeperpb.ZookeeperServiceClient {
 
 	zkCon, err := grpc.Dial(zkAddress, opts)
 	if err != nil {
-		log.Fatalf("Fail to connect to ZK: %v\n", zkAddress, err)
+		log.Fatalf("Fail to connect to ZK: %v\n", err)
 	}
 
 	// return rpc client

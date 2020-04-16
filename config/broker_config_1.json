@@ -1,6 +1,6 @@
 {
   "ID": 1,
-  "host": "0.0.0.0",
+  "host": "broker-1",
   "port": 5000,
   "logDir": "./logs",
   "zookeeperConnection": "zookeeper:2181"

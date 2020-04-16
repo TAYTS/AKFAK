@@ -78,7 +78,7 @@ func (cls *Cluster) populateCluster() {
 	availablePartitionsByTopic := make(map[string][]*clustermetadatapb.MetadataPartitionState)
 	nodesByID := make(map[int]*clustermetadatapb.MetadataBroker)
 
-	for _, node := range cls.MetadataCluster.GetBrokers() {
+	for _, node := range cls.MetadataCluster.GetLiveBrokers() {
 		nodesByID[int(node.GetID())] = node
 	}
 

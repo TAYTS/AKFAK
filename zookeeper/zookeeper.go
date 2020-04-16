@@ -36,7 +36,7 @@ func InitZookeeper(config config.ZKConfig) *Zookeeper {
 
 // InitZKListener create Zookeeper server listener
 func (zk *Zookeeper) InitZKListener() {
-	listener, err := net.Listen("tcp", fmt.Sprintf("%v:%v", zk.Host, zk.Port))
+	listener, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%v", zk.Port))
 	if err != nil {
 		log.Fatalf("Failed to listen: %v\n", err)
 	}

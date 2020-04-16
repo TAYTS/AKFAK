@@ -298,7 +298,22 @@ func (*Node) LeaderAndIsr(ctx context.Context, req *adminclientpb.LeaderAndIsrRe
 func (n *Node) UpdateMetadata(ctx context.Context, req *adminclientpb.UpdateMetadataRequest) (*adminclientpb.UpdateMetadataResponse, error) {
 	newClsInfo := req.GetNewClusterInfo()
 
+	// update local cluster metadata cache
 	n.ClusterMetadata.UpdateClusterMetadata(newClsInfo)
+
+	// controller updating peer
+	if n.ID == int(n.ClusterMetadata.GetController().GetID()) {
+		// update peer connection
+		n.updatePeerConnection()
+
+		// update peer cluster metadata
+		for _, peer := range n.adminServiceClient {
+			_, err := peer.UpdateMetadata(context.Background(), req)
+			if err != nil {
+				// TODO: update ZK about broker failure
+			}
+		}
+	}
 
 	return &adminclientpb.UpdateMetadataResponse{Response: &commonpb.Response{Status: commonpb.ResponseStatus_SUCCESS}}, nil
 }

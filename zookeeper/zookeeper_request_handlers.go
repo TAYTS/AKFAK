@@ -1,17 +1,24 @@
 package zookeeper
 
 import (
+	"AKFAK/proto/adminclientpb"
+	"AKFAK/proto/adminpb"
 	"AKFAK/proto/commonpb"
 	"AKFAK/proto/zkmessagepb"
 	"context"
 	"errors"
+	"fmt"
+	"log"
+
+	"google.golang.org/grpc"
 )
 
 // GetClusterMetadata return the current cluster state stored in the ZK
 func (zk *Zookeeper) GetClusterMetadata(ctx context.Context, req *zkmessagepb.GetClusterMetadataRequest) (*zkmessagepb.GetClusterMetadataResponse, error) {
 	zk.mux.Lock()
 	// check if the controller has set
-	if zk.clusterMetadata.GetController().GetID() == -1 {
+	controllerSet := zk.clusterMetadata.GetController().GetID() != -1
+	if !controllerSet {
 		// set the requesting broker as the controller
 		zk.clusterMetadata.Controller = req.GetBroker()
 	}
@@ -29,6 +36,25 @@ func (zk *Zookeeper) GetClusterMetadata(ctx context.Context, req *zkmessagepb.Ge
 		zk.clusterMetadata.LiveBrokers = append(zk.clusterMetadata.LiveBrokers, reqBrk)
 	}
 	zk.mux.Unlock()
+
+	if controllerSet {
+		// update controller
+		log.Printf("ZK update controller for new Broker %v\n", reqBrk.GetID())
+		ctrl := zk.clusterMetadata.GetController()
+		ctrlConn, err := grpc.Dial(fmt.Sprintf("%v:%v", ctrl.GetHost(), ctrl.GetPort()), grpc.WithInsecure())
+		if err != nil {
+			log.Fatalf("Fail to connect to controller: %v\n", err)
+		}
+		ctrlClient := adminpb.NewAdminServiceClient(ctrlConn)
+		_, err = ctrlClient.UpdateMetadata(context.Background(), &adminclientpb.UpdateMetadataRequest{
+			NewClusterInfo: zk.clusterMetadata.MetadataCluster,
+		})
+		if err != nil {
+			log.Println("ZK failed to update controller")
+			// TODO: select new controller
+		}
+		log.Println("ZK to controller cluster update successfull")
+	}
 
 	// return response
 	return &zkmessagepb.GetClusterMetadataResponse{
