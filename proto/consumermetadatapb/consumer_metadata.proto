@@ -6,7 +6,7 @@ option go_package = "AKFAK/proto/consumermetadatapb";
 
 import "proto/clustermetadatapb/cluster_metadata.proto";
 
-message Replica {
+message Assignment {
     string topicName = 1;
     int32 partitionIndex = 2;
     int32 offset = 3;
@@ -15,7 +15,7 @@ message Replica {
 
 message Consumer {
     int32 ID = 1;
-    repeated Replica replicas = 2;
+    repeated Assignment assignments = 2;
 }
 
 message ConsumerGroup {
