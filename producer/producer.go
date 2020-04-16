@@ -35,11 +35,11 @@ type inflightRequest struct {
 }
 
 ///////////////////////////////////
-// 		   Public Methods		 //
+// 		      Public Methods		   //
 ///////////////////////////////////
 
 // InitProducer creates a producer and sets up broker connections
-func InitProducer(id int, topic string, brokersAddr map[int]string) *Producer {
+func InitProducer(id int, topic string, brokerAddr string) *Producer {
 	// initialise the Producer instance
 	p := &Producer{
 		ID:               id,
@@ -50,12 +50,13 @@ func InitProducer(id int, topic string, brokersAddr map[int]string) *Producer {
 	}
 
 	// get metadata and wait for 500ms
-	p.waitOnMetadata(brokersAddr, 100*time.Millisecond)
-
-	// TODO: Check if the topic is available/exist
+	err := p.waitOnMetadata(brokerAddr, 100*time.Millisecond)
+	if err != nil {
+		panic(fmt.Sprintf("Unable to get Topic Metadata: %v\n", err))
+	}
 
 	// setup the stream connections to all the required brokers
-	err := p.setupStreamToSendMsg()
+	err = p.setupStreamToSendMsg()
 	if err != nil {
 		panic(fmt.Sprintf("Unable to send message to broker: %v\n", err))
 	}
@@ -119,69 +120,73 @@ func (p *Producer) CleanupResources() {
 
 // wait for cluster metadata including partitions for the given topic
 // and partition (if specified, 0 if no preference) to be available
-func (p *Producer) waitOnMetadata(brokersAddr map[int]string, maxWaitMs time.Duration) {
+func (p *Producer) waitOnMetadata(brokerAddr string, maxWaitMs time.Duration) error {
 	// dial one of the broker to get the topic metadata
-	for _, addr := range brokersAddr {
-		// connect to one of the broker
-		opts := []grpc.DialOption{grpc.WithInsecure(), grpc.WithBlock()}
-		conn, err := grpc.Dial(addr, opts...)
-		if err != nil {
-			// move to the next broker if fail to connect
-			continue
-		}
+	opts := []grpc.DialOption{grpc.WithInsecure(), grpc.WithBlock()}
+	conn, err := grpc.Dial(brokerAddr, opts...)
+	if err != nil {
+		return err
+	}
 
-		// create gRPC client
-		prdClient := clientpb.NewClientServiceClient(conn)
+	// create gRPC client
+	prdClient := clientpb.NewClientServiceClient(conn)
 
-		// send get metadata request
-		req := &metadatapb.MetadataRequest{
-			TopicName: p.topic,
-		}
+	// send get metadata request
+	req := &metadatapb.MetadataRequest{
+		TopicName: p.topic,
+	}
 
-		// create context with timeout
-		ctx, cancel := context.WithTimeout(context.Background(), maxWaitMs)
+	// create context with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), maxWaitMs)
 
-		// send request to get metadata
-		res, err := prdClient.WaitOnMetadata(ctx, req)
-		if err != nil {
-			statusErr, ok := status.FromError(err)
-			if ok {
-				if statusErr.Code() == codes.DeadlineExceeded {
-					fmt.Printf("Metadata not received for topic %v after %d ms", p.topic, maxWaitMs)
-				} else {
-					fmt.Printf("Unexpected error: %v", statusErr)
-				}
+	// send request to get metadata
+	res, err := prdClient.WaitOnMetadata(ctx, req)
+	if err != nil {
+		statusErr, ok := status.FromError(err)
+		if ok {
+			if statusErr.Code() == codes.DeadlineExceeded {
+				fmt.Printf("Metadata not received for topic %v after %d ms", p.topic, maxWaitMs)
 			} else {
-				fmt.Printf("could not get metadata. error: %v", err)
+				fmt.Printf("Unexpected error: %v", statusErr)
 			}
-
-			// move to the next broker if fail to connect
-			cancel()
-			conn.Close()
-			continue
+		} else {
+			fmt.Printf("could not get metadata. error: %v", err)
 		}
 
-		// save the metadata response to the producer
-		p.metadata = res
-
-		// clean up resources
+		// close the connection
 		cancel()
 		conn.Close()
-
-		// stop contacting other brokers
-		break
+		return err
 	}
+
+	// save the metadata response to the producer
+	p.metadata = res
+
+	// clean up resources
+	cancel()
+	conn.Close()
+
+	return nil
 }
 
-// setupStreamToSendMsg setup the gRPC stream for sending message batch to the broker and attach to the producer instance
+// setupStreamToSendMsg setup the gRPC stream for sending message batch to the leader broker and attach to the producer instance
 func (p *Producer) setupStreamToSendMsg() error {
-	brkCount := len(p.metadata.GetBrokers())
+	brkCount := len(p.metadata.GetTopic().GetPartitions())
 	brokersConnections := make(map[int]clientpb.ClientService_ProduceClient)
 
+	// create a mapping of brokerID to broker info for easy access later
+	brkMapping := make(map[int32]*metadatapb.Broker)
 	for _, brk := range p.metadata.GetBrokers() {
+		brkMapping[brk.GetNodeID()] = brk
+	}
+
+	for _, part := range p.metadata.GetTopic().GetPartitions() {
+		leaderID := part.GetLeaderID()
+		leader := brkMapping[leaderID]
+
 		// setup gRPC connection
 		opts := []grpc.DialOption{grpc.WithInsecure(), grpc.WithBlock()}
-		conn, err := grpc.Dial(fmt.Sprintf("%v:%v", brk.GetHost(), brk.GetPort()), opts...)
+		conn, err := grpc.Dial(fmt.Sprintf("%v:%v", leader.GetHost(), leader.GetPort()), opts...)
 		if err != nil {
 			brkCount--
 			// try the next broker
@@ -197,7 +202,7 @@ func (p *Producer) setupStreamToSendMsg() error {
 			// try the next broker
 			continue
 		}
-		brokersConnections[int(brk.GetNodeID())] = stream
+		brokersConnections[int(leaderID)] = stream
 	}
 
 	// return error if no brokers available

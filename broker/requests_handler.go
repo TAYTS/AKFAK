@@ -115,28 +115,27 @@ func (n *Node) WaitOnMetadata(ctx context.Context, req *metadatapb.MetadataReque
 		return nil, errors.New("Topic Not Available")
 	}
 
-	// slice to store all the leader ID which used to construct the brokers info in the response
-	leaderIDs := []int{}
-
-	// slice to store the partitions of the response
-	resPartitions := []*metadatapb.Partition{}
-
+	// create partitions in the response
+	resPartitions := make([]*metadatapb.Partition, 0, len(partitions))
 	for _, partStates := range partitions {
 		// get the partition info
 		leader := partStates.GetLeader()
 		partIdx := partStates.GetPartitionIndex()
 
-		// add to the leaderIDs slice to get the brokers info later
-		leaderIDs = append(leaderIDs, int(leader))
-
 		// update the partition of the response
-		resPartitions = append(resPartitions, &metadatapb.Partition{PartitionIndex: partIdx, LeaderID: leader})
+		resPartitions = append(
+			resPartitions,
+			&metadatapb.Partition{
+				PartitionIndex: partIdx,
+				LeaderID:       leader,
+				ReplicaNodes:   partStates.GetReplicas(),
+				IsrNodes:       partStates.GetIsr(),
+			})
 	}
 
-	// slice to store the brokers of the response
-	resBrokers := []*metadatapb.Broker{}
-	for _, ID := range leaderIDs {
-		brk := n.ClusterMetadata.GetNodesByID(ID)
+	// create brokers in the response
+	resBrokers := make([]*metadatapb.Broker, 0, len(n.ClusterMetadata.GetBrokers()))
+	for _, brk := range n.ClusterMetadata.GetBrokers() {
 		resBrokers = append(resBrokers, &metadatapb.Broker{
 			NodeID: brk.GetID(),
 			Host:   brk.GetHost(),

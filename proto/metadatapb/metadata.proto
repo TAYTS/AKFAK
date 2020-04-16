@@ -14,7 +14,7 @@ message MetadataRequest {
 }
 
 message MetadataResponse {
-  repeated Broker brokers = 1;
+  repeated Broker brokers = 1; // all brokers in the cluster
   Topic topic = 2;
 }
 
