@@ -40,12 +40,13 @@ func (zk *Zookeeper) GetClusterMetadata(ctx context.Context, req *zkmessagepb.Ge
 func (zk *Zookeeper) UpdateClusterMetadata(ctx context.Context, req *zkmessagepb.UpdateClusterMetadataRequest) (*zkmessagepb.UpdateClusterMetadataResponse, error) {
 	newClsInfo := req.GetNewClusterInfo()
 
-	// TODO: get the config file path
-	err := WriteClusterStateToFile("cluster_state.json", *newClsInfo)
+	// flush new cluster state into disk
+	err := WriteClusterStateToFile(zk.config.DataDir, *newClsInfo)
 	if err != nil {
 		return &zkmessagepb.UpdateClusterMetadataResponse{Response: &commonpb.Response{Status: commonpb.ResponseStatus_FAIL}}, errors.New("Fail to flush data to disk")
 	}
 
+	// update local cluster metadata cache
 	zk.clusterMetadata.UpdateClusterMetadata(newClsInfo)
 
 	return &zkmessagepb.UpdateClusterMetadataResponse{Response: &commonpb.Response{Status: commonpb.ResponseStatus_SUCCESS, Message: "Successfully updated the cluster metadata to ZK"}}, nil
