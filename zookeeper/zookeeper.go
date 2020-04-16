@@ -2,6 +2,7 @@ package zookeeper
 
 import (
 	"AKFAK/cluster"
+	"AKFAK/config"
 	"AKFAK/proto/zookeeperpb"
 	"fmt"
 	"log"
@@ -17,17 +18,19 @@ type Zookeeper struct {
 	Port            int
 	clusterMetadata *cluster.Cluster
 	mux             sync.Mutex
+	config          config.ZKConfig
 }
 
 // InitZookeeper create the Zookeeper instance and load the cluster state data
-func InitZookeeper() *Zookeeper {
+func InitZookeeper(config config.ZKConfig) *Zookeeper {
 	// load the cluster state file into in-memory data
-	clusterMetadata := LoadClusterStateFromFile("cluster_state.json")
+	clusterMetadata := LoadClusterStateFromFile(config.DataDir)
 
 	return &Zookeeper{
-		Host:            "0.0.0.0",
-		Port:            9092,
+		Host:            config.Host,
+		Port:            config.Port,
 		clusterMetadata: cluster.InitCluster(&clusterMetadata),
+		config:          config,
 	}
 }
 
