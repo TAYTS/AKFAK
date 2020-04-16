@@ -4,13 +4,14 @@ import (
 	"AKFAK/producer"
 	"flag"
 	"fmt"
+	"log"
 	"os"
 	"os/signal"
 )
 
 func main() {
 	// get the user input for initialise the Producer
-	flag.String(
+	contactServer := flag.String(
 		"kafka-server",
 		"",
 		"Kafka server IP address and port number (e.g. 127.0.0.1:9092)")
@@ -26,22 +27,16 @@ func main() {
 	}
 	flag.Parse()
 
-	// TODO: Load all the brokers from config & rethink about this part
-	// Maybe used the server that the user provide to initialise the producer instead
-	brokerAddrs := map[int]string{
-		0: "broker-0:5000",
-		1: "broker-1:5001",
-		2: "broker-2:5002",
-	}
-
-	fmt.Println("Initialise the Producer...")
+	log.Println("Initialise the Producer...")
 
 	// initialise the Producer
-	p := producer.InitProducer(0, *topicPtr, brokerAddrs)
+	p := producer.InitProducer(0, *topicPtr, *contactServer)
 
 	// Wait for Ctrl-C to exit
 	ch := make(chan os.Signal, 1)
 	signal.Notify(ch, os.Interrupt)
+
+	log.Println("Done initialise the Producer")
 
 	// routine to pass user input to the Producer
 	go func(p *producer.Producer) {
