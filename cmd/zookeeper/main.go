@@ -35,6 +35,6 @@ func main() {
 	}
 
 	// start the ZK
-	zk := zookeeper.InitZookeeper(brkConfigJSON)
+	zk := zookeeper.InitZookeeper(zkConfigJSON)
 	zk.InitZKListener()
 }
