@@ -86,9 +86,9 @@ func (n *Node) createLocalPartitionFromReq(req *adminclientpb.AdminClientNewPart
 
 	fmt.Printf("Node %v: Create partition %v\n", n.ID, partitionID)
 
+	rootPath := n.config.LogDir
 	for _, partID := range partitionID {
-		// TODO: Get the log root directory
-		err := partition.CreatePartitionDir(".", topicName, int(partID))
+		err := partition.CreatePartitionDir(rootPath, topicName, int(partID))
 		if err != nil {
 			return err
 		}
