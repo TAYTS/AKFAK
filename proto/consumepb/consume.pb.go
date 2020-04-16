@@ -140,7 +140,54 @@ func (m *ConsumeResponse) GetRecordSet() *recordpb.RecordBatch {
 	return nil
 }
 
-type MetadataReplicaState struct {
+type GetAssignmentRequest struct {
+	GroupID              int32    `protobuf:"varint,1,opt,name=groupID,proto3" json:"groupID,omitempty"`
+	TopicName            string   `protobuf:"bytes,2,opt,name=topicName,proto3" json:"topicName,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *GetAssignmentRequest) Reset()         { *m = GetAssignmentRequest{} }
+func (m *GetAssignmentRequest) String() string { return proto.CompactTextString(m) }
+func (*GetAssignmentRequest) ProtoMessage()    {}
+func (*GetAssignmentRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_0a0fb7c1a5499aef, []int{2}
+}
+
+func (m *GetAssignmentRequest) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_GetAssignmentRequest.Unmarshal(m, b)
+}
+func (m *GetAssignmentRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_GetAssignmentRequest.Marshal(b, m, deterministic)
+}
+func (m *GetAssignmentRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetAssignmentRequest.Merge(m, src)
+}
+func (m *GetAssignmentRequest) XXX_Size() int {
+	return xxx_messageInfo_GetAssignmentRequest.Size(m)
+}
+func (m *GetAssignmentRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_GetAssignmentRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_GetAssignmentRequest proto.InternalMessageInfo
+
+func (m *GetAssignmentRequest) GetGroupID() int32 {
+	if m != nil {
+		return m.GroupID
+	}
+	return 0
+}
+
+func (m *GetAssignmentRequest) GetTopicName() string {
+	if m != nil {
+		return m.TopicName
+	}
+	return ""
+}
+
+type MetadataAssignmenttate struct {
 	TopicName      string `protobuf:"bytes,1,opt,name=topicName,proto3" json:"topicName,omitempty"`
 	PartitionIndex int32  `protobuf:"varint,2,opt,name=partitionIndex,proto3" json:"partitionIndex,omitempty"`
 	// broker holding replica that is assigned to consumer for that partition
@@ -150,170 +197,108 @@ type MetadataReplicaState struct {
 	XXX_sizecache        int32                             `json:"-"`
 }
 
-func (m *MetadataReplicaState) Reset()         { *m = MetadataReplicaState{} }
-func (m *MetadataReplicaState) String() string { return proto.CompactTextString(m) }
-func (*MetadataReplicaState) ProtoMessage()    {}
-func (*MetadataReplicaState) Descriptor() ([]byte, []int) {
-	return fileDescriptor_0a0fb7c1a5499aef, []int{2}
+func (m *MetadataAssignmenttate) Reset()         { *m = MetadataAssignmenttate{} }
+func (m *MetadataAssignmenttate) String() string { return proto.CompactTextString(m) }
+func (*MetadataAssignmenttate) ProtoMessage()    {}
+func (*MetadataAssignmenttate) Descriptor() ([]byte, []int) {
+	return fileDescriptor_0a0fb7c1a5499aef, []int{3}
 }
 
-func (m *MetadataReplicaState) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_MetadataReplicaState.Unmarshal(m, b)
+func (m *MetadataAssignmenttate) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_MetadataAssignmenttate.Unmarshal(m, b)
 }
-func (m *MetadataReplicaState) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_MetadataReplicaState.Marshal(b, m, deterministic)
+func (m *MetadataAssignmenttate) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_MetadataAssignmenttate.Marshal(b, m, deterministic)
 }
-func (m *MetadataReplicaState) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_MetadataReplicaState.Merge(m, src)
+func (m *MetadataAssignmenttate) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_MetadataAssignmenttate.Merge(m, src)
 }
-func (m *MetadataReplicaState) XXX_Size() int {
-	return xxx_messageInfo_MetadataReplicaState.Size(m)
+func (m *MetadataAssignmenttate) XXX_Size() int {
+	return xxx_messageInfo_MetadataAssignmenttate.Size(m)
 }
-func (m *MetadataReplicaState) XXX_DiscardUnknown() {
-	xxx_messageInfo_MetadataReplicaState.DiscardUnknown(m)
+func (m *MetadataAssignmenttate) XXX_DiscardUnknown() {
+	xxx_messageInfo_MetadataAssignmenttate.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_MetadataReplicaState proto.InternalMessageInfo
+var xxx_messageInfo_MetadataAssignmenttate proto.InternalMessageInfo
 
-func (m *MetadataReplicaState) GetTopicName() string {
+func (m *MetadataAssignmenttate) GetTopicName() string {
 	if m != nil {
 		return m.TopicName
 	}
 	return ""
 }
 
-func (m *MetadataReplicaState) GetPartitionIndex() int32 {
+func (m *MetadataAssignmenttate) GetPartitionIndex() int32 {
 	if m != nil {
 		return m.PartitionIndex
 	}
 	return 0
 }
 
-func (m *MetadataReplicaState) GetBroker() *clustermetadatapb.MetadataBroker {
+func (m *MetadataAssignmenttate) GetBroker() *clustermetadatapb.MetadataBroker {
 	if m != nil {
 		return m.Broker
 	}
 	return nil
 }
 
-type GetReplicasRequest struct {
-	GroupID              int32    `protobuf:"varint,1,opt,name=groupID,proto3" json:"groupID,omitempty"`
-	ConsumerID           int32    `protobuf:"varint,2,opt,name=consumerID,proto3" json:"consumerID,omitempty"`
-	TopicName            string   `protobuf:"bytes,3,opt,name=topicName,proto3" json:"topicName,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
+type GetAssignmentResponse struct {
+	// list of brokers holding isr for partition (excludes broker with assigned replica)
+	// contacted when an assigned replica fails to respond
+	IsrBrokers []*clustermetadatapb.MetadataBroker `protobuf:"bytes,1,rep,name=isrBrokers,proto3" json:"isrBrokers,omitempty"`
+	// assigned Assignment. len(Assignment) == len(partitions)
+	Assignments          []*MetadataAssignmenttate `protobuf:"bytes,2,rep,name=assignments,proto3" json:"assignments,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}                  `json:"-"`
+	XXX_unrecognized     []byte                    `json:"-"`
+	XXX_sizecache        int32                     `json:"-"`
 }
 
-func (m *GetReplicasRequest) Reset()         { *m = GetReplicasRequest{} }
-func (m *GetReplicasRequest) String() string { return proto.CompactTextString(m) }
-func (*GetReplicasRequest) ProtoMessage()    {}
-func (*GetReplicasRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_0a0fb7c1a5499aef, []int{3}
-}
-
-func (m *GetReplicasRequest) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_GetReplicasRequest.Unmarshal(m, b)
-}
-func (m *GetReplicasRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_GetReplicasRequest.Marshal(b, m, deterministic)
-}
-func (m *GetReplicasRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_GetReplicasRequest.Merge(m, src)
-}
-func (m *GetReplicasRequest) XXX_Size() int {
-	return xxx_messageInfo_GetReplicasRequest.Size(m)
-}
-func (m *GetReplicasRequest) XXX_DiscardUnknown() {
-	xxx_messageInfo_GetReplicasRequest.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_GetReplicasRequest proto.InternalMessageInfo
-
-func (m *GetReplicasRequest) GetGroupID() int32 {
-	if m != nil {
-		return m.GroupID
-	}
-	return 0
-}
-
-func (m *GetReplicasRequest) GetConsumerID() int32 {
-	if m != nil {
-		return m.ConsumerID
-	}
-	return 0
-}
-
-func (m *GetReplicasRequest) GetTopicName() string {
-	if m != nil {
-		return m.TopicName
-	}
-	return ""
-}
-
-type GetReplicasResponse struct {
-	// need to connect to controller to receive changes on replica assignments
-	Controller *clustermetadatapb.MetadataBroker `protobuf:"bytes,1,opt,name=controller,proto3" json:"controller,omitempty"`
-	// assigned replicas. len(replicas) == len(partitions)
-	Replicas             []*MetadataReplicaState `protobuf:"bytes,2,rep,name=replicas,proto3" json:"replicas,omitempty"`
-	ReplicaStateChange   bool                    `protobuf:"varint,3,opt,name=replicaStateChange,proto3" json:"replicaStateChange,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}                `json:"-"`
-	XXX_unrecognized     []byte                  `json:"-"`
-	XXX_sizecache        int32                   `json:"-"`
-}
-
-func (m *GetReplicasResponse) Reset()         { *m = GetReplicasResponse{} }
-func (m *GetReplicasResponse) String() string { return proto.CompactTextString(m) }
-func (*GetReplicasResponse) ProtoMessage()    {}
-func (*GetReplicasResponse) Descriptor() ([]byte, []int) {
+func (m *GetAssignmentResponse) Reset()         { *m = GetAssignmentResponse{} }
+func (m *GetAssignmentResponse) String() string { return proto.CompactTextString(m) }
+func (*GetAssignmentResponse) ProtoMessage()    {}
+func (*GetAssignmentResponse) Descriptor() ([]byte, []int) {
 	return fileDescriptor_0a0fb7c1a5499aef, []int{4}
 }
 
-func (m *GetReplicasResponse) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_GetReplicasResponse.Unmarshal(m, b)
+func (m *GetAssignmentResponse) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_GetAssignmentResponse.Unmarshal(m, b)
 }
-func (m *GetReplicasResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_GetReplicasResponse.Marshal(b, m, deterministic)
+func (m *GetAssignmentResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_GetAssignmentResponse.Marshal(b, m, deterministic)
 }
-func (m *GetReplicasResponse) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_GetReplicasResponse.Merge(m, src)
+func (m *GetAssignmentResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetAssignmentResponse.Merge(m, src)
 }
-func (m *GetReplicasResponse) XXX_Size() int {
-	return xxx_messageInfo_GetReplicasResponse.Size(m)
+func (m *GetAssignmentResponse) XXX_Size() int {
+	return xxx_messageInfo_GetAssignmentResponse.Size(m)
 }
-func (m *GetReplicasResponse) XXX_DiscardUnknown() {
-	xxx_messageInfo_GetReplicasResponse.DiscardUnknown(m)
+func (m *GetAssignmentResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_GetAssignmentResponse.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_GetReplicasResponse proto.InternalMessageInfo
+var xxx_messageInfo_GetAssignmentResponse proto.InternalMessageInfo
 
-func (m *GetReplicasResponse) GetController() *clustermetadatapb.MetadataBroker {
+func (m *GetAssignmentResponse) GetIsrBrokers() []*clustermetadatapb.MetadataBroker {
 	if m != nil {
-		return m.Controller
+		return m.IsrBrokers
 	}
 	return nil
 }
 
-func (m *GetReplicasResponse) GetReplicas() []*MetadataReplicaState {
+func (m *GetAssignmentResponse) GetAssignments() []*MetadataAssignmenttate {
 	if m != nil {
-		return m.Replicas
+		return m.Assignments
 	}
 	return nil
-}
-
-func (m *GetReplicasResponse) GetReplicaStateChange() bool {
-	if m != nil {
-		return m.ReplicaStateChange
-	}
-	return false
 }
 
 func init() {
 	proto.RegisterType((*ConsumeRequest)(nil), "proto.consumepb.ConsumeRequest")
 	proto.RegisterType((*ConsumeResponse)(nil), "proto.consumepb.ConsumeResponse")
-	proto.RegisterType((*MetadataReplicaState)(nil), "proto.consumepb.MetadataReplicaState")
-	proto.RegisterType((*GetReplicasRequest)(nil), "proto.consumepb.GetReplicasRequest")
-	proto.RegisterType((*GetReplicasResponse)(nil), "proto.consumepb.GetReplicasResponse")
+	proto.RegisterType((*GetAssignmentRequest)(nil), "proto.consumepb.GetAssignmentRequest")
+	proto.RegisterType((*MetadataAssignmenttate)(nil), "proto.consumepb.MetadataAssignmenttate")
+	proto.RegisterType((*GetAssignmentResponse)(nil), "proto.consumepb.GetAssignmentResponse")
 }
 
 func init() {
@@ -321,30 +306,29 @@ func init() {
 }
 
 var fileDescriptor_0a0fb7c1a5499aef = []byte{
-	// 392 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xac, 0x53, 0xcd, 0x4a, 0xf3, 0x40,
-	0x14, 0x65, 0xda, 0xef, 0xab, 0xed, 0x14, 0x5a, 0x18, 0x15, 0x43, 0xab, 0x52, 0x02, 0x6a, 0x57,
-	0x53, 0xa8, 0x2b, 0x57, 0xd2, 0x1f, 0x2c, 0xa5, 0xe8, 0x62, 0xba, 0x73, 0x23, 0x93, 0x74, 0x68,
-	0x83, 0x69, 0x66, 0x9c, 0x4c, 0xc0, 0x27, 0x10, 0x5f, 0xc2, 0x87, 0xf2, 0x8d, 0xa4, 0x33, 0x93,
-	0xa4, 0x8d, 0x05, 0x11, 0x5c, 0xe5, 0xe6, 0x9c, 0xfb, 0x73, 0xee, 0x3d, 0x09, 0x3c, 0x13, 0x92,
-	0x2b, 0xde, 0xf3, 0x79, 0x14, 0x27, 0x6b, 0x26, 0xbc, 0x34, 0xc2, 0x1a, 0x47, 0x4d, 0xfd, 0xc0,
-	0x19, 0xdd, 0x6a, 0x9b, 0x7c, 0xc9, 0x7c, 0x2e, 0x17, 0xc2, 0xb3, 0x81, 0xc9, 0x6e, 0x61, 0xdb,
-	0x2c, 0x4c, 0x62, 0xc5, 0xe4, 0x9a, 0x29, 0xba, 0xa0, 0x8a, 0x6e, 0x9a, 0x1a, 0xe4, 0x29, 0x85,
-	0x4c, 0xa2, 0xfb, 0x06, 0x60, 0x63, 0x64, 0x5a, 0x13, 0xf6, 0x92, 0xb0, 0x58, 0x21, 0x07, 0x1e,
-	0x2c, 0x25, 0x4f, 0xc4, 0x74, 0xec, 0x80, 0x0e, 0xe8, 0xfe, 0x27, 0xe9, 0x2b, 0x3a, 0x87, 0xd0,
-	0xca, 0x90, 0xd3, 0xb1, 0x53, 0xd2, 0xe4, 0x16, 0x82, 0x4e, 0x61, 0x4d, 0x50, 0xa9, 0x02, 0x15,
-	0xf0, 0xc8, 0x29, 0x6b, 0x3a, 0x07, 0x36, 0xac, 0xe2, 0x22, 0xf0, 0x1f, 0xe8, 0x9a, 0x39, 0xff,
-	0x3a, 0xa0, 0x5b, 0x23, 0x39, 0xe0, 0xbe, 0x03, 0xd8, 0xcc, 0x84, 0xc4, 0x82, 0x47, 0x31, 0xdb,
-	0xad, 0x00, 0x85, 0x8a, 0xdd, 0x69, 0xa5, 0xe2, 0xb4, 0x1b, 0x58, 0x33, 0x87, 0x99, 0x33, 0xa5,
-	0xb5, 0xd4, 0xfb, 0x6d, 0xb3, 0x33, 0x4e, 0x2f, 0x87, 0x89, 0x0e, 0x86, 0x54, 0xf9, 0x2b, 0x92,
-	0x67, 0xbb, 0x1f, 0x00, 0x1e, 0xdd, 0xdb, 0x33, 0x11, 0x26, 0xc2, 0xc0, 0xa7, 0x73, 0x45, 0xd5,
-	0x4f, 0x7a, 0x2e, 0x61, 0x23, 0x1b, 0x3f, 0x8d, 0x16, 0xec, 0xd5, 0x8a, 0x2a, 0xa0, 0xe8, 0x16,
-	0x56, 0x3c, 0xc9, 0x9f, 0x99, 0xb4, 0xb2, 0xae, 0xac, 0xac, 0x6f, 0x9e, 0xe1, 0x54, 0xc4, 0x50,
-	0xa7, 0x13, 0x5b, 0xe6, 0x86, 0x10, 0x4d, 0x98, 0xb2, 0xca, 0xe2, 0x3f, 0xb1, 0x2d, 0x5f, 0xab,
-	0x5c, 0x34, 0xe6, 0x13, 0xc0, 0xc3, 0x9d, 0x71, 0xd6, 0x9c, 0x89, 0xee, 0xaa, 0x24, 0x0f, 0x43,
-	0x26, 0xf5, 0xc8, 0x5f, 0xac, 0xb2, 0x55, 0x8a, 0x06, 0xb0, 0x2a, 0x6d, 0x73, 0xa7, 0xd4, 0x29,
-	0x77, 0xeb, 0xfd, 0x0b, 0x5c, 0xf8, 0xe6, 0xf1, 0x3e, 0x3b, 0x48, 0x56, 0x86, 0x30, 0x44, 0x72,
-	0x8b, 0x19, 0xad, 0x68, 0xb4, 0x34, 0xab, 0x54, 0xc9, 0x1e, 0x66, 0x78, 0xf2, 0x78, 0x3c, 0x98,
-	0xdd, 0x0d, 0x66, 0xbd, 0xc2, 0xaf, 0xe7, 0x55, 0x34, 0x70, 0xfd, 0x15, 0x00, 0x00, 0xff, 0xff,
-	0x72, 0xa7, 0x13, 0x2e, 0x94, 0x03, 0x00, 0x00,
+	// 372 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x94, 0x53, 0xd1, 0x4a, 0xc3, 0x30,
+	0x14, 0x25, 0x9d, 0x4e, 0x76, 0x07, 0x1b, 0x14, 0xa7, 0x65, 0x53, 0x19, 0x7d, 0xd0, 0x3d, 0x75,
+	0xa0, 0x4f, 0x3e, 0xc9, 0xe6, 0x70, 0x94, 0xe1, 0x1e, 0xea, 0x9b, 0x2f, 0x92, 0x76, 0x61, 0x16,
+	0x6d, 0x13, 0x93, 0x14, 0xfc, 0x02, 0xf1, 0x2f, 0xfc, 0x00, 0x7f, 0x52, 0x96, 0xa4, 0xed, 0x5a,
+	0x85, 0xe1, 0x53, 0x6f, 0xcf, 0x3d, 0xf7, 0xe4, 0x9e, 0xd3, 0x14, 0x4e, 0x19, 0xa7, 0x92, 0x8e,
+	0x23, 0x9a, 0x8a, 0x2c, 0x21, 0x2c, 0xcc, 0x2b, 0x4f, 0xe1, 0x76, 0x57, 0x3d, 0xbc, 0xa2, 0xdd,
+	0x1f, 0x68, 0x3e, 0x27, 0x11, 0xe5, 0x2b, 0x16, 0x9a, 0x42, 0xb3, 0xfb, 0x9e, 0x11, 0x7b, 0xcd,
+	0x84, 0x24, 0x3c, 0x21, 0x12, 0xaf, 0xb0, 0xc4, 0x1b, 0x51, 0x8d, 0x3c, 0xe5, 0x90, 0x26, 0xba,
+	0x1f, 0x08, 0x3a, 0xb7, 0x5a, 0x3a, 0x20, 0x6f, 0x19, 0x11, 0xd2, 0x76, 0xe0, 0x60, 0xcd, 0x69,
+	0xc6, 0xfc, 0x99, 0x83, 0x86, 0x68, 0xb4, 0x1f, 0xe4, 0xaf, 0xf6, 0x19, 0x80, 0x59, 0x83, 0xfb,
+	0x33, 0xc7, 0x52, 0xcd, 0x2d, 0xc4, 0x3e, 0x81, 0x16, 0xc3, 0x5c, 0xc6, 0x32, 0xa6, 0xa9, 0xd3,
+	0x50, 0xed, 0x12, 0xd8, 0x74, 0x25, 0x65, 0x71, 0xb4, 0xc4, 0x09, 0x71, 0xf6, 0x86, 0x68, 0xd4,
+	0x0a, 0x4a, 0xc0, 0xfd, 0x44, 0xd0, 0x2d, 0x16, 0x11, 0x8c, 0xa6, 0x82, 0x54, 0x27, 0x50, 0x6d,
+	0xa2, 0x7a, 0x9a, 0x55, 0x3f, 0xed, 0x1a, 0x5a, 0x3a, 0x98, 0x07, 0x22, 0xd5, 0x2e, 0xed, 0xcb,
+	0x81, 0xf6, 0xec, 0xe5, 0xc9, 0x79, 0x81, 0x2a, 0xa6, 0x58, 0x46, 0xcf, 0x41, 0xc9, 0x76, 0x97,
+	0x70, 0x38, 0x27, 0x72, 0x22, 0x44, 0xbc, 0x4e, 0x13, 0x92, 0xca, 0xdd, 0xc1, 0x54, 0x16, 0xb5,
+	0xea, 0xd6, 0xbe, 0x10, 0x1c, 0xdd, 0x9b, 0xd8, 0x4b, 0x55, 0x89, 0xe5, 0x2e, 0x87, 0xe7, 0xd0,
+	0x29, 0x0c, 0xf9, 0xe9, 0x8a, 0xbc, 0x1b, 0x9b, 0x35, 0xd4, 0xbe, 0x81, 0x66, 0xc8, 0xe9, 0x0b,
+	0xe1, 0xc6, 0xe8, 0x85, 0x31, 0xfa, 0xeb, 0x16, 0x78, 0xf9, 0x1a, 0x53, 0x45, 0x0f, 0xcc, 0x98,
+	0xfb, 0x8d, 0xa0, 0x57, 0xb3, 0x6c, 0x3e, 0xc1, 0x1c, 0x20, 0x16, 0x5c, 0xd3, 0x85, 0x83, 0x86,
+	0x8d, 0xff, 0xc8, 0x6f, 0x8d, 0xda, 0x3e, 0xb4, 0x71, 0x21, 0x2f, 0x1c, 0xab, 0xaa, 0x94, 0x5f,
+	0x6e, 0xef, 0xef, 0x9c, 0x82, 0xed, 0xd9, 0xe9, 0xf1, 0x63, 0x6f, 0xb2, 0xb8, 0x9b, 0x2c, 0xc6,
+	0xb5, 0x1f, 0x27, 0x6c, 0x2a, 0xe0, 0xea, 0x27, 0x00, 0x00, 0xff, 0xff, 0x91, 0x33, 0x4c, 0xc5,
+	0x52, 0x03, 0x00, 0x00,
 }
