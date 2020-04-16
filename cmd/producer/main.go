@@ -10,6 +10,9 @@ import (
 )
 
 func main() {
+	// log setup
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
+
 	// get the user input for initialise the Producer
 	contactServer := flag.String(
 		"kafka-server",

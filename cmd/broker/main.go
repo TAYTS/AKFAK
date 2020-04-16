@@ -6,10 +6,14 @@ import (
 	"AKFAK/utils"
 	"flag"
 	"fmt"
+	"log"
 	"os"
 )
 
 func main() {
+	// log setup
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
+
 	// get the user input for initialise the Broker
 	configPath := flag.String(
 		"server-config",
