@@ -35,6 +35,6 @@ func main() {
 	}
 
 	// start the broker
-	node := broker.InitNode(brkConfigJSON.ID, brkConfigJSON.Host, brkConfigJSON.Port)
+	node := broker.InitNode(brkConfigJSON)
 	node.InitAdminListener()
 }

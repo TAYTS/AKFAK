@@ -2,6 +2,7 @@ package broker
 
 import (
 	"AKFAK/cluster"
+	"AKFAK/config"
 	"AKFAK/proto/adminpb"
 	"AKFAK/proto/clientpb"
 	"AKFAK/proto/clustermetadatapb"
@@ -25,27 +26,16 @@ type Node struct {
 	adminServiceClient  map[int]adminpb.AdminServiceClient
 	clientServiceClient map[int]clientpb.ClientServiceClient
 	zkClient            zookeeperpb.ZookeeperServiceClient
+	config              config.BrokerConfig
 }
-
-// TODO: Get the node list from metadata
-var nodes = map[int]string{
-	0: "0.0.0.0:5001",
-	1: "0.0.0.0:5002",
-	2: "0.0.0.0:5003",
-}
-
-// var nodes = map[int]string{
-// 	0: "broker-0:5000",
-// 	1: "broker-1:5000",
-// 	2: "broker-2:5000",
-// }
 
 // InitNode create new broker node instance
-func InitNode(ID int, host string, port int) *Node {
+func InitNode(config config.BrokerConfig) *Node {
 	return &Node{
-		ID:   ID,
-		Host: host,
-		Port: port,
+		ID:     config.ID,
+		Host:   config.Host,
+		Port:   config.Port,
+		config: config,
 	}
 }
 
@@ -103,12 +93,8 @@ func (n *Node) InitControllerRoutine() {
 		}
 	}
 
-	// Connect to ZK
-	// TODO: Get the zookeeper address from CLI or config
-	zkAddress := "0.0.0.0:9092"
-
-	// store ZK rpc client
-	n.zkClient = getZKClient(zkAddress)
+	// connect and store ZK rpc client
+	n.zkClient = getZKClient(n.config.ZKConn)
 }
 
 // EstablishClientServicePeerConn start the ClientService peer connection
@@ -141,11 +127,8 @@ func (n *Node) EstablishClientServicePeerConn() {
 
 // InitClusterMetadataCache call the ZK to get the Cluster Metadata
 func (n *Node) InitClusterMetadataCache() {
-	// TODO: Get the zookeeper address from CLI or config
-	zkAddress := "0.0.0.0:9092"
-
-	// set ZK rpc client
-	zkClient := getZKClient(zkAddress)
+	// connect to ZK
+	zkClient := getZKClient(n.config.ZKConn)
 
 	// create request with the current broker info
 	req := &zkmessagepb.GetClusterMetadataRequest{
