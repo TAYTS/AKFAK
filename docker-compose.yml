@@ -1,21 +1,35 @@
 version: "3.7"
 services:
-  broker-0:
-    image: kafka-demo3:latest
-    container_name: broker-0
-    command: broker -brokerID 0 -host 0.0.0.0 -port 5000
+  # Zookeeper
+  zookeeper:
+    build: .
+    image: akfak:latest
+    container_name: zookeeper
+    command: zookeeper -server-config ./config/zk_config.json
 
+  # broker cluster
   broker-1:
-    image: kafka-demo3:latest
+    image: akfak:latest
     container_name: broker-1
-    command: broker -brokerID 1 -host 0.0.0.0 -port 5000
+    depends_on:
+      - zookeeper
+    command: broker -server-config ./config/broker_config_1.json
 
   broker-2:
-    image: kafka-demo3:latest
+    image: akfak:latest
     container_name: broker-2
-    command: broker -brokerID 2 -host 0.0.0.0 -port 5000
+    depends_on:
+      - zookeeper
+    command: broker -server-config ./config/broker_config_2.json
+
+  broker-3:
+    image: akfak:latest
+    container_name: broker-3
+    depends_on:
+      - zookeeper
+    command: broker -server-config ./config/broker_config_3.json
 
 networks:
   default:
-    external:
-      name: kafka-net
+    name: kafka-net
+    driver: bridge
