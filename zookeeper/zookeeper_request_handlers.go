@@ -39,21 +39,23 @@ func (zk *Zookeeper) GetClusterMetadata(ctx context.Context, req *zkmessagepb.Ge
 
 	if controllerSet {
 		// update controller
-		log.Printf("ZK update controller for new Broker %v\n", reqBrk.GetID())
-		ctrl := zk.clusterMetadata.GetController()
-		ctrlConn, err := grpc.Dial(fmt.Sprintf("%v:%v", ctrl.GetHost(), ctrl.GetPort()), grpc.WithInsecure())
-		if err != nil {
-			log.Fatalf("Fail to connect to controller: %v\n", err)
-		}
-		ctrlClient := adminpb.NewAdminServiceClient(ctrlConn)
-		_, err = ctrlClient.UpdateMetadata(context.Background(), &adminclientpb.UpdateMetadataRequest{
-			NewClusterInfo: zk.clusterMetadata.MetadataCluster,
-		})
-		if err != nil {
-			log.Println("ZK failed to update controller")
-			// TODO: select new controller
-		}
-		log.Println("ZK to controller cluster update successfull")
+		go func() {
+			log.Printf("ZK update controller for new Broker %v\n", reqBrk.GetID())
+			ctrl := zk.clusterMetadata.GetController()
+			ctrlConn, err := grpc.Dial(fmt.Sprintf("%v:%v", ctrl.GetHost(), ctrl.GetPort()), grpc.WithInsecure())
+			if err != nil {
+				log.Fatalf("Fail to connect to controller: %v\n", err)
+			}
+			ctrlClient := adminpb.NewAdminServiceClient(ctrlConn)
+			_, err = ctrlClient.UpdateMetadata(context.Background(), &adminclientpb.UpdateMetadataRequest{
+				NewClusterInfo: zk.clusterMetadata.MetadataCluster,
+			})
+			if err != nil {
+				log.Println("ZK failed to update controller")
+				// TODO: select new controller
+			}
+			log.Println("ZK to controller cluster update successfull")
+		}()
 	}
 
 	// return response
