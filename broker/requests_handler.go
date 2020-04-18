@@ -22,6 +22,9 @@ func (n *Node) Produce(stream clientpb.ClientService_ProduceServer) error {
 	replicaConn := make(map[int]clientpb.ClientService_ProduceClient)
 	fileHandlerMapping := make(map[int]*recordpb.FileRecord)
 
+	// optimise the replica stream setup
+	doneReplicaStreamSetup := false
+
 	for {
 		req, err := stream.Recv()
 		if err == io.EOF {
@@ -29,7 +32,7 @@ func (n *Node) Produce(stream clientpb.ClientService_ProduceServer) error {
 		}
 		if err != nil {
 			log.Printf("Error while reading client stream: %v", err)
-			CleanupProducerResource(replicaConn, fileHandlerMapping)
+			cleanupProducerResource(replicaConn, fileHandlerMapping)
 			return err
 		}
 		topicName := req.GetTopicName()
@@ -42,19 +45,27 @@ func (n *Node) Produce(stream clientpb.ClientService_ProduceServer) error {
 			return errors.New("Topic Not Available")
 		}
 
-		// setup Produce RPC call to all the insync replicas
-		for _, partState := range partitions {
-			// get all insync replicas for each partition of the specific topic
-			insycBrks := partState.GetIsr()
-			// create stream connection to each insync replica
-			for _, brkID := range insycBrks {
-				// setup the stream connection
-				stream, err := n.clientServiceClient[int(brkID)].Produce(context.Background())
-				if err != nil {
-					// TODO: Update controller about the fail broker
+		// setup Produce RPC call to all the insync replicas if the current broker is the leader
+		if !doneReplicaStreamSetup {
+			for _, partState := range partitions {
+				if int(partState.GetLeader()) == n.ID {
+					// get all insync replicas for each partition of the specific topic
+					insycBrks := partState.GetIsr()
+					// create stream connection to each insync replica
+					for _, brkID := range insycBrks {
+						brkIDInt := int(brkID)
+						if _, exist := replicaConn[brkIDInt]; !exist {
+							// setup the stream connection
+							stream, err := n.clientServiceClient[brkIDInt].Produce(context.Background())
+							if err != nil {
+								// TODO: Update controller about the fail broker
+							}
+							replicaConn[brkIDInt] = stream
+						}
+					}
 				}
-				replicaConn[int(brkID)] = stream
 			}
+			doneReplicaStreamSetup = true
 		}
 
 		for _, tpData := range topicData {
@@ -65,14 +76,15 @@ func (n *Node) Produce(stream clientpb.ClientService_ProduceServer) error {
 					// current broker is the leader of the partition
 					if int(partState.GetLeader()) == n.ID {
 						// save to local
-						fmt.Printf("Broker %v receive message for partition %v\n", n.ID, partID)
-						WriteRecordBatchToLocal(topicName, partID, fileHandlerMapping, tpData.GetRecordSet())
+						log.Printf("Broker %v receive message for partition %v\n", n.ID, partID)
+						n.writeRecordBatchToLocal(topicName, partID, fileHandlerMapping, tpData.GetRecordSet())
 
 						// broadcast to all insync replica
-						fmt.Printf("Broker %v broadcast message for partition %v\n", n.ID, partID)
+						log.Printf("Broker %v broadcast message for partition %v to %v\n", n.ID, partID, partState.GetIsr())
 						for _, brkID := range partState.GetIsr() {
 							err := replicaConn[int(brkID)].Send(producepb.InitProduceRequest(topicName, partID, tpData.GetRecordSet().GetRecords()...))
 							if err != nil {
+								log.Printf("Broker %v unable to send message to replica %v\n", n.ID, brkID)
 								// TODO: Update controller about the fail broker
 								// TODO: Exclude the current broker from the ISR
 							}
@@ -82,7 +94,7 @@ func (n *Node) Produce(stream clientpb.ClientService_ProduceServer) error {
 					} else {
 						// insync replica broker, save to local
 						fmt.Printf("Broker %v receive replica message for partition %v\n", n.ID, partID)
-						WriteRecordBatchToLocal(topicName, partID, fileHandlerMapping, tpData.GetRecordSet())
+						n.writeRecordBatchToLocal(topicName, partID, fileHandlerMapping, tpData.GetRecordSet())
 					}
 				}
 			}
@@ -97,7 +109,7 @@ func (n *Node) Produce(stream clientpb.ClientService_ProduceServer) error {
 	}
 
 	// clean up resources
-	CleanupProducerResource(replicaConn, fileHandlerMapping)
+	cleanupProducerResource(replicaConn, fileHandlerMapping)
 
 	return nil
 }
@@ -162,7 +174,7 @@ func (n *Node) ControllerElection(ctx context.Context, req *adminclientpb.Contro
 	// if the broker got selected start the controller routine
 	if brokerID == n.ID {
 		fmt.Printf("Node %v received controller election request for broker %v\n", n.ID, req.GetBrokerID())
-		n.InitControllerRoutine()
+		n.initControllerRoutine()
 	}
 
 	return &adminclientpb.ControllerElectionResponse{Response: &commonpb.Response{Status: commonpb.ResponseStatus_SUCCESS}}, nil
@@ -301,10 +313,13 @@ func (n *Node) UpdateMetadata(ctx context.Context, req *adminclientpb.UpdateMeta
 	// update local cluster metadata cache
 	n.ClusterMetadata.UpdateClusterMetadata(newClsInfo)
 
+	// update client service peer connection
+	n.updateClientPeerConnection()
+
 	// controller updating peer
 	if n.ID == int(n.ClusterMetadata.GetController().GetID()) {
-		// update peer connection
-		n.updatePeerConnection()
+		// update admin service peer connection
+		n.updateAdminPeerConnection()
 
 		// update peer cluster metadata
 		for _, peer := range n.adminServiceClient {
