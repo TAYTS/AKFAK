@@ -47,7 +47,7 @@ func cleanupProducerResource(replicaConn map[int]clientpb.ClientService_ProduceC
 func (n *Node) generateNewPartitionRequestData(topicName string, numPartitions int, replicaFactor int) (map[int]*adminclientpb.AdminClientNewPartitionRequest, error) {
 	// check if the topic exist
 	topicExist := false
-	if n.ClusterMetadata.GetPartitionsByTopic(topicName) != nil {
+	if len(n.ClusterMetadata.GetPartitionsByTopic(topicName)) > 0 {
 		topicExist = true
 	}
 
