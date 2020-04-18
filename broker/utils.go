@@ -31,14 +31,14 @@ func cleanupProducerResource(replicaConn map[int]clientpb.ClientService_ProduceC
 	for _, rCon := range replicaConn {
 		err := rCon.CloseSend()
 		if err != nil {
-			fmt.Printf("Closing connection error: %v\n", err)
+			log.Printf("Closing connection error: %v\n", err)
 		}
 	}
 
 	for _, fileHandler := range fileHandlerMapping {
 		err := fileHandler.CloseFile()
 		if err != nil {
-			fmt.Printf("Closing file error: %v\n", err)
+			log.Printf("Closing file error: %v\n", err)
 		}
 	}
 }
@@ -94,7 +94,7 @@ func (n *Node) createLocalPartitionFromReq(req *adminclientpb.AdminClientNewPart
 	topicName := req.GetTopic()
 	partitionID := req.GetPartitionID()
 
-	fmt.Printf("Node %v: Create partition %v\n", n.ID, partitionID)
+	log.Printf("Node %v: Create partition %v\n", n.ID, partitionID)
 
 	rootPath := n.config.LogDir
 	for _, partID := range partitionID {
@@ -116,7 +116,7 @@ func (n *Node) updateAdminPeerConnection() {
 			peerAddr := fmt.Sprintf("%v:%v", brk.GetHost(), brk.GetPort())
 			clientCon, err := grpc.Dial(peerAddr, grpc.WithInsecure())
 			if err != nil {
-				fmt.Printf("Fail to connect to %v: %v\n", peerAddr, err)
+				log.Printf("Fail to connect to %v: %v\n", peerAddr, err)
 				// TODO: Update the ZK about the fail node
 				continue
 			}
@@ -144,7 +144,7 @@ func (n *Node) updateClientPeerConnection() {
 			peerAddr := fmt.Sprintf("%v:%v", brk.GetHost(), brk.GetPort())
 			clientCon, err := grpc.Dial(peerAddr, grpc.WithInsecure())
 			if err != nil {
-				fmt.Printf("Fail to connect to %v: %v\n", peerAddr, err)
+				log.Printf("Fail to connect to %v: %v\n", peerAddr, err)
 				// TODO: Update the ZK about the fail node
 				continue
 			}

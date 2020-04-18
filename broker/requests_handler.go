@@ -11,7 +11,6 @@ import (
 	"AKFAK/proto/zkmessagepb"
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"log"
 )
@@ -93,7 +92,7 @@ func (n *Node) Produce(stream clientpb.ClientService_ProduceServer) error {
 						}
 					} else {
 						// insync replica broker, save to local
-						fmt.Printf("Broker %v receive replica message for partition %v\n", n.ID, partID)
+						log.Printf("Broker %v receive replica message for partition %v\n", n.ID, partID)
 						n.writeRecordBatchToLocal(topicName, partID, fileHandlerMapping, tpData.GetRecordSet())
 					}
 				}
@@ -173,7 +172,7 @@ func (n *Node) ControllerElection(ctx context.Context, req *adminclientpb.Contro
 
 	// if the broker got selected start the controller routine
 	if brokerID == n.ID {
-		fmt.Printf("Node %v received controller election request for broker %v\n", n.ID, req.GetBrokerID())
+		log.Printf("Node %v received controller election request for broker %v\n", n.ID, req.GetBrokerID())
 		n.initControllerRoutine()
 	}
 

@@ -146,12 +146,12 @@ func (p *Producer) waitOnMetadata(brokerAddr string, maxWaitMs time.Duration) er
 		statusErr, ok := status.FromError(err)
 		if ok {
 			if statusErr.Code() == codes.DeadlineExceeded {
-				fmt.Printf("Metadata not received for topic %v after %d ms", p.topic, maxWaitMs)
+				log.Printf("Metadata not received for topic %v after %d ms\n", p.topic, maxWaitMs)
 			} else {
-				fmt.Printf("Unexpected error: %v", statusErr)
+				log.Printf("Unexpected error: %v\n", statusErr)
 			}
 		} else {
-			fmt.Printf("could not get metadata. error: %v", err)
+			log.Printf("could not get metadata. error: %v\n", err)
 		}
 
 		// close the connection
@@ -222,7 +222,7 @@ func (p *Producer) doSend(brokerID int) {
 		p.mux.Lock()
 		select {
 		case <-p.timers[brokerID].C:
-			fmt.Printf("Sending request to Broker %v\n", brokerID)
+			log.Println("Sending request to Broker", brokerID)
 			p.brokerCon[brokerID].Send(p.inflightRequests[brokerID].req)
 
 			// get the response
@@ -287,6 +287,6 @@ func (p *Producer) getBrkIDByPartition(partitionIdx int) int {
 			return int(part.GetLeaderID())
 		}
 	}
-	fmt.Println("could not find broker id corresponding to partition", partitionIdx)
+	log.Println("could not find broker id corresponding to partition", partitionIdx)
 	return -1
 }

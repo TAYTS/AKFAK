@@ -103,7 +103,7 @@ func (n *Node) establishClientServicePeerConn() {
 			ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 			clientCon, err := grpc.DialContext(ctx, peerAddr, opts)
 			if err != nil {
-				fmt.Printf("Fail to connect to %v: %v\n", peerAddr, err)
+				log.Printf("Fail to connect to %v: %v\n", peerAddr, err)
 				// TODO: Update the ZK about the fail node
 				cancel()
 				continue
