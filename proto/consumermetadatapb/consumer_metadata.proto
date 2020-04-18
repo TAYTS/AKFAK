@@ -1,26 +1,19 @@
 syntax = "proto3";
 
-package proto.clustermetadatapb;
+package proto.consumermetadatapb;
 
 option go_package = "AKFAK/proto/consumermetadatapb";
-
-import "proto/clustermetadatapb/cluster_metadata.proto";
 
 message Assignment {
     string topicName = 1;
     int32 partitionIndex = 2;
     int32 offset = 3;
-    clustermetadatapb.MetadataBroker broker = 4;
-}
-
-message Consumer {
-    int32 ID = 1;
-    repeated Assignment assignments = 2;
+    int32 broker = 4;
 }
 
 message ConsumerGroup {
     int32 ID = 1;
-    repeated Consumer consumers = 2;
+    repeated Assignment assignments = 2;
 }
 
 message MetadataConsumerState {
