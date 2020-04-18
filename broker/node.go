@@ -54,24 +54,26 @@ func (n *Node) InitAdminListener() {
 	clientpb.RegisterClientServiceServer(server, n)
 
 	// setup the cluster metadata cache
-	n.InitClusterMetadataCache()
+	n.initClusterMetadataCache()
 
 	// TODO [Fault tolerance]: check if the broker is not insync
 
 	// start controller routine if the broker is select as the controller
 	if int(n.ClusterMetadata.GetController().GetID()) == n.ID {
-		go n.InitControllerRoutine()
+		go n.initControllerRoutine()
 	}
 
 	// setup ClientService peer connection
-	go n.EstablishClientServicePeerConn()
+	go n.establishClientServicePeerConn()
+
+	log.Printf("Broker %v start listening\n", n.ID)
 	if err := server.Serve(listener); err != nil {
 		log.Fatalf("Failed to serve: %v\n", err)
 	}
 }
 
 // InitControllerRoutine start the controller routine
-func (n *Node) InitControllerRoutine() {
+func (n *Node) initControllerRoutine() {
 	log.Printf("Broker %v start controller routine\n", n.ID)
 
 	// setup the peer connection mapping
@@ -80,14 +82,14 @@ func (n *Node) InitControllerRoutine() {
 	}
 
 	// Connect to all brokers
-	n.updatePeerConnection()
+	n.updateAdminPeerConnection()
 
 	// connect and store ZK rpc client
 	n.zkClient = getZKClient(n.config.ZKConn)
 }
 
-// EstablishClientServicePeerConn start the ClientService peer connection
-func (n *Node) EstablishClientServicePeerConn() {
+// establishClientServicePeerConn start the ClientService peer connection
+func (n *Node) establishClientServicePeerConn() {
 	opts := grpc.WithInsecure()
 	if n.clientServiceClient == nil {
 		n.clientServiceClient = make(map[int]clientpb.ClientServiceClient)
@@ -115,7 +117,7 @@ func (n *Node) EstablishClientServicePeerConn() {
 }
 
 // InitClusterMetadataCache call the ZK to get the Cluster Metadata
-func (n *Node) InitClusterMetadataCache() {
+func (n *Node) initClusterMetadataCache() {
 	// connect to ZK
 	zkClient := getZKClient(n.config.ZKConn)
 
