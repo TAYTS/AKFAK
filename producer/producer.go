@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"sync"
 	"time"
 
@@ -254,9 +255,10 @@ func (p *Producer) doSend(brokerID int) {
 func responseHandler(brokerID int, res *producepb.ProduceResponse, err error) {
 	if err != nil {
 		// TODO: Retry sending the request? Remove broker from the connection? Ignore fail request?
-		fmt.Printf("Error when sending messages to Broker %v\n", err)
+		log.Printf("Error when sending messages to Broker %v\n", err)
+	} else {
+		log.Printf("Successfully send the request to Broker %v\n", brokerID)
 	}
-	fmt.Printf("Successfully send the request to Broker %v: %v\n", brokerID, res.GetResponse().GetMessage())
 }
 
 // getAvailablePartition get all the available partition based on the alive brokers
