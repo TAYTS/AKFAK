@@ -4,16 +4,31 @@ package recordpb
 // 		   Public Methods		 //
 ///////////////////////////////////
 
-// InitialiseRecord return a RecordBatch pointer type with default value
-func (*Record) InitialiseRecord(baseTimestamp int32, baseOffset int32) *Record {
+// InitialiseEmptyRecord return a Record pointer type with default value
+func InitialiseEmptyRecord() *Record {
 	return &Record{}
+}
+
+// InitialiseRecordWithMsg return a Record pointer type with message
+func InitialiseRecordWithMsg(message string) *Record {
+	msgLen, msg := convertStringToBytes(message)
+	return &Record{
+		ValueLen: int32(msgLen),
+		Value:    msg,
+	}
 }
 
 // UpdateMessage update the message inside the Record
 func (rcd *Record) UpdateMessage(message string) {
+	msgLen, msg := convertStringToBytes(message)
+
+	rcd.ValueLen = int32(msgLen)
+	rcd.Value = msg
+}
+
+func convertStringToBytes(message string) (int, []byte) {
 	msgByte := []byte(message)
 	msgLen := len(msgByte)
 
-	rcd.ValueLen = int32(msgLen)
-	rcd.Value = msgByte
+	return msgLen, msgByte
 }

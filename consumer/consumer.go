@@ -4,16 +4,21 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"time"
 
 	"AKFAK/proto/clientpb"
+	"AKFAK/proto/metadatapb"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type ConsumerGroup struct {
 	id               int
-	ConsumerGroupCon map[string]clientpb.ClientService_MessageBatchClient
+	ConsumerGroupCon map[string]clientpb.ClientService_ConsumeClient
 	clientService    clientpb.ClientServiceClient
+	metadata         *metadatapb.MetadataResponse
 }
 
 type Consumer struct {
@@ -40,6 +45,9 @@ func InitGroupConsumer(id int, brokersAddr map[int]string) *ConsumerGroup {
 	fmt.Printf("==========Done initializing groups\n")
 
 	cg := ConsumerGroup{id: id}
+
+	//get replicas
+	cg.getReplicas(brokersAddr, 100*time.Millisecond)
 	// set up connection to all brokers. key - address : val - stream
 	cg.dialConsumerGroup(brokersAddr)
 	conn, err := grpc.Dial(brokersAddr[0], grpc.WithInsecure(), grpc.WithBlock())
@@ -53,7 +61,7 @@ func InitGroupConsumer(id int, brokersAddr map[int]string) *ConsumerGroup {
 
 func (cg *ConsumerGroup) dialConsumerGroup(brokersAddr map[int]string) {
 	opts := grpc.WithInsecure()
-	consumerGroupConnection := make(map[string]clientpb.ClientService_MessageBatchClient)
+	consumerGroupConnection := make(map[string]clientpb.ClientService_ConsumeClient)
 
 	for _, addr := range brokersAddr {
 		fmt.Printf("Dialing %v\n", addr)
@@ -67,7 +75,7 @@ func (cg *ConsumerGroup) dialConsumerGroup(brokersAddr map[int]string) {
 				}
 				cRPC := clientpb.NewClientServiceClient(cSock)
 				// Create stream by invoking the client
-				stream, err := cRPC.MessageBatch(context.Background())
+				stream, err := cRPC.Consume(context.Background())
 				if err != nil {
 					fmt.Printf("Error while creating stream: %v\n", err)
 					continue
@@ -113,4 +121,58 @@ func stringPQ(pq []AssignedReplica) string {
 		ret += fmt.Sprintf("[" + msg.topic + "]")
 	}
 	return ret
+}
+
+func (p *Consumer) getReplicas(brokersAddr map[int]string, maxWaitMs time.Duration) {
+	// dial one of the broker to get the topic metadata
+	for _, addr := range brokersAddr {
+		// connect to one of the broker
+		opts := []grpc.DialOption{grpc.WithInsecure(), grpc.WithBlock()}
+		conn, err := grpc.Dial(addr, opts...)
+		if err != nil {
+			// move to the next broker if fail to connect
+			continue
+		}
+
+		// create gRPC client
+		prdClient := clientpb.NewClientServiceClient(conn)
+
+		// send get metadata request
+		req := &metadatapb.MetadataRequest{
+			TopicName: p.topic,
+		}
+
+		// create context with timeout
+		ctx, cancel := context.WithTimeout(context.Background(), maxWaitMs)
+
+		// send request to get metadata
+		res, err := prdClient.WaitOnMetadata(ctx, req)
+		if err != nil {
+			statusErr, ok := status.FromError(err)
+			if ok {
+				if statusErr.Code() == codes.DeadlineExceeded {
+					fmt.Printf("Metadata not received for topic %v after %d ms", p.topic, maxWaitMs)
+				} else {
+					fmt.Printf("Unexpected error: %v", statusErr)
+				}
+			} else {
+				fmt.Printf("could not get metadata. error: %v", err)
+			}
+
+			// move to the next broker if fail to connect
+			cancel()
+			conn.Close()
+			continue
+		}
+
+		// save the metadata response to the producer
+		p.metadata = res
+
+		// clean up resources
+		cancel()
+		conn.Close()
+
+		// stop contacting other brokers
+		break
+	}
 }

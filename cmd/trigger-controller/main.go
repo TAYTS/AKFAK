@@ -4,15 +4,22 @@ import (
 	"AKFAK/proto/adminclientpb"
 	"AKFAK/proto/adminpb"
 	"context"
-	"fmt"
+	"flag"
 	"log"
 
 	"google.golang.org/grpc"
 )
 
 func main() {
+	// TODO: Remove this after the ZK is done!!!!
+	brkPtr := flag.String(
+		"broker",
+		"broker-0:5000",
+		"Broker connection string")
+	flag.Parse()
+
 	opts := grpc.WithInsecure()
-	cc, err := grpc.Dial("localhost:5001", opts)
+	cc, err := grpc.Dial(*brkPtr, opts)
 	if err != nil {
 		log.Fatalf("could not connect: %v", err)
 	}
@@ -20,16 +27,14 @@ func main() {
 
 	c := adminpb.NewAdminServiceClient(cc)
 
-	req := &adminclientpb.AdminClientNewTopicRequest{
-		Topic:             "topic1",
-		NumPartitions:     3,
-		ReplicationFactor: 3,
+	req := &adminclientpb.ControllerElectionRequest{
+		BrokerID: 0,
+		HostName: "broker-0",
+		Port:     5000,
 	}
 
-	res, err := c.AdminClientNewTopic(context.Background(), req)
+	_, err = c.ControllerElection(context.Background(), req)
 	if err != nil {
 		log.Fatalf("Error whil calling controller RPC: %v\n", err)
 	}
-
-	fmt.Println("Result:", res.GetResponse())
 }
