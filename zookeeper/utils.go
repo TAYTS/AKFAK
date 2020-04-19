@@ -1,8 +1,15 @@
 package zookeeper
 
 import (
+	"AKFAK/proto/adminclientpb"
+	"AKFAK/proto/adminpb"
 	"AKFAK/proto/clustermetadatapb"
 	"AKFAK/utils"
+	"context"
+	"fmt"
+	"log"
+
+	"google.golang.org/grpc"
 )
 
 // LoadClusterStateFromFile parse the cluster state JSON and return in-memory cache of the cluster metadata
@@ -37,4 +44,29 @@ func WriteClusterStateToFile(path string, metadata clustermetadatapb.MetadataClu
 	}
 
 	return nil
+}
+
+// updateControllerMetadata used to update the controller when there is new LiveBroker
+func (zk *Zookeeper) updateControllerMetadata() {
+	// setup gRPC connection to controller
+	ctrl := zk.clusterMetadata.GetController()
+	ctrlConn, err := grpc.Dial(fmt.Sprintf("%v:%v", ctrl.GetHost(), ctrl.GetPort()), grpc.WithInsecure())
+	if err != nil {
+		log.Fatalf("Fail to connect to controller: %v\n", err)
+		// TODO: select neew controller
+	}
+
+	// setup RPC service
+	ctrlClient := adminpb.NewAdminServiceClient(ctrlConn)
+
+	// send RPC call
+	_, err = ctrlClient.UpdateMetadata(context.Background(), &adminclientpb.UpdateMetadataRequest{
+		NewClusterInfo: zk.clusterMetadata.MetadataCluster,
+	})
+	if err != nil {
+		log.Println("ZK failed to update controller")
+		// TODO: select new controller
+	}
+
+	log.Println("ZK to controller cluster update successfull")
 }

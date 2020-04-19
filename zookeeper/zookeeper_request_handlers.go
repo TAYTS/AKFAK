@@ -1,16 +1,11 @@
 package zookeeper
 
 import (
-	"AKFAK/proto/adminclientpb"
-	"AKFAK/proto/adminpb"
 	"AKFAK/proto/commonpb"
 	"AKFAK/proto/zkmessagepb"
 	"context"
 	"errors"
-	"fmt"
 	"log"
-
-	"google.golang.org/grpc"
 )
 
 // GetClusterMetadata return the current cluster state stored in the ZK
@@ -39,23 +34,8 @@ func (zk *Zookeeper) GetClusterMetadata(ctx context.Context, req *zkmessagepb.Ge
 
 	if controllerSet {
 		// update controller
-		go func() {
-			log.Printf("ZK update controller for new Broker %v\n", reqBrk.GetID())
-			ctrl := zk.clusterMetadata.GetController()
-			ctrlConn, err := grpc.Dial(fmt.Sprintf("%v:%v", ctrl.GetHost(), ctrl.GetPort()), grpc.WithInsecure())
-			if err != nil {
-				log.Fatalf("Fail to connect to controller: %v\n", err)
-			}
-			ctrlClient := adminpb.NewAdminServiceClient(ctrlConn)
-			_, err = ctrlClient.UpdateMetadata(context.Background(), &adminclientpb.UpdateMetadataRequest{
-				NewClusterInfo: zk.clusterMetadata.MetadataCluster,
-			})
-			if err != nil {
-				log.Println("ZK failed to update controller")
-				// TODO: select new controller
-			}
-			log.Println("ZK to controller cluster update successfull")
-		}()
+		log.Printf("ZK update controller for new Broker %v\n", reqBrk.GetID())
+		go zk.updateControllerMetadata()
 	}
 
 	// return response
