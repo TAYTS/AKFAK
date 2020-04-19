@@ -1,6 +1,7 @@
 package consumermetadata
 
 import (
+	"AKFAK/proto/consumepb"
 	"AKFAK/proto/consumermetadatapb"
 	"sync"
 )
@@ -9,7 +10,7 @@ import (
 // thread safe for managing the consumer state metadata
 type ConsumerMetadata struct {
 	*consumermetadatapb.MetadataConsumerState
-	brokerAssignmentsMap map[int][]*consumermetadatapb.Assignment
+	brokerAssignmentsMap map[int][]*consumepb.MetadataAssignment
 	mux                  sync.RWMutex
 }
 
@@ -29,12 +30,12 @@ func (cstate *ConsumerMetadata) UpdateConsumerMetadata(cnewstateMeta *consumerme
 }
 
 // UpdateOffset increases offset of assignment in metadata by one
-func (cstate *ConsumerMetadata) UpdateOffset(assignment *consumermetadatapb.Assignment) {
+func (cstate *ConsumerMetadata) UpdateOffset(assignment *consumepb.MetadataAssignment) {
 	// TODO
 }
 
 // UpdateAssignments update assignment of consumer group
-func (cstate *ConsumerMetadata) UpdateAssignments(cg int, assignments []*consumermetadatapb.Assignment) {
+func (cstate *ConsumerMetadata) UpdateAssignments(cg int, assignments []*consumepb.MetadataAssignment) {
 	cstate.mux.Lock()
 	for _, grp := range cstate.MetadataConsumerState.GetConsumerGroups() {
 		if int(grp.GetID()) == cg {
@@ -48,7 +49,7 @@ func (cstate *ConsumerMetadata) UpdateAssignments(cg int, assignments []*consume
 
 func (cstate *ConsumerMetadata) populateMetadata() {
 	cstate.mux.RLock()
-	brokerAssignmentsMap := make(map[int][]*consumermetadatapb.Assignment)
+	brokerAssignmentsMap := make(map[int][]*consumepb.MetadataAssignment)
 
 	for _, grp := range cstate.MetadataConsumerState.GetConsumerGroups() {
 		for _, assignment := range grp.GetAssignments() {

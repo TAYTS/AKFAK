@@ -4,10 +4,11 @@ import (
 	"AKFAK/proto/adminclientpb"
 	"AKFAK/proto/clientpb"
 	"AKFAK/proto/clustermetadatapb"
+	"AKFAK/proto/consumermetadatapb"
 	"AKFAK/proto/commonpb"
+	"AKFAK/proto/consumepb"
 	"AKFAK/proto/metadatapb"
 	"AKFAK/proto/producepb"
-	"AKFAK/proto/consumepb"
 	"AKFAK/proto/recordpb"
 	"AKFAK/proto/zkmessagepb"
 	"context"
@@ -348,9 +349,9 @@ func (n *Node) GetController(ctx context.Context, req *adminclientpb.GetControll
 func (n *Node) Consume(stream clientpb.ClientService_ConsumeServer) error {
 	// TODO: find if consumer group id that is pulling messages is new (not in assignments), if so, update zookeeper.
 	// TODO: retrieve message
-	// TOOD: update offset in consumer metadata
-	n.ConsumerMetadata.UpdateOffset(assignment)
-	
+	// TODO: update offset in consumer metadata & zk
+	// n.ConsumerMetadata.UpdateOffset(assignment)
+
 	return nil
 }
 
@@ -376,21 +377,21 @@ func (n *Node) GetAssignment(ctx context.Context, req *consumepb.GetAssignmentRe
 	// if no available partition for that topic
 	partitions := n.ClusterMetadata.GetAvailablePartitionsByTopic(topicName)
 	if partitions == nil {
-		return errors.new("Topic not available")
+		return nil, errors.New("Topic not available")
 	}
 
 	// loop through partitions and add an assignment for every partition
 	for _, partState := range partitions {
-		isrBrokers := []*metadatapb.Broker{}
-		brokerIDs := partState.GetInSyncReplicas()
+		isrBrokers := []*clustermetadatapb.MetadataBroker{}
+		brokerIDs := partState.GetIsr()
 		for _, i := range brokerIDs {
-			isrBrokers = append(isrBrokers, n.ClusterMetadata.GetNodesByID(i))
+			isrBrokers = append(isrBrokers, n.ClusterMetadata.GetNodesByID(int(i)))
 		}
 		replica := &consumepb.MetadataAssignment{
-			TopicName: topicName,
-			PartitionIndex: int32(partInfo.GetPartitionID()),
-			Broker: int32(brokerIDs[0]),
-			IsrBrokers:	isrBrokers,
+			TopicName:      topicName,
+			PartitionIndex: int32(partState.GetPartitionIndex()),
+			Broker:         int32(brokerIDs[0]),
+			IsrBrokers:     isrBrokers,
 		}
 		assignments = append(assignments, replica)
 	}
@@ -398,20 +399,24 @@ func (n *Node) GetAssignment(ctx context.Context, req *consumepb.GetAssignmentRe
 	// update consumer group metadata
 	for _, grp := range n.ConsumerMetadata.GetConsumerGroups() {
 		if grp.GetID() == cg {
-			n.ConsumerMetadata.UpdateAssignments(cg, assignments)
+			n.ConsumerMetadata.UpdateAssignments(int(cg), assignments)
 		}
 	}
 
 	newConsumerMetadataState := &consumermetadatapb.MetadataConsumerState{
-		ConsumerGroups:	n.ConsumerMetadata.GetConsumerGroups(),
+		ConsumerGroups: n.ConsumerMetadata.GetConsumerGroups(),
 	}
 
 	// update zookeeper
-	_, err = n.zkClient.UpdateConsumerMetadata(
+	_, err := n.zkClient.UpdateConsumerMetadata(
 		context.Background(),
 		&zkmessagepb.UpdateConsumerMetadataRequest{
-			NewState:	newConsumerMetadataState,
+			NewState: newConsumerMetadataState,
 		})
 
-	return &consumepb.GetAssignmentResponse{Assignments:assignments,}, nil
+	if err != nil {
+		return nil, errors.New("Could not update zookeeper")
+	}
+
+	return &consumepb.GetAssignmentResponse{Assignments: assignments}, nil
 }
