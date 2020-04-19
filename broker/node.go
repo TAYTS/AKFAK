@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"time"
 
 	"google.golang.org/grpc"
 )
@@ -90,30 +89,13 @@ func (n *Node) initControllerRoutine() {
 
 // establishClientServicePeerConn start the ClientService peer connection
 func (n *Node) establishClientServicePeerConn() {
-	opts := grpc.WithInsecure()
+	// initialise the clientServiceClient mapping
 	if n.clientServiceClient == nil {
 		n.clientServiceClient = make(map[int]clientpb.ClientServiceClient)
 	}
 
-	// Connect to all brokers
-	for _, brk := range n.ClusterMetadata.GetLiveBrokers() {
-		peerID := int(brk.GetID())
-		if peerID != n.ID {
-			peerAddr := fmt.Sprintf("%v:%v", brk.GetHost(), brk.GetPort())
-			ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
-			clientCon, err := grpc.DialContext(ctx, peerAddr, opts)
-			if err != nil {
-				log.Printf("Fail to connect to %v: %v\n", peerAddr, err)
-				// TODO: Update the ZK about the fail node
-				cancel()
-				continue
-			}
-			clientServiceClient := clientpb.NewClientServiceClient(clientCon)
-			n.clientServiceClient[peerID] = clientServiceClient
-			cancel()
-		}
-	}
-
+	// create client service connection to all broker
+	n.updateClientPeerConnection()
 }
 
 // InitClusterMetadataCache call the ZK to get the Cluster Metadata
