@@ -4,16 +4,12 @@ package proto.consumermetadatapb;
 
 option go_package = "AKFAK/proto/consumermetadatapb";
 
-message Assignment {
-    string topicName = 1;
-    int32 partitionIndex = 2;
-    int32 offset = 3;
-    int32 broker = 4;
-}
+import "proto/consumepb/consume.proto";
+
 
 message ConsumerGroup {
     int32 ID = 1;
-    repeated Assignment assignments = 2;
+    repeated consumepb.MetadataAssignment assignments = 2;
 }
 
 message MetadataConsumerState {

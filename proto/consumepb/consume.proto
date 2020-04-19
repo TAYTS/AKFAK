@@ -5,7 +5,7 @@ package proto.consumepb;
 option go_package = "AKFAK/proto/consumepb";
 
 import "proto/recordpb/record.proto";
-import "proto/metadatapb/metadata.proto";
+import "proto/clustermetadatapb/cluster_metadata.proto";
 
 message ConsumeRequest {
     int32 groupID = 1;
@@ -28,12 +28,13 @@ message GetAssignmentRequest {
 message MetadataAssignment {
     string topicName = 1;
     int32 partitionIndex = 2;
+    int32 offset = 3;
     // brokerid for broker holding replica that is assigned to consumer 
     // for that partition
-    int32 broker = 3;
+    int32 broker = 4;
     // list of brokers holding isr for partition (excludes broker with assigned replica)
     // contacted when an assigned replica fails to respond 
-    repeated metadatapb.Broker isrBrokers = 4;
+    repeated clustermetadatapb.MetadataBroker isrBrokers = 5;
 }
 
 message GetAssignmentResponse {
