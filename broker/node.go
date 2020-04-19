@@ -2,11 +2,11 @@ package broker
 
 import (
 	"AKFAK/cluster"
+	"AKFAK/consumermetadata"
 	"AKFAK/config"
 	"AKFAK/proto/adminpb"
 	"AKFAK/proto/clientpb"
 	"AKFAK/proto/clustermetadatapb"
-	"AKFAK/proto/consumermetadatapb"
 	"AKFAK/proto/zkmessagepb"
 	"AKFAK/proto/zookeeperpb"
 	"context"
@@ -24,7 +24,7 @@ type Node struct {
 	Host                string
 	Port                int
 	ClusterMetadata     *cluster.Cluster
-	ConsumerMetadata	*consumermetadatapb.MetadataConsumerState
+	ConsumerMetadata    *consumermetadata.ConsumerMetadata
 	adminServiceClient  map[int]adminpb.AdminServiceClient
 	clientServiceClient map[int]clientpb.ClientServiceClient
 	zkClient            zookeeperpb.ZookeeperServiceClient
@@ -57,6 +57,7 @@ func (n *Node) InitAdminListener() {
 
 	// setup the cluster metadata cache
 	n.initClusterMetadataCache()
+	n.initConsumerMetadataCache()
 
 	// TODO [Fault tolerance]: check if the broker is not insync
 
@@ -140,6 +141,30 @@ func (n *Node) initClusterMetadataCache() {
 
 	// store the cluster metadata to cache
 	n.ClusterMetadata = cluster.InitCluster(res.GetClusterInfo())
+}
+
+// InitConsumerMetadataCache call the ZK to get the Consumer Metadata
+func (n *Node) initConsumerMetadataCache() {
+	// connect to ZK
+	zkClient := getZKClient(n.config.ZKConn)
+
+	// create request with the current broker info
+	req := &zkmessagepb.GetConsumerMetadataRequest{
+		Broker: &clustermetadatapb.MetadataBroker{
+			ID:   int32(n.ID),
+			Host: n.Host,
+			Port: int32(n.Port),
+		},
+	}
+
+	// send the GetClusterMetadata request
+	res, err := zkClient.GetConsumerMetadata(context.Background(), req)
+	if err != nil {
+		log.Fatalf("Fail to get the cluster metada from Zk")
+	}
+
+	// store the cluster metadata to cache
+	n.ConsumerMetadata = consumermetadata.InitConsumerMetadata(res.GetConsumerMetadata())
 }
 
 func getZKClient(zkAddress string) zookeeperpb.ZookeeperServiceClient {
