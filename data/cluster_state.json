@@ -1,0 +1,20 @@
+{
+  "brokers": [
+    {
+      "ID": 1,
+      "host": "broker-1",
+      "port": 5000
+    },
+    {
+      "ID": 2,
+      "host": "broker-2",
+      "port": 5000
+    },
+    {
+      "ID": 3,
+      "host": "broker-3",
+      "port": 5000
+    }
+  ],
+  "topicStates": []
+}

@@ -13,6 +13,9 @@ import (
 )
 
 func main() {
+	// log setup
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
+
 	// parse the user input opration
 	topicCommandInput := topic.ParseTopicCommandInput()
 
