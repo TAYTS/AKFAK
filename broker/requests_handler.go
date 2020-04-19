@@ -347,7 +347,6 @@ func (n *Node) GetController(ctx context.Context, req *adminclientpb.GetControll
 
 // Consume responds to pull request from consumer, sending record batch on topic-X partition-Y
 func (n *Node) Consume(stream clientpb.ClientService_ConsumeServer) error {
-//func (n *Node) Consume(ctx context.Context, req *consumepb.ConsumeRequest) (*consumepb.ConsumeResponse, error) {
 	// TODO: find if consumer group id that is pulling messages is new (not in assignments), if so, update zookeeper.
 	// TODO: retrieve message
 	// TODO: update offset in consumer metadata & zk
@@ -369,9 +368,18 @@ func (n *Node) Consume(stream clientpb.ClientService_ConsumeServer) error {
 			Assignments:          nil,
 		}
 		n.ConsumerMetadata.ConsumerGroups = append(n.ConsumerMetadata.ConsumerGroups, &newConsumerGroup)
+		// Update the newConsumerGroupMetadata
+		// Update ZK
+		// Call getAssignment
+		// Consume
 	} else {
-		//fileHandlerMapping := make(map[int]*recordpb.FileRecord)
-		//n.ReadRecordBatchFromLocal(topicName, partitionIndex, fileHandlerMapping)
+		// Error will be handled explicitly at ReadRecordBatchFromLocal
+		recordBatch, _ := n.ReadRecordBatchFromLocal(topicName, int(partitionIndex))
+		stream.Send(&consumepb.ConsumeResponse{
+			TopicName:            topicName,
+			Partition:            partitionIndex,
+			RecordSet:            recordBatch,
+		})
 	}
 	return nil
 }
