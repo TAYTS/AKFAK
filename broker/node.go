@@ -21,6 +21,7 @@ type Node struct {
 	Host                string
 	Port                int
 	Metadata            *clustermetadatapb.MetadataCluster
+	ConsumerMetadata	*consumermetadata.ConsumerMetadata
 	adminServiceClient  map[int]adminpb.AdminServiceClient
 	clientServiceClient map[int]clientpb.ClientServiceClient
 }
