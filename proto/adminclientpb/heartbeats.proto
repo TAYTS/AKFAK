@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+package proto.adminclientpb;
+
+option go_package = "AKFAK/proto/adminclientpb";
+
+message HeartbeatsRequest {}
+
+message HeartbeatsResponse { int32 brokerID = 1; }
