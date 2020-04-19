@@ -2,9 +2,11 @@ package broker
 
 import (
 	"AKFAK/proto/adminclientpb"
+	"AKFAK/proto/adminpb"
 	"AKFAK/proto/clientpb"
 	"AKFAK/proto/clustermetadatapb"
 	"AKFAK/proto/commonpb"
+	"AKFAK/proto/heartbeatspb"
 	"AKFAK/proto/metadatapb"
 	"AKFAK/proto/producepb"
 	"AKFAK/proto/recordpb"
@@ -13,6 +15,7 @@ import (
 	"errors"
 	"io"
 	"log"
+	"time"
 )
 
 // Produce used to receive message batch from Producer and forward other brokers in the cluster
@@ -341,4 +344,18 @@ func (n *Node) GetController(ctx context.Context, req *adminclientpb.GetControll
 		Host:         controller.GetHost(),
 		Port:         controller.GetPort(),
 	}, nil
+}
+
+// Heartbeats is used by the broker to send heartbeat to the controller every 1 second
+func (n *Node) Heartbeats(stream adminpb.AdminService_HeartbeatsServer) error {
+	for {
+		err := stream.Send(&heartbeatspb.HeartbeatsResponse{})
+		if err != nil {
+			log.Printf("Broker %v detect controller fail\n", n.ID)
+			return err
+		}
+
+		// wait for 1 second
+		time.Sleep(time.Second)
+	}
 }

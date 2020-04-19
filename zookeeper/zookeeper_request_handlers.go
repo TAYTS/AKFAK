@@ -3,6 +3,7 @@ package zookeeper
 import (
 	"AKFAK/proto/commonpb"
 	"AKFAK/proto/zkmessagepb"
+	"AKFAK/proto/zookeeperpb"
 	"context"
 	"errors"
 	"log"
@@ -58,4 +59,17 @@ func (zk *Zookeeper) UpdateClusterMetadata(ctx context.Context, req *zkmessagepb
 	zk.clusterMetadata.UpdateClusterMetadata(newClsInfo)
 
 	return &zkmessagepb.UpdateClusterMetadataResponse{Response: &commonpb.Response{Status: commonpb.ResponseStatus_SUCCESS, Message: "Successfully updated the cluster metadata to ZK"}}, nil
+}
+
+// Heartbeats used to receive the heartbeasts from the controller
+func (zk *Zookeeper) Heartbeats(stream zookeeperpb.ZookeeperService_HeartbeatsServer) error {
+	for {
+		_, err := stream.Recv()
+		if err != nil {
+			log.Println("ZK detect controller fail")
+			// TODO: start controller election
+			return err
+		}
+	}
+	return nil
 }

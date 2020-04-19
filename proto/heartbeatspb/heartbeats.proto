@@ -4,6 +4,6 @@ package proto.heartbeatspb;
 
 option go_package = "AKFAK/proto/heartbeatspb";
 
-message HeartbeatsRequest {}
+message HeartbeatsRequest { int32 brokerID = 1; }
 
 message HeartbeatsResponse { int32 brokerID = 1; }
