@@ -12,6 +12,7 @@ message MetadataPartitionState {
   repeated int32 replicas = 5;        // All brokerID which hold the partition
   repeated int32 offlineReplicas = 6; // BrokerID which are offline/out-of-sync
 }
+
 message MetadataTopicState {
   string topicName = 1;
   repeated MetadataPartitionState partitionStates = 2;

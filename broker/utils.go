@@ -27,7 +27,7 @@ func (n *Node) writeRecordBatchToLocal(topicName string, partitionID int, fileHa
 }
 
 // ReadRecordBatchFromLocal is a helper function for Consume request handler to read the Record from local log file
-func ReadRecordBatchFromLocal(topicName string, partitionID int, fileHandlerMapping map[int]*recordpb.FileRecord) (*recordpb.RecordBatch, error) {
+func (n *Node) ReadRecordBatchFromLocal(topicName string, partitionID int, fileHandlerMapping map[int]*recordpb.FileRecord) (*recordpb.RecordBatch, error) {
 	fHandler, exist := fileHandlerMapping[partitionID]
 	if exist {
 		recordBatch, err := fHandler.ReadNextRecordBatch()
