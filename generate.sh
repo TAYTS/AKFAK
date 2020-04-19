@@ -10,3 +10,4 @@ protoc proto/adminclientpb/*.proto --go_out=plugins=grpc:..
 protoc proto/zkmessagepb/*.proto --go_out=plugins=grpc:..
 protoc proto/zookeeperpb/*.proto --go_out=plugins=grpc:..
 protoc proto/clustermetadatapb/*.proto --go_out=plugins=grpc:..
+protoc proto/heartbeatspb/*.proto --go_out=plugins=grpc:..
