@@ -4,6 +4,7 @@ import (
 	"AKFAK/proto/adminpb"
 	"AKFAK/proto/clientpb"
 	"AKFAK/proto/clustermetadatapb"
+	"AKFAK/proto/consumermetadatapb"
 	"AKFAK/proto/zkmessagepb"
 	"AKFAK/proto/zookeeperpb"
 	"context"
@@ -21,7 +22,7 @@ type Node struct {
 	Host                string
 	Port                int
 	Metadata            *clustermetadatapb.MetadataCluster
-	ConsumerMetadata	*consumermetadata.ConsumerMetadata
+	ConsumerMetadata	*consumermetadatapb.MetadataConsumerState
 	adminServiceClient  map[int]adminpb.AdminServiceClient
 	clientServiceClient map[int]clientpb.ClientServiceClient
 }

@@ -357,14 +357,16 @@ func (n *Node) GetAssignment(ctx context.Context, req *consumepb.GetAssignmentRe
 		}
 	}
 
+	newConsumerMetadataState := &consumermetadatapb.MetadataConsumerState{
+		ConsumerGroups:	n.ConsumerMetadata.GetConsumerGroups(),
+	}
+
 	// update zookeeper
 	_, err = n.zkClient.UpdateConsumerMetadata(
 		context.Background(),
-		&zkmessagepb.UpdateConsumerMetadataRequest(
-			NewState:	n.ConsumerMetadata
-			}
-		)
-	}
+		&zkmessagepb.UpdateConsumerMetadataRequest{
+			NewState:	newConsumerMetadataState,
+		})
 
 	return &consumepb.GetAssignmentResponse{Assignments:assignments,}, nil
 }
