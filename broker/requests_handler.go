@@ -301,44 +301,70 @@ func (*Node) GetController(ctx context.Context, req *adminclientpb.GetController
 
 // Consume responds to pull request fron consumer, sending record batch on topic-X partition-Y
 func (n *Node) Consume(stream clientpb.ClientService_ConsumeServer) error {
-	// TODO: get 
+	// TODO: find if consumer group id that is pulling messages is new (not in assignments), if so, update zookeeper.
+	// TODO: retrieve message
+	// TOOD: update offset in consumer metadata
+	n.ConsumerMetadata.UpdateOffset(assignment)
+	
 	return nil
 }
 
-// GetReplicas assigns replicas for partitions of a topic
-func (*Node) GetReplicas(ctx context.Context, req *consumepb.GetReplicasRequest) (*consumepb.GetReplicasResponse, error) {
+// GetAssignment assigns replicas for partitions of a topic
+func (n *Node) GetAssignment(ctx context.Context, req *consumepb.GetAssignmentRequest) (*consumepb.GetAssignmentResponse, error) {
 
 	cg := req.GetGroupID()
 	topicName := req.GetTopicName()
 
-	// TODO check if replicas already assigned to consumer group for that topic
-	// TODO check if there is a change in state of brokers such that assignments are affected 
-	if AlreadyAssigned(cg, topicName) && NoChangeInState(cg, topicName){
-		
-		return nil, nil
-	}
-
-	replicas := []*consumepb.MetadataReplicaState{}
-
-	res := &consumepb.GetReplicasResponse{
-		ReplicaStateChange:	NoChangeInState(cg, topicName),
-	}
-
-	// else assign replicas to consumer group
-	// get replicas
-	for _, partInfo := range topicMapping[topicName] {
-		broker := partInfo.GetInSyncReplicas()[0]
-		replica := &consumepb.MetadataReplicaState{
-			TopicName: topicName,
-			PartitionIndex: partInfo.GetPartitionID(),
-			Broker:	broker,
-			
+	// check if replicas already assigned to consumer group for that topic
+	for _, grp := range n.ConsumerMetadata.GetConsumerGroups() {
+		if grp.GetID() == cg {
+			for _, assignment := range grp.GetAssignments() {
+				if assignment.GetTopicName() == topicName {
+					return nil, nil
+				}
+			}
 		}
-		
 	}
-	
-	// TODO update metadata cache
-	// TODO update zookeeper?
 
-	return res, nil
+	assignments := []*consumepb.MetadataAssignment{}
+
+	// if no available partition for that topic
+	partitions := n.ClusterMetadata.GetAvailablePartitionsByTopic(topicName)
+	if partitions == nil {
+		return errors.new("Topic not available")
+	}
+
+	// loop through partitions and add an assignment for every partition
+	for _, partState := range partitions {
+		isrBrokers := []*metadatapb.Broker{}
+		brokerIDs := partState.GetInSyncReplicas()
+		for _, i := range brokerIDs {
+			isrBrokers = append(isrBrokers, n.ClusterMetadata.GetNodesByID(i))
+		}
+		replica := &consumepb.MetadataAssignment{
+			TopicName: topicName,
+			PartitionIndex: int32(partInfo.GetPartitionID()),
+			Broker: int32(brokerIDs[0]),
+			IsrBrokers:	isrBrokers,
+		}
+		assignments = append(assignments, replica)
+	}
+
+	// update consumer group metadata
+	for _, grp := range n.ConsumerMetadata.GetConsumerGroups() {
+		if grp.GetID() == cg {
+			n.ConsumerMetadata.UpdateAssignments(cg, assignments)
+		}
+	}
+
+	// update zookeeper
+	_, err = n.zkClient.UpdateConsumerMetadata(
+		context.Background(),
+		&zkmessagepb.UpdateConsumerMetadataRequest(
+			NewState:	n.ConsumerMetadata
+			}
+		)
+	}
+
+	return &consumepb.GetAssignmentResponse{Assignments:assignments,}, nil
 }
