@@ -3,11 +3,10 @@ package consumer
 import (
 	"context"
 	"fmt"
-	"log"
 	"time"
 
 	"AKFAK/proto/clientpb"
-	"AKFAK/proto/metadatapb"
+	"AKFAK/proto/consumermetadatapb"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -17,8 +16,7 @@ import (
 type ConsumerGroup struct {
 	id               int
 	ConsumerGroupCon map[string]clientpb.ClientService_ConsumeClient
-	clientService    clientpb.ClientServiceClient
-	metadata         *metadatapb.MetadataResponse
+	metadata         *consumermetadatapb.MetadataConsumerState
 }
 
 type Consumer struct {
@@ -50,11 +48,6 @@ func InitGroupConsumer(id int, brokersAddr map[int]string) *ConsumerGroup {
 	cg.getReplicas(brokersAddr, 100*time.Millisecond)
 	// set up connection to all brokers. key - address : val - stream
 	cg.dialConsumerGroup(brokersAddr)
-	conn, err := grpc.Dial(brokersAddr[0], grpc.WithInsecure(), grpc.WithBlock())
-	if err != nil {
-		log.Fatalf("could not connect to broker: %v", err)
-	}
-	cg.clientService = clientpb.NewClientServiceClient(conn)
 
 	return &cg
 }
@@ -123,7 +116,7 @@ func stringPQ(pq []AssignedReplica) string {
 	return ret
 }
 
-func (p *Consumer) getReplicas(brokersAddr map[int]string, maxWaitMs time.Duration) {
+func (cg *ConsumerGroup) getReplicas(brokersAddr map[int]string, maxWaitMs time.Duration) {
 	// dial one of the broker to get the topic metadata
 	for _, addr := range brokersAddr {
 		// connect to one of the broker
@@ -138,20 +131,20 @@ func (p *Consumer) getReplicas(brokersAddr map[int]string, maxWaitMs time.Durati
 		prdClient := clientpb.NewClientServiceClient(conn)
 
 		// send get metadata request
-		req := &metadatapb.MetadataRequest{
-			TopicName: p.topic,
+		req := &consumermetadatapb.MetadataConsumerState{
+			ConsumerGroups: cg.id,
 		}
 
 		// create context with timeout
 		ctx, cancel := context.WithTimeout(context.Background(), maxWaitMs)
 
 		// send request to get metadata
-		res, err := prdClient.WaitOnMetadata(ctx, req)
+		res, err := prdClient.GetReplicas(ctx, req)
 		if err != nil {
 			statusErr, ok := status.FromError(err)
 			if ok {
 				if statusErr.Code() == codes.DeadlineExceeded {
-					fmt.Printf("Metadata not received for topic %v after %d ms", p.topic, maxWaitMs)
+					fmt.Printf("Metadata not received for topic %v after %d ms", cg.topic, maxWaitMs)
 				} else {
 					fmt.Printf("Unexpected error: %v", statusErr)
 				}
@@ -165,8 +158,8 @@ func (p *Consumer) getReplicas(brokersAddr map[int]string, maxWaitMs time.Durati
 			continue
 		}
 
-		// save the metadata response to the producer
-		p.metadata = res
+		// save the metadata response to the consumer
+		cg.metadata = res
 
 		// clean up resources
 		cancel()
