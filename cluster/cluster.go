@@ -63,6 +63,38 @@ func (cls *Cluster) UpdateTopicState(newTopicStates []*clustermetadatapb.Metadat
 	if newTopicStates != nil {
 		cls.TopicStates = newTopicStates
 	}
+	cls.mux.Unlock()
+
+	// refrehs the partitionsByTopic & availablePartitionsByTopic mapping
+	cls.refreshPartitionTopicMapping()
+}
+
+// UpdateClusterMetadata replace the current MetadataCluster local cache
+func (cls *Cluster) UpdateClusterMetadata(newClsMeta *clustermetadatapb.MetadataCluster) {
+	cls.mux.Lock()
+	cls.MetadataCluster = newClsMeta
+	cls.mux.Unlock()
+	cls.populateCluster()
+}
+
+// populateCluster refresh the internal mapping for easy access
+func (cls *Cluster) populateCluster() {
+	cls.mux.Lock()
+	// update nodesByID mapping
+	nodesByID := make(map[int]*clustermetadatapb.MetadataBroker)
+	for _, node := range cls.MetadataCluster.GetLiveBrokers() {
+		nodesByID[int(node.GetID())] = node
+	}
+	cls.nodesByID = nodesByID
+	cls.mux.Unlock()
+
+	// refresh partitionsByTopic and availablePartitionsByTopic mapping
+	cls.refreshPartitionTopicMapping()
+}
+
+// refreshPartitionTopicMapping refresh the partitionsByTopic & availablePartitionsByTopic mapping
+func (cls *Cluster) refreshPartitionTopicMapping() {
+	cls.mux.Lock()
 	partitionsByTopic := make(map[string][]*clustermetadatapb.MetadataPartitionState)
 	availablePartitionsByTopic := make(map[string][]*clustermetadatapb.MetadataPartitionState)
 	for _, topic := range cls.MetadataCluster.GetTopicStates() {
@@ -84,24 +116,94 @@ func (cls *Cluster) UpdateTopicState(newTopicStates []*clustermetadatapb.Metadat
 	cls.mux.Unlock()
 }
 
-// UpdateClusterMetadata replace the current MetadataCluster local cache
-func (cls *Cluster) UpdateClusterMetadata(newClsMeta *clustermetadatapb.MetadataCluster) {
+// moveBrkToISRByPartition move the specified broker into the ISR of the specified topic and partition index
+func (cls *Cluster) moveBrkToISRByPartition(brkID int32, topicName string, partitionIdx int32) {
 	cls.mux.Lock()
-	cls.MetadataCluster = newClsMeta
+	// get the partitions of the topic
+	partitions := cls.partitionsByTopic[topicName]
+
+	// update the partition
+	for _, partState := range partitions {
+		if partState.GetPartitionIndex() == partitionIdx {
+			for idx, replicaID := range partState.GetOfflineReplicas() {
+				if replicaID == brkID {
+					// add the broker ID to the ISR
+					partState.Isr = append(partState.GetIsr(), brkID)
+
+					// remove the broker ID from offline replicas
+					offlineReplicaCopy := partState.GetOfflineReplicas()
+					partState.OfflineReplicas = append(offlineReplicaCopy[:idx], offlineReplicaCopy[idx+1:]...)
+
+					break
+				}
+			}
+		}
+	}
 	cls.mux.Unlock()
-	cls.populateCluster()
 }
 
-func (cls *Cluster) populateCluster() {
+// moveBrkToOffline move the specified broker to offline replicas for all the topics and partitions
+// return the mapping of all the topic and the corresponding partition that required new leader election
+func (cls *Cluster) moveBrkToOffline(brkID int32) map[string][]int32 {
+	topicPartElectRequiredMap := make(map[string][]int32)
+
 	cls.mux.Lock()
-	// update nodesByID mapping
-	nodesByID := make(map[int]*clustermetadatapb.MetadataBroker)
-	for _, node := range cls.MetadataCluster.GetLiveBrokers() {
-		nodesByID[int(node.GetID())] = node
+	for _, tpState := range cls.GetTopicStates() {
+		topicName := tpState.GetTopicName()
+		for _, partState := range tpState.GetPartitionStates() {
+			// update ISR and Offline replicas
+			for idx, isrID := range partState.GetIsr() {
+				if isrID == brkID {
+					// add broker ID to the offline replicas
+					partState.OfflineReplicas = append(partState.GetOfflineReplicas(), brkID)
+
+					// remove the broker ID from ISR
+					isrCopy := partState.GetIsr()
+					partState.Isr = append(isrCopy[:idx], isrCopy[idx+1:]...)
+
+					break
+				}
+			}
+
+			// if the broker is the leader, then set the leader to -1
+			if partState.GetLeader() == brkID {
+				partState.Leader = -1
+				partIDs, exist := topicPartElectRequiredMap[topicName]
+
+				if !exist {
+					topicPartElectRequiredMap[topicName] = []int32{brkID}
+				} else {
+					topicPartElectRequiredMap[topicName] = append(partIDs, brkID)
+				}
+			}
+		}
 	}
-	cls.nodesByID = nodesByID
 	cls.mux.Unlock()
 
-	// update partitionsByTopic and availablePartitionsByTopic mapping
-	cls.UpdateTopicState(nil)
+	// if no election required return nil
+	if len(topicPartElectRequiredMap) == 0 {
+		return nil
+	}
+
+	return topicPartElectRequiredMap
+}
+
+// checkBrokerInSync check if the broker is a insync replica for all the partition
+func (cls *Cluster) checkBrokerInSync(brkID int32) bool {
+	cls.mux.RLock()
+	for _, tpState := range cls.GetTopicStates() {
+		for _, partState := range tpState.GetPartitionStates() {
+			for _, offReplica := range partState.GetOfflineReplicas() {
+				// if the broker is in offlineReplica mean it is not insync
+				if brkID == offReplica {
+					cls.mux.RUnlock()
+					return false
+				}
+			}
+		}
+	}
+
+	cls.mux.RUnlock()
+	// if the broker is not in any of the offline replicas mean it is insync
+	return true
 }
