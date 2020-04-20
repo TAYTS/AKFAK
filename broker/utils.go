@@ -5,11 +5,13 @@ import (
 	"AKFAK/proto/adminclientpb"
 	"AKFAK/proto/adminpb"
 	"AKFAK/proto/clientpb"
+	"AKFAK/proto/heartbeatspb"
 	"AKFAK/proto/recordpb"
 	"context"
 	"errors"
 	"fmt"
 	"log"
+	"time"
 
 	"google.golang.org/grpc"
 )
@@ -168,8 +170,8 @@ func (n *Node) updateClientPeerConnection() {
 	}
 }
 
-// setupPeerHeartbeatsConnection create a client stream to the peer broker
-func (n *Node) setupPeerHeartbeatsConnection(peerIDs []int) {
+// setupPeerHeartbeatsReceiver create a client stream to the peer broker
+func (n *Node) setupPeerHeartbeatsReceiver(peerIDs []int) {
 	for _, peerID := range peerIDs {
 		if adminClient, exist := n.adminServiceClient[peerID]; exist {
 			log.Printf("Controller setup heartbeat connection to Broker %v\n", peerID)
@@ -191,5 +193,28 @@ func (n *Node) setupPeerHeartbeatsConnection(peerIDs []int) {
 				}
 			}()
 		}
+	}
+}
+
+// setupZKHeartbeatsConnection used by controller to send heartbeat request to ZK
+func (n *Node) setupZKHeartbeatsRequest() {
+	stream, err := n.zkClient.Heartbeats(context.Background())
+	if err != nil {
+		// Should not happened in this implementation because we assume
+		// ZK is always available
+		log.Printf("Controller detect ZK has failed\n")
+	}
+
+	// send the heartbeats request to ZK every 1 second
+	for {
+		err := stream.Send(&heartbeatspb.HeartbeatsRequest{BrokerID: int32(n.ID)})
+		if err != nil {
+			// Should not happened in this implementation because we assume
+			// ZK is always available
+			log.Printf("Controller detect ZK has failed\n")
+		}
+
+		// wait for 1 second
+		time.Sleep(time.Second)
 	}
 }

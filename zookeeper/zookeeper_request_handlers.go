@@ -65,11 +65,11 @@ func (zk *Zookeeper) UpdateClusterMetadata(ctx context.Context, req *zkmessagepb
 func (zk *Zookeeper) Heartbeats(stream zookeeperpb.ZookeeperService_HeartbeatsServer) error {
 	for {
 		_, err := stream.Recv()
+		log.Println("ZK receive heartbeats request from controller")
 		if err != nil {
 			log.Println("ZK detect controller fail")
 			// TODO: start controller election
 			return err
 		}
 	}
-	return nil
 }

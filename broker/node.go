@@ -83,11 +83,14 @@ func (n *Node) initControllerRoutine() {
 	// Connect to all brokers
 	peers := n.updateAdminPeerConnection()
 
-	// setup hearbeats request to peers
-	n.setupPeerHeartbeatsConnection(peers)
+	// setup hearbeats receiver with peers
+	n.setupPeerHeartbeatsReceiver(peers)
 
 	// connect and store ZK rpc client
 	n.zkClient = getZKClient(n.config.ZKConn)
+
+	// setup heartbeats request to ZK
+	n.setupZKHeartbeatsRequest()
 }
 
 // establishClientServicePeerConn start the ClientService peer connection

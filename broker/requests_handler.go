@@ -323,8 +323,8 @@ func (n *Node) UpdateMetadata(ctx context.Context, req *adminclientpb.UpdateMeta
 		// update admin service peer connection
 		newPeers := n.updateAdminPeerConnection()
 
-		// setup hearbeats request to all the new peers
-		n.setupPeerHeartbeatsConnection(newPeers)
+		// setup hearbeats receiver with all the new peers
+		n.setupPeerHeartbeatsReceiver(newPeers)
 
 		// update peer cluster metadata
 		for _, peer := range n.adminServiceClient {
