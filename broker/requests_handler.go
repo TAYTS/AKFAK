@@ -347,31 +347,25 @@ func (n *Node) GetController(ctx context.Context, req *adminclientpb.GetControll
 
 // Consume responds to pull request from consumer, sending record batch on topic-X partition-Y
 func (n *Node) Consume(stream clientpb.ClientService_ConsumeServer) error {
-	// TODO: find if consumer group id that is pulling messages is new (not in assignments), if so, update zookeeper.
-	// TODO: retrieve message
-	// TODO: update offset in consumer metadata & zk
-	// n.ConsumerMetadata.UpdateOffset(assignment)
 	req, err := stream.Recv()
 	if err != nil {
 		return err
 	}
-	consumerGroups := n.ConsumerMetadata.GetConsumerGroups()
 	consumerGroupId := req.GetGroupID()
 	topicName := req.GetTopicName()
 	partitionIndex := req.GetPartition()
 
-	isAssigned := hasAssignment(consumerGroupId, topicName, partitionIndex, consumerGroups)
-	// Check if its the same assignment
-	if !isAssigned {
-		newConsumerGroup := consumermetadatapb.ConsumerGroup{
-			ID:                   req.GetGroupID(),
-			Assignments:          nil,
-		}
-		n.ConsumerMetadata.ConsumerGroups = append(n.ConsumerMetadata.ConsumerGroups, &newConsumerGroup)
-		// Update the newConsumerGroupMetadata
-		// Update ZK
-		// Call getAssignment
-		// Consume
+	
+	brokerAssignmentMap := n.ConsumerMetadata.GetBrokerAssignmentsMap()
+	assignments := brokerAssignmentMap[int(consumerGroupId)]
+
+	// If there is no assignment, return nil RecordSet
+	// Broker should have sync and gotten the latest ConsumerMetaData
+	if len(assignments) == 0 {
+		stream.Send(&consumepb.ConsumeResponse{
+			TopicName: topicName,
+			RecordSet: nil,
+		})
 	} else {
 		// Error will be handled explicitly at ReadRecordBatchFromLocal
 		recordBatch, _ := n.ReadRecordBatchFromLocal(topicName, int(partitionIndex))
@@ -381,21 +375,6 @@ func (n *Node) Consume(stream clientpb.ClientService_ConsumeServer) error {
 			RecordSet:            recordBatch,
 		})
 	}
-	return nil
-}
-
-func hasAssignment(groupId int32, topicName string, partitionIndex int32, consumerGroups []*consumermetadatapb.ConsumerGroup) bool {
-	for _, group := range consumerGroups {
-		if group.GetID() == groupId {
-			for _, assignment := range group.GetAssignments() {
-				if assignment.GetTopicName() == topicName && assignment.GetPartitionIndex() == partitionIndex {
-					return true
-				}
-			}
-			return false
-		}
-	}
-	return false
 }
 
 // GetAssignment assigns replicas for partitions of a topic

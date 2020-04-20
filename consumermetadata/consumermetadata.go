@@ -64,3 +64,9 @@ func (cstate *ConsumerMetadata) populateMetadata() {
 	cstate.brokerAssignmentsMap = brokerAssignmentsMap
 	cstate.mux.Unlock()
 }
+
+func (cstate *ConsumerMetadata) GetBrokerAssignmentsMap() map[int][]*consumepb.MetadataAssignment {
+	cstate.mux.Lock()
+	defer cstate.mux.Unlock()
+	return cstate.brokerAssignmentsMap
+}
