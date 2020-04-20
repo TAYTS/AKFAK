@@ -5,12 +5,14 @@ import (
 	"errors"
 	"log"
 	"os"
+	fpath "path/filepath"
 
 	"github.com/golang/protobuf/proto"
 )
 
 // FileRecord is the used for handling/interact with the RecordBatch stored in the local file
 type FileRecord struct {
+	dir           string
 	filename      string
 	file          *os.File
 	currentOffset int64
@@ -24,17 +26,19 @@ const maxPartialHeaderPeekSize = maxBaseOffsetSize + maxBatchLengthSize
 // 		   Public Methods		 //
 ///////////////////////////////////
 
-// InitialiseFileRecordFromFile create the FileRecord that used to handle the log read from file
-func InitialiseFileRecordFromFile(filename string) (*FileRecord, error) {
+// InitialiseFileRecordFromFilepath create the FileRecord that used to handle the log read/write from/to file
+func InitialiseFileRecordFromFilepath(filepath string) (*FileRecord, error) {
 	// Open the file based on the filename given
-	file, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0644)
+	file, err := os.OpenFile(filepath, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0644)
 	if err != nil {
 		log.Fatalf("Unable to create or open the file: %v\n", err)
 		return nil, err
 	}
 
+	dir, filename := fpath.Split(filepath)
 	// Create an instance of FileRecord
 	fileRecord := &FileRecord{
+		dir:           dir,
 		filename:      filename,
 		file:          file,
 		currentOffset: 0,
@@ -78,22 +82,25 @@ func (fileRcd *FileRecord) ReadNextRecordBatch() (*RecordBatch, error) {
 	return recordBatch, nil
 }
 
-// WriteToFile retrieve the next RecordBatch in the file buffer else return nil
-func (fileRcd *FileRecord) WriteToFile(rcdBatch *RecordBatch) error {
+// WriteToFile write data to the file and return the new file size(num of bytes)
+// return 0 and error if there is error
+func (fileRcd *FileRecord) WriteToFile(rcdBatch *RecordBatch) (int64, error) {
 	// Convert proto message to []byte
 	recordBatchByte, err := proto.Marshal(rcdBatch)
 	if err != nil {
 		log.Fatalf("Unable to marshall the Record message: %v\n", err)
-		return err
+		return 0, err
 	}
 
 	// Write or append the new RecordBatch proto message
 	if _, err := fileRcd.file.Write(recordBatchByte); err != nil {
 		log.Fatalf("Unable to write to file: %v\n", err)
-		return err
+		return 0, err
 	}
 
-	return nil
+	// return the new file size
+	newFileSize := fileRcd.GetFileSize()
+	return newFileSize, nil
 }
 
 // CloseFile close the file
@@ -105,6 +112,20 @@ func (fileRcd *FileRecord) CloseFile() error {
 	}
 
 	return nil
+}
+
+// ShiftReadOffset is used to shift the current file reading head/pointer
+// ** Please use with care and make sure the offset provided is correctly
+// match the record batch starting position ***
+func (fileRcd *FileRecord) ShiftReadOffset(offset int64) {
+	fileRcd.currentOffset = offset
+}
+
+// GetFileSize get the current file size (num of bytes)
+func (fileRcd *FileRecord) GetFileSize() int64 {
+	// Get the current file byte size
+	stats, _ := fileRcd.file.Stat()
+	return stats.Size()
 }
 
 ///////////////////////////////////

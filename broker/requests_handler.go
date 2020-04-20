@@ -1,6 +1,7 @@
 package broker
 
 import (
+	"AKFAK/broker/partition"
 	"AKFAK/proto/adminclientpb"
 	"AKFAK/proto/adminpb"
 	"AKFAK/proto/clientpb"
@@ -13,6 +14,7 @@ import (
 	"AKFAK/proto/zkmessagepb"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"time"
@@ -302,12 +304,6 @@ func (n *Node) AdminClientNewPartition(ctx context.Context, req *adminclientpb.A
 	return &adminclientpb.AdminClientNewPartitionResponse{Response: &commonpb.Response{Status: commonpb.ResponseStatus_SUCCESS}}, nil
 }
 
-// LeaderAndIsr update the state of the local replica
-func (*Node) LeaderAndIsr(ctx context.Context, req *adminclientpb.LeaderAndIsrRequest) (*adminclientpb.LeaderAndIsrResponse, error) {
-	// TODO: Add update the leader and isr handler function
-	return &adminclientpb.LeaderAndIsrResponse{Response: &commonpb.Response{Status: commonpb.ResponseStatus_SUCCESS}}, nil
-}
-
 // UpdateMetadata update the Metadata state of the broker
 func (n *Node) UpdateMetadata(ctx context.Context, req *adminclientpb.UpdateMetadataRequest) (*adminclientpb.UpdateMetadataResponse, error) {
 	newClsInfo := req.GetNewClusterInfo()
@@ -360,5 +356,103 @@ func (n *Node) Heartbeats(stream adminpb.AdminService_HeartbeatsServer) error {
 
 		// wait for 1 second
 		time.Sleep(time.Second)
+	}
+}
+
+// SyncMessages is used to sync the record batch of the broker whose records are outdated
+func (n *Node) SyncMessages(stream adminpb.AdminService_SyncMessagesServer) error {
+	replicaID := int32(-1)
+	const MAX_MESSAGE_PER_PARTITION = 5
+	doneSetup := false
+
+	for {
+		req, err := stream.Recv()
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			log.Printf("Broker %v unable to get sync request from %v\n", n.ID, replicaID)
+		}
+
+		// set the requesting replicaID
+		replicaID = req.GetReplicaID()
+
+		topicPartMapping := make(map[string][]*adminclientpb.SyncPartition)
+		partDirnameFileHandlerMap := make(map[string]*recordpb.FileRecord)
+
+		// initial setup
+		if !doneSetup {
+			for _, syncTp := range req.GetTopics() {
+				topicName := syncTp.GetTopic()
+				// setup topic to partition mapping
+				topicPartMapping[topicName] = syncTp.GetPartitions()
+
+				// setup partition directory name to file handler mapping
+				for _, syncPart := range syncTp.GetPartitions() {
+					partDirname := partition.ConstructPartitionDirName(topicName, int(syncPart.GetPartition()))
+					logName := partition.ContructPartitionLogName(topicName)
+					// create the file handler
+					fileHandler, _ := recordpb.InitialiseFileRecordFromFilepath(fmt.Sprintf("%v/%v/%v", n.config.LogDir, partDirname, logName))
+					// shift the file read offset to the log start offset
+					fileHandler.ShiftReadOffset(syncPart.GetLogStartOffset())
+					partDirnameFileHandlerMap[partDirname] = fileHandler
+				}
+			}
+			doneSetup = true
+		}
+
+		// clean up resources
+		forgotTps := req.GetForgottenTopics()
+		if len(forgotTps) > 0 {
+			for _, forgotTp := range forgotTps {
+				topicName := forgotTp.GetTopic()
+				for _, forgotPartID := range forgotTp.GetPartitions() {
+					partDirname := partition.ConstructPartitionDirName(topicName, int(forgotPartID))
+					if fileHandler, exist := partDirnameFileHandlerMap[partDirname]; exist {
+						fileHandler.CloseFile()
+						delete(partDirnameFileHandlerMap, partDirname)
+					}
+
+				}
+			}
+		}
+
+		// prepare data to send
+		syncTpResp := []*adminclientpb.SyncTopicResponse{}
+		syncPartResp := []*adminclientpb.SyncPartitionResponse{}
+		for _, syncTp := range req.GetTopics() {
+			topicName := syncTp.GetTopic()
+			for _, syncPart := range syncTp.GetPartitions() {
+				partID := syncPart.GetPartition()
+				partDirname := partition.ConstructPartitionDirName(topicName, int(partID))
+
+				// pull all the record batches
+				rcrdBatches := make([]*recordpb.RecordBatch, 0, MAX_MESSAGE_PER_PARTITION)
+				for i := 0; i < MAX_MESSAGE_PER_PARTITION; i++ {
+					rcrdBatch, err := partDirnameFileHandlerMap[partDirname].ReadNextRecordBatch()
+					if rcrdBatch != nil && err != nil {
+						rcrdBatches = append(rcrdBatches, rcrdBatch)
+					} else {
+						break
+					}
+				}
+
+				syncPartResp = append(syncPartResp, &adminclientpb.SyncPartitionResponse{
+					Partition:      partID,
+					LogStartOffset: partDirnameFileHandlerMap[partDirname].GetFileSize(),
+					RecordSets:     rcrdBatches,
+				})
+			}
+			syncTpResp = append(syncTpResp, &adminclientpb.SyncTopicResponse{
+				Topic:              topicName,
+				PartitionResponses: syncPartResp,
+			})
+		}
+
+		// sending response
+		resp := &adminclientpb.SyncMessagesResponse{
+			Responses: syncTpResp,
+		}
+		stream.Send(resp)
 	}
 }

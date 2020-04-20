@@ -23,7 +23,7 @@ func (n *Node) writeRecordBatchToLocal(topicName string, partitionID int, fileHa
 		fHandler.WriteToFile(recordBatch)
 	} else {
 		filePath := fmt.Sprintf("%v/%v/%v", n.config.LogDir, partition.ConstructPartitionDirName(topicName, partitionID), partition.ContructPartitionLogName(topicName))
-		fileRecordHandler, _ := recordpb.InitialiseFileRecordFromFile(filePath)
+		fileRecordHandler, _ := recordpb.InitialiseFileRecordFromFilepath(filePath)
 		fileHandlerMapping[partitionID] = fileRecordHandler
 		fileRecordHandler.WriteToFile(recordBatch)
 	}
