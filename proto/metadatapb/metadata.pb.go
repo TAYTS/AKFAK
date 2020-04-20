@@ -93,12 +93,12 @@ func (m *MetadataResponse) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_MetadataResponse proto.InternalMessageInfo
 
-// func (m *MetadataResponse) GetBroker() *Broker {
-// 	if m != nil {
-// 		return m.Broker
-// 	}
-// 	return nil
-// }
+func (m *MetadataResponse) GetBroker() *Broker {
+	if m != nil {
+		return m.Broker
+	}
+	return nil
+}
 
 func (m *MetadataResponse) GetTopic() *Topic {
 	if m != nil {
