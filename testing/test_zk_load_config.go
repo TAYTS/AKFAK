@@ -6,7 +6,7 @@ import (
 )
 
 func main() {
-	data := zookeeper.LoadClusterStateFromFile("cluster_state.json")
+	data := zookeeper.LoadClusterStateFromFile("data/cluster_state.json")
 
 	fmt.Println("Loaded the config data:", data)
 

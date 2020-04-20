@@ -1,7 +1,8 @@
 package zookeeper
 
 import (
-	"AKFAK/proto/clustermetadatapb"
+	"AKFAK/cluster"
+	"AKFAK/config"
 	"AKFAK/proto/zookeeperpb"
 	"fmt"
 	"log"
@@ -15,25 +16,27 @@ import (
 type Zookeeper struct {
 	Host            string
 	Port            int
-	clusterMetadata clustermetadatapb.MetadataCluster
+	clusterMetadata *cluster.Cluster
 	mux             sync.Mutex
+	config          config.ZKConfig
 }
 
 // InitZookeeper create the Zookeeper instance and load the cluster state data
-func InitZookeeper() *Zookeeper {
+func InitZookeeper(config config.ZKConfig) *Zookeeper {
 	// load the cluster state file into in-memory data
-	clusterMetadata := LoadClusterStateFromFile("cluster_state.json")
+	clusterMetadata := LoadClusterStateFromFile(config.DataDir)
 
 	return &Zookeeper{
-		Host:            "0.0.0.0",
-		Port:            9092,
-		clusterMetadata: clusterMetadata,
+		Host:            config.Host,
+		Port:            config.Port,
+		clusterMetadata: cluster.InitCluster(&clusterMetadata),
+		config:          config,
 	}
 }
 
 // InitZKListener create Zookeeper server listener
 func (zk *Zookeeper) InitZKListener() {
-	listener, err := net.Listen("tcp", fmt.Sprintf("%v:%v", zk.Host, zk.Port))
+	listener, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%v", zk.Port))
 	if err != nil {
 		log.Fatalf("Failed to listen: %v\n", err)
 	}
