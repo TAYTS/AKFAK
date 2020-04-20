@@ -142,14 +142,12 @@ func (cls *Cluster) moveBrkToISRByPartition(brkID int32, topicName string, parti
 	cls.mux.Unlock()
 }
 
-// moveBrkToOffline move the specified broker to offline replicas for all the topics and partitions
-// return the mapping of all the topic and the corresponding partition that required new leader election
-func (cls *Cluster) moveBrkToOffline(brkID int32) map[string][]int32 {
-	topicPartElectRequiredMap := make(map[string][]int32)
-
+// moveBrkToOfflineAndElectLeader move the specified broker to offline replicas
+// for all the topics and partitions and elect new leader if required
+func (cls *Cluster) moveBrkToOfflineAndElectLeader(brkID int32) {
+	needRefereshPartMapping := false
 	cls.mux.Lock()
 	for _, tpState := range cls.GetTopicStates() {
-		topicName := tpState.GetTopicName()
 		for _, partState := range tpState.GetPartitionStates() {
 			// update ISR and Offline replicas
 			for idx, isrID := range partState.GetIsr() {
@@ -165,27 +163,24 @@ func (cls *Cluster) moveBrkToOffline(brkID int32) map[string][]int32 {
 				}
 			}
 
-			// if the broker is the leader, then set the leader to -1
+			// if the broker is the leader then choose the next broker in the ISR as leader
 			if partState.GetLeader() == brkID {
-				partState.Leader = -1
-				partIDs, exist := topicPartElectRequiredMap[topicName]
-
-				if !exist {
-					topicPartElectRequiredMap[topicName] = []int32{brkID}
+				needRefereshPartMapping = true
+				// if there is broker in the ISR select the first one as the leader
+				if len(partState.GetIsr()) > 0 {
+					partState.Leader = partState.GetIsr()[0]
 				} else {
-					topicPartElectRequiredMap[topicName] = append(partIDs, brkID)
+					// if no broker in ISR set the leader to -1
+					partState.Leader = -1
 				}
 			}
 		}
 	}
 	cls.mux.Unlock()
 
-	// if no election required return nil
-	if len(topicPartElectRequiredMap) == 0 {
-		return nil
+	if needRefereshPartMapping {
+		cls.refreshPartitionTopicMapping()
 	}
-
-	return topicPartElectRequiredMap
 }
 
 // checkBrokerInSync check if the broker is a insync replica for all the partition
