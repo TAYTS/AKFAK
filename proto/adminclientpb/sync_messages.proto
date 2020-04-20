@@ -1,0 +1,44 @@
+syntax = "proto3";
+
+package proto.adminclientpb;
+
+option go_package = "AKFAK/proto/adminclientpb";
+
+import "proto/recordpb/record.proto";
+
+/** REQUEST **/
+message SyncPartition {
+  int32 partition = 1;      // partition ID
+  int64 logStartOffset = 2; // earliest available offset of the follower replica
+}
+
+// SyncForgottenTopicsData is used to remove the topic from the fetch session
+message SyncForgottenTopicsData {
+  string topic = 1;              // topic name to remove
+  repeated int32 partitions = 2; // partition IDs to remove
+}
+
+message SyncTopic {
+  string topic = 1;                      // topic name to sync
+  repeated SyncPartition partitions = 2; // partition IDs to sync
+}
+
+message SyncMessagesRequest {
+  int32 replicaID = 1;           // broker ID of the follower
+  repeated SyncTopic topics = 2; // topics to sync
+}
+
+/** RESPONSE **/
+message SyncPartitionResponse {
+  int32 partition = 1;                          // partition ID
+  int64 lastOffset = 2;                         // last record offset
+  int64 logStartOffset = 3;                     // earliest available offset
+  repeated recordpb.RecordBatch recordSets = 4; // record batches
+}
+
+message SyncTopicResponse {
+  string topic = 1; // topic name
+  repeated SyncPartitionResponse partitionResponses = 2;
+}
+
+message SyncMessagesResponse { SyncTopicResponse responses = 1; }
