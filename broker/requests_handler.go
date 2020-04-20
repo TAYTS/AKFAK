@@ -321,7 +321,10 @@ func (n *Node) UpdateMetadata(ctx context.Context, req *adminclientpb.UpdateMeta
 	// controller updating peer
 	if n.ID == int(n.ClusterMetadata.GetController().GetID()) {
 		// update admin service peer connection
-		n.updateAdminPeerConnection()
+		newPeers := n.updateAdminPeerConnection()
+
+		// setup hearbeats request to all the new peers
+		n.setupPeerHeartbeatsConnection(newPeers)
 
 		// update peer cluster metadata
 		for _, peer := range n.adminServiceClient {
@@ -349,7 +352,7 @@ func (n *Node) GetController(ctx context.Context, req *adminclientpb.GetControll
 // Heartbeats is used by the broker to send heartbeat to the controller every 1 second
 func (n *Node) Heartbeats(stream adminpb.AdminService_HeartbeatsServer) error {
 	for {
-		err := stream.Send(&heartbeatspb.HeartbeatsResponse{})
+		err := stream.Send(&heartbeatspb.HeartbeatsResponse{BrokerID: int32(n.ID)})
 		if err != nil {
 			log.Printf("Broker %v detect controller fail\n", n.ID)
 			return err

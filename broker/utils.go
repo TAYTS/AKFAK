@@ -6,6 +6,7 @@ import (
 	"AKFAK/proto/adminpb"
 	"AKFAK/proto/clientpb"
 	"AKFAK/proto/recordpb"
+	"context"
 	"errors"
 	"fmt"
 	"log"
@@ -108,11 +109,13 @@ func (n *Node) createLocalPartitionFromReq(req *adminclientpb.AdminClientNewPart
 }
 
 // updateAdminPeerConnection is used by controller to store all the peer gRPC connections for admin service
-func (n *Node) updateAdminPeerConnection() {
+func (n *Node) updateAdminPeerConnection() []int {
+	newPeer := []int{}
 	// add new connection
 	for _, brk := range n.ClusterMetadata.GetLiveBrokers() {
 		peerID := int(brk.GetID())
 		if _, exist := n.adminServiceClient[peerID]; !exist && peerID != n.ID {
+			newPeer = append(newPeer, peerID)
 			peerAddr := fmt.Sprintf("%v:%v", brk.GetHost(), brk.GetPort())
 			clientCon, err := grpc.Dial(peerAddr, grpc.WithInsecure())
 			if err != nil {
@@ -133,6 +136,8 @@ func (n *Node) updateAdminPeerConnection() {
 			}
 		}
 	}
+
+	return newPeer
 }
 
 // updateClientPeerConnection is used to store all the peer gRPC connections for client service
@@ -159,6 +164,32 @@ func (n *Node) updateClientPeerConnection() {
 			if n.ClusterMetadata.GetNodesByID(ID) == nil {
 				delete(n.clientServiceClient, ID)
 			}
+		}
+	}
+}
+
+// setupPeerHeartbeatsConnection create a client stream to the peer broker
+func (n *Node) setupPeerHeartbeatsConnection(peerIDs []int) {
+	for _, peerID := range peerIDs {
+		if adminClient, exist := n.adminServiceClient[peerID]; exist {
+			log.Printf("Controller setup heartbeat connection to Broker %v\n", peerID)
+			stream, err := adminClient.Heartbeats(context.Background())
+			if err != nil {
+				log.Printf("Controller detect Broker %v has failed\n", peerID)
+				// TODO: update ZK about fail broker
+			}
+
+			// start new routine to handle the heartbeat of each peer
+			go func() {
+				for {
+					_, err := stream.Recv()
+					if err != nil {
+						log.Printf("Controller detect Broker %v has failed\n", peerID)
+						// TODO: update ZK about fail broker
+					}
+					log.Printf("Controller receive heartbeats response from  Broker %v\n", peerID)
+				}
+			}()
 		}
 	}
 }
