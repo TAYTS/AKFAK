@@ -359,13 +359,10 @@ func (n *Node) Consume(stream clientpb.ClientService_ConsumeServer) error {
 	brokerAssignmentMap := n.ConsumerMetadata.GetBrokerAssignmentsMap()
 	assignments := brokerAssignmentMap[int(consumerGroupId)]
 
-	// If there is no assignment, return nil RecordSet
+	// If there is no assignment, return error message
 	// Broker should have sync and gotten the latest ConsumerMetaData
 	if len(assignments) == 0 {
-		stream.Send(&consumepb.ConsumeResponse{
-			TopicName: topicName,
-			RecordSet: nil,
-		})
+		return errors.New("No assignments found")
 	} else {
 		// Error will be handled explicitly at ReadRecordBatchFromLocal
 		// Offset is adjusted in ReadNextRecordBatch
@@ -390,6 +387,7 @@ func (n *Node) Consume(stream clientpb.ClientService_ConsumeServer) error {
 			RecordSet:            recordBatch,
 		})
 	}
+	return nil
 }
 
 // GetAssignment assigns replicas for partitions of a topic
