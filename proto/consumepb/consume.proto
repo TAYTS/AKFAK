@@ -25,17 +25,19 @@ message GetAssignmentRequest {
     string topicName = 2;
 }
 
-message MetadataAssignmenttate {
+message MetadataAssignment {
     string topicName = 1;
     int32 partitionIndex = 2;
-    // broker holding replica that is assigned to consumer for that partition
-    clustermetadatapb.MetadataBroker broker = 3;
+    int32 offset = 3;
+    // brokerid for broker holding replica that is assigned to consumer 
+    // for that partition
+    int32 broker = 4;
+    // list of brokers holding isr for partition (excludes broker with assigned replica)
+    // contacted when an assigned replica fails to respond 
+    repeated clustermetadatapb.MetadataBroker isrBrokers = 5;
 }
 
 message GetAssignmentResponse {
-    // list of brokers holding isr for partition (excludes broker with assigned replica)
-    // contacted when an assigned replica fails to respond 
-    repeated clustermetadatapb.MetadataBroker isrBrokers = 1;
     // assigned Assignment. len(Assignment) == len(partitions)
-    repeated MetadataAssignmenttate assignments = 2;
+    repeated MetadataAssignment assignments = 1;
 }
