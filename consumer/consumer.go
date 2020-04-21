@@ -16,20 +16,20 @@ import (
 
 // ConsumerGroup holds consumers
 type ConsumerGroup struct {
-	id        int
-	topics    []string
-	consumers []Consumer
+	id    			int
+	topics 			[]string
+	consumers   	[]Consumer
 	// key - topic, value - consumer
 	topicConsumer map[string]*Consumer
-	mux           sync.RWMutex
+	mux     		sync.RWMutex
 	// key - topic, value - next partition idx to read from
-	topicPartPoint map[string]int
+	topicPartPoint 	map[string]int
 }
 
 // Consumer is a member of a consumer group
 type Consumer struct {
-	id      int
-	groupID int
+	id      	int
+	groupID 	int
 	// assignments are given an idx (key)
 	assignments map[int]*consumepb.MetadataAssignment
 	brokerCon   map[int]clientpb.ClientService_ConsumeClient
@@ -70,17 +70,10 @@ func InitConsumerGroup(id int, _topics string, brokerAddr string) *ConsumerGroup
 	for _, topic := range topics {
 		cg.topicPartPoint[topic] = 0
 	}
-
-	// for all consumers, set up stream for all their assigments
-	for _, c := range cg.consumers {
-		brokersConnections := make(map[int]clientpb.ClientService_ConsumeClient)
-		for assignmentID, assignmentInfo := range c.assignments {
-			c.setupStreamToPullMsg()
-		}
-	}
-
+	
 	return &cg
 }
+
 
 // Consume tries to consume information on the topic
 func (cg *ConsumerGroup) Consume(topic string) {
@@ -89,20 +82,21 @@ func (cg *ConsumerGroup) Consume(topic string) {
 	// check which consumers have partitions of that topic
 	// a variable like `topicConsumer` might be useful. In CG struct but not constructed yet.
 
-	cg.topicCounter.Lock()
-	// check which consumer should call consume now
+	cg.mux.Lock()
+	// check which consumer should call consume now 
 	/* say if consumer 1 has assignment T0-P1 and consumer 2 has assignment TO-P2
-	// then make consumer 1 consume ->  consumer 2 consume -> consumer 1 consume so that the
+	// then make consumer 1 consume ->  consumer 2 consume -> consumer 1 consume so that the 
 	// order of consumption of messages is the same as the order of production of messages */
 	// lock is here because the initial idea is that there might be multiple consumer
 	// threads consuming and changing the `topicPartPoint` value, remove if not required
 
-	cg.topicCounter.Unlock()
+	cg.mux.Unlock()
 
 	// handle different cases of consume
 	// 1) Normal consumption with no problem -> print msg
-
+	
 	// 2) Consume fails --> setup stream for next broker and call consume again
+
 
 }
 
@@ -156,6 +150,7 @@ func (cg *ConsumerGroup) getAssignments(brokerAddr string, topics []string, maxW
 	return nil
 }
 
+
 func (c *Consumer) getBrokerIdxAddrForAssignment(assignmentIdx int) (int, string) {
 	brokerID := c.assignments[assignmentIdx].GetBroker()
 	for i, isrbroker := range c.assignments[assignmentIdx].GetIsrBrokers() {
@@ -166,6 +161,7 @@ func (c *Consumer) getBrokerIdxAddrForAssignment(assignmentIdx int) (int, string
 		}
 	}
 }
+
 
 // distributeAssignments to consumers in a round-robin manner
 func (cg *ConsumerGroup) distributeAssignments(numConsumers int) {
@@ -179,9 +175,4 @@ func (c *Consumer) createBrokerAssignmentMap() {
 	for k, v := range c.assignments {
 		c.brokerAssignmentMap[v.GetBroker()] = append(c.brokerAssignmentMap[v.GetBroker()], k)
 	}
-}
-
-// setupStreamToSendMsg setup the gRPC streams for sending consume request,
-// stream is attached to the consumer instance
-func (c *Consumer) setUpStreamToPullMsg(assignmentIdx int) {
 }

@@ -15,4 +15,3 @@ message ConsumerGroup {
 message MetadataConsumerState {
     repeated ConsumerGroup consumerGroups = 1;
 }
-
