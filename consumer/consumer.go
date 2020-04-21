@@ -3,87 +3,42 @@ package consumer
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"AKFAK/proto/clientpb"
-	"AKFAK/proto/consumermetadatapb"
+	"AKFAK/proto/consumepb"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
+// ConsumerGroup holds consumers
 type ConsumerGroup struct {
-	id               int
-	ConsumerGroupCon map[string]clientpb.ClientService_ConsumeClient
-	metadata         *consumermetadatapb.MetadataConsumerState
+	id        int
+	topics    []string
+	consumers []Consumer
+	// key - topic, value - consumer
+	topicConsumer map[string]*Consumer
+	mux           sync.RWMutex
+	// key - topic, value - next partition idx to read from
+	topicPartPoint map[string]int
 }
 
+// Consumer is a member of a consumer group
 type Consumer struct {
-	id               int
-	groupID          int
-	assignedReplicas []AssignedReplica
+	id      int
+	groupID int
+	// assignments are given an idx (key)
+	assignments map[int]*consumepb.MetadataAssignment
+	brokerCon   map[int]clientpb.ClientService_ConsumeClient
+	// key - brokerID, value - assignmentID
+	brokerAssignmentMap map[int]int
+	brokersAddr         map[int]string
 }
 
-type AssignedReplica struct {
-	// multiple topic
-	topic     string
-	partition int
-	broker    int
-}
-
-// InitConsumerGroup creates a consumergroup and sets up broker connections
-func InitGroupConsumer(id int, brokersAddr map[int]string) *ConsumerGroup {
-	fmt.Printf("Group %d initiated\n", id)
-	NUM_CONSUMER := 3
-	for i := 1; i <= NUM_CONSUMER; i++ {
-		InitConsumer(i, id)
-		fmt.Printf("Consumer %d created under %d\n", i, id)
-	}
-	fmt.Printf("==========Done initializing groups\n")
-
-	cg := ConsumerGroup{id: id}
-
-	//get replicas
-	cg.getReplicas(brokersAddr, 100*time.Millisecond)
-	// set up connection to all brokers. key - address : val - stream
-	cg.dialConsumerGroup(brokersAddr)
-
-	return &cg
-}
-
-func (cg *ConsumerGroup) dialConsumerGroup(brokersAddr map[int]string) {
-	opts := grpc.WithInsecure()
-	consumerGroupConnection := make(map[string]clientpb.ClientService_ConsumeClient)
-
-	for _, addr := range brokersAddr {
-		fmt.Printf("Dialing %v\n", addr)
-		waitc := make(chan struct{})
-		go func() {
-			for {
-				cSock, err := grpc.Dial(addr, opts)
-				if err != nil {
-					fmt.Printf("Error did not connect: %v\n", err)
-					continue
-				}
-				cRPC := clientpb.NewClientServiceClient(cSock)
-				// Create stream by invoking the client
-				stream, err := cRPC.Consume(context.Background())
-				if err != nil {
-					fmt.Printf("Error while creating stream: %v\n", err)
-					continue
-				}
-				consumerGroupConnection[addr] = stream
-				break
-			}
-			close(waitc)
-		}()
-		<-waitc
-	}
-
-	cg.ConsumerGroupCon = consumerGroupConnection
-}
-
+// InitConsumer creates a consumer
 func InitConsumer(id int, groupID int) *Consumer {
 	return &Consumer{
 		id:      id,
@@ -91,81 +46,142 @@ func InitConsumer(id int, groupID int) *Consumer {
 	}
 }
 
-//consumergroup call Getreplica and Replica response change the partition, broker
-func (c *Consumer) Assignment(topicName string, partitionIdx int, brokerIdx int) {
+// InitConsumerGroup creates a consumergroup and sets up broker connections
+func InitConsumerGroup(id int, _topics string, brokerAddr string) *ConsumerGroup {
+	topics := strings.Split(_topics, ";")
+	cg := ConsumerGroup{id: id}
+	fmt.Printf("Group %d initiated\n", id)
+	const numConsumers = 2
+	for i := 1; i <= numConsumers; i++ {
+		cg.consumers = append(cg.consumers, InitConsumer(i, id))
+		fmt.Printf("Consumer %d created under %d\n", i, id)
+	}
+	fmt.Printf("Done initialising group\n")
 
-	Assign := AssignedReplica{
-		topic:     topicName,
-		partition: partitionIdx,
-		broker:    brokerIdx,
+	err := cg.getAssignments(brokerAddr, topics, 100*time.Millisecond)
+	if err != nil {
+		panic(fmt.Sprintf("Consumer group %d unable to get assignments :%v\n", id, err))
 	}
 
-	c.assignedReplicas = append(c.assignedReplicas, Assign)
+	// distribute assignments to consumers in a round-robin manner
+	cg.distributeAssignments(numConsumers)
 
-	fmt.Println(stringPQ(c.assignedReplicas))
+	// set the first partition idx to be read from = 0
+	for _, topic := range topics {
+		cg.topicPartPoint[topic] = 0
+	}
+
+	// for all consumers, set up stream for all their assigments
+	for _, c := range cg.consumers {
+		brokersConnections := make(map[int]clientpb.ClientService_ConsumeClient)
+		for assignmentID, assignmentInfo := range c.assignments {
+			c.setupStreamToPullMsg()
+		}
+	}
+
+	return &cg
 }
 
-func stringPQ(pq []AssignedReplica) string {
-	if len(pq) == 0 {
-		return "Array EMPTY"
-	}
-	var ret string = "Array has"
-	for _, msg := range pq {
-		ret += fmt.Sprintf("[" + msg.topic + "]")
-	}
-	return ret
+// Consume tries to consume information on the topic
+func (cg *ConsumerGroup) Consume(topic string) {
+	// TODO: Add/disregard comments based on your own intuition
+
+	// check which consumers have partitions of that topic
+	// a variable like `topicConsumer` might be useful. In CG struct but not constructed yet.
+
+	cg.topicCounter.Lock()
+	// check which consumer should call consume now
+	/* say if consumer 1 has assignment T0-P1 and consumer 2 has assignment TO-P2
+	// then make consumer 1 consume ->  consumer 2 consume -> consumer 1 consume so that the
+	// order of consumption of messages is the same as the order of production of messages */
+	// lock is here because the initial idea is that there might be multiple consumer
+	// threads consuming and changing the `topicPartPoint` value, remove if not required
+
+	cg.topicCounter.Unlock()
+
+	// handle different cases of consume
+	// 1) Normal consumption with no problem -> print msg
+
+	// 2) Consume fails --> setup stream for next broker and call consume again
+
 }
 
-func (cg *ConsumerGroup) getReplicas(brokersAddr map[int]string, maxWaitMs time.Duration) {
-	// dial one of the broker to get the topic metadata
-	for _, addr := range brokersAddr {
-		// connect to one of the broker
-		opts := []grpc.DialOption{grpc.WithInsecure(), grpc.WithBlock()}
-		conn, err := grpc.Dial(addr, opts...)
-		if err != nil {
-			// move to the next broker if fail to connect
-			continue
+func (cg *ConsumerGroup) getAssignments(brokerAddr string, topics []string, maxWaitMs time.Duration) error {
+	// connect to a broker
+	opts := []grpc.DialOption{grpc.WithInsecure(), grpc.WithBlock()}
+	conn, err := grpc.Dial(addr, opts...)
+	if err != nil {
+		return err
+	}
+
+	// create gRPC client
+	consumerClient := clientpb.NewClientServiceClient(conn)
+
+	// create context with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), maxWaitMs)
+
+	for _, topic := range topics {
+		// create a request for a topic
+		req := &consumepb.GetAssignmentRequest{
+			GroupID:   cg.id,
+			TopicName: topic,
 		}
-
-		// create gRPC client
-		prdClient := clientpb.NewClientServiceClient(conn)
-
-		// send get metadata request
-		req := &consumermetadatapb.MetadataConsumerState{
-			ConsumerGroups: cg.id,
-		}
-
-		// create context with timeout
-		ctx, cancel := context.WithTimeout(context.Background(), maxWaitMs)
-
-		// send request to get metadata
-		res, err := prdClient.GetReplicas(ctx, req)
+		// send request to get assignments
+		res, err := consumerClient.GetAssignment(ctx, req)
 		if err != nil {
 			statusErr, ok := status.FromError(err)
 			if ok {
 				if statusErr.Code() == codes.DeadlineExceeded {
-					fmt.Printf("Metadata not received for topic %v after %d ms", cg.topic, maxWaitMs)
+					fmt.Printf("assignment not received for topic %v after %d ms", cg.topic, maxWaitMs)
 				} else {
-					fmt.Printf("Unexpected error: %v", statusErr)
+					fmt.Printf("unexpected error: %v", statusErr)
 				}
 			} else {
-				fmt.Printf("could not get metadata. error: %v", err)
+				fmt.Printf("could not get assignment. error: %v", err)
 			}
 
-			// move to the next broker if fail to connect
+			// close the connection
 			cancel()
 			conn.Close()
-			continue
+			return err
 		}
-
-		// save the metadata response to the consumer
-		cg.metadata = res
-
-		// clean up resources
-		cancel()
-		conn.Close()
-
-		// stop contacting other brokers
-		break
+		// save the assignment to the consumer group
+		cg.assignments = append(cg.assignments, res)
 	}
+
+	// clean up resources
+	cancel()
+	conn.Close()
+
+	return nil
+}
+
+func (c *Consumer) getBrokerIdxAddrForAssignment(assignmentIdx int) (int, string) {
+	brokerID := c.assignments[assignmentIdx].GetBroker()
+	for i, isrbroker := range c.assignments[assignmentIdx].GetIsrBrokers() {
+		if isrbroker.GetID() == brokerID {
+			return i, fmt.Sprintf("%v:%v", isrbroker.GetHost(), isrbroker.GetPort())
+		} else {
+			panic("No matching broker ID in isrbrokers")
+		}
+	}
+}
+
+// distributeAssignments to consumers in a round-robin manner
+func (cg *ConsumerGroup) distributeAssignments(numConsumers int) {
+	for i, assignment := range cg.assignments {
+		idx := i % numConsumers
+		cg.consumers[idx].assignments[i/numConsumers] = assignment
+	}
+}
+
+func (c *Consumer) createBrokerAssignmentMap() {
+	for k, v := range c.assignments {
+		c.brokerAssignmentMap[v.GetBroker()] = append(c.brokerAssignmentMap[v.GetBroker()], k)
+	}
+}
+
+// setupStreamToSendMsg setup the gRPC streams for sending consume request,
+// stream is attached to the consumer instance
+func (c *Consumer) setUpStreamToPullMsg(assignmentIdx int) {
 }
