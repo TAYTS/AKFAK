@@ -29,16 +29,35 @@ func (cstate *ConsumerMetadata) UpdateConsumerMetadata(cnewstateMeta *consumerme
 	cstate.populateMetadata()
 }
 
+
+// GetOffset returns the offset of assignment
+func (cstate *ConsumerMetadata) GetOffset(assignment *consumepb.MetadataAssignment, cgID int32) int32 {
+	topicName := assignment.GetTopicName()
+	partitionIndex := assignment.GetPartitionIndex()
+	cstate.mux.RLock()
+	for _, group := range cstate.MetadataConsumerState.GetConsumerGroups() {
+		if group.GetID() == cgID {
+			for _, a := range group.GetAssignments() {
+				if a.GetTopicName() == topicName && a.GetPartitionIndex() == partitionIndex {
+					return a.Offset
+				}
+			}
+		}
+	}
+	cstate.mux.RUnlock()
+	return 0
+}
+
 // UpdateOffset increases offset of assignment in metadata by one
-func (cstate *ConsumerMetadata) UpdateOffset(assignment *consumepb.MetadataAssignment, cgId int32) {
+func (cstate *ConsumerMetadata) UpdateOffset(assignment *consumepb.MetadataAssignment, cgID int32) {
 	cstate.mux.Lock()
 	newOffset := assignment.GetOffset() + 1
 
 	topicName := assignment.GetTopicName()
 	partitionIndex := assignment.GetPartitionIndex()
-	for _, group := range cstate.MetadataConsumerState.ConsumerGroups {
-		if group.GetID() == cgId {
-			for _, a := range group.Assignments {
+	for _, group := range cstate.MetadataConsumerState.GetConsumerGroups() {
+		if group.GetID() == cgID {
+			for _, a := range group.GetAssignments() {
 				if a.GetTopicName() == topicName && a.GetPartitionIndex() == partitionIndex {
 					a.Offset = newOffset
 					break
