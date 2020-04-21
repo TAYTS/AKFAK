@@ -4,9 +4,9 @@ import (
 	"AKFAK/proto/adminclientpb"
 	"AKFAK/proto/clientpb"
 	"AKFAK/proto/clustermetadatapb"
-	"AKFAK/proto/consumermetadatapb"
 	"AKFAK/proto/commonpb"
 	"AKFAK/proto/consumepb"
+	"AKFAK/proto/consumermetadatapb"
 	"AKFAK/proto/metadatapb"
 	"AKFAK/proto/producepb"
 	"AKFAK/proto/recordpb"
@@ -347,45 +347,54 @@ func (n *Node) GetController(ctx context.Context, req *adminclientpb.GetControll
 
 // Consume responds to pull request from consumer, sending record batch on topic-X partition-Y
 func (n *Node) Consume(stream clientpb.ClientService_ConsumeServer) error {
+	// TODO: find if consumer group id that is pulling messages is new (not in assignments), if so, update zookeeper.
+	// TODO: retrieve message
+	// TODO: update offset in consumer metadata & zk
+
 	req, err := stream.Recv()
 	if err != nil {
 		return err
 	}
-	consumerGroupId := req.GetGroupID()
-	topicName := req.GetTopicName()
-	partitionIndex := req.GetPartition()
+	// Check if there is an assignment to this broker
+	assignment, assignmentErr := n.checkAndGetAssignment(req)
+	if assignmentErr != nil {
+		return err
+	}
 
-	
-	brokerAssignmentMap := n.ConsumerMetadata.GetBrokerAssignmentsMap()
-	assignments := brokerAssignmentMap[int(consumerGroupId)]
-
-	// If there is no assignment, return error message
-	// Broker should have sync and gotten the latest ConsumerMetaData
-	if len(assignments) == 0 {
-		return errors.New("No assignments found")
-	} else {
-		// Error will be handled explicitly at ReadRecordBatchFromLocal
-		// Offset is adjusted in ReadNextRecordBatch
-		recordBatch, _ := n.ReadRecordBatchFromLocal(topicName, int(partitionIndex))
-
-		// Get the new ConsumerState Metadata with the new offset adjustment
-		newConsumerMetadataState := &consumermetadatapb.MetadataConsumerState{
-			ConsumerGroups: n.ConsumerMetadata.GetConsumerGroups(),
+	// When there is no assignment:
+	// 1) Update MetadataAssignment and update the Broker field to the current Broker handling this consume request
+	if assignment == nil {
+		for _, group := range n.ConsumerMetadata.ConsumerGroups {
+			if group.GetID() == req.GetGroupID() {
+				for _, assignment := range group.GetAssignments() {
+					assignedBroker := n.ID
+					assignment.Broker = int32(assignedBroker)
+				}
+			}
 		}
+	}
+	// Retrieve and send batch record to consumer
+	recordBatch, fileErr := n.ReadRecordBatchFromLocal(req.GetTopicName(), int(req.GetPartition()))
+	if fileErr != nil {
+		return fileErr
+	}
+	stream.Send(&consumepb.ConsumeResponse{
+		TopicName:            req.GetTopicName(),
+		Partition:            req.GetPartition(),
+		RecordSet:            recordBatch,
+	})
+	// Update offset in ConsumerMetadata
+	n.ConsumerMetadata.UpdateOffset(assignment, req.GetGroupID())
 
-		// Assume ZK is always up so an update will always happen so no need to handle any error
-		n.zkClient.UpdateConsumerMetadata(
-			context.Background(),
-			&zkmessagepb.UpdateConsumerMetadataRequest{
-				NewState: newConsumerMetadataState,
-			})
-
-		
-		stream.Send(&consumepb.ConsumeResponse{
-			TopicName:            topicName,
-			Partition:            partitionIndex,
-			RecordSet:            recordBatch,
-		})
+	// Send latest ConsumerMetadata to ZK
+	newConsumerMetadataState := &consumermetadatapb.MetadataConsumerState{
+		ConsumerGroups: n.ConsumerMetadata.GetConsumerGroups(),
+	}
+	_, zkErr := n.zkClient.UpdateConsumerMetadata(context.Background(), &zkmessagepb.UpdateConsumerMetadataRequest{
+		NewState: newConsumerMetadataState,
+	})
+	if zkErr != nil {
+		return errors.New("Could not update zookeeper")
 	}
 	return nil
 }

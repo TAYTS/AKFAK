@@ -5,6 +5,7 @@ import (
 	"AKFAK/proto/adminclientpb"
 	"AKFAK/proto/adminpb"
 	"AKFAK/proto/clientpb"
+	"AKFAK/proto/consumepb"
 	"AKFAK/proto/recordpb"
 	"errors"
 	"fmt"
@@ -172,4 +173,21 @@ func (n *Node) updateClientPeerConnection() {
 			}
 		}
 	}
+}
+
+func (n *Node) checkAndGetAssignment(req *consumepb.ConsumeRequest) (*consumepb.MetadataAssignment, error) {
+	for _, group := range n.ConsumerMetadata.ConsumerGroups {
+		// check for assignments in the consumer group id
+		if group.GetID() == req.GetGroupID() {
+			assignments := group.GetAssignments()
+			// if assignment broker id matches with its own id, return true
+			for _, assignment := range assignments {
+				if int(assignment.GetBroker()) == n.ID {
+					return assignment, nil
+				}
+			}
+			return nil, nil
+		}
+	}
+	return nil, errors.New("No matching consumer group id found in consumer metadata")
 }

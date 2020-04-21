@@ -30,8 +30,23 @@ func (cstate *ConsumerMetadata) UpdateConsumerMetadata(cnewstateMeta *consumerme
 }
 
 // UpdateOffset increases offset of assignment in metadata by one
-func (cstate *ConsumerMetadata) UpdateOffset(assignment *consumepb.MetadataAssignment) {
-	// TODO
+func (cstate *ConsumerMetadata) UpdateOffset(assignment *consumepb.MetadataAssignment, cgId int32) {
+	cstate.mux.Lock()
+	newOffset := assignment.GetOffset() + 1
+
+	topicName := assignment.GetTopicName()
+	partitionIndex := assignment.GetPartitionIndex()
+	for _, group := range cstate.MetadataConsumerState.ConsumerGroups {
+		if group.GetID() == cgId {
+			for _, a := range group.Assignments {
+				if a.GetTopicName() == topicName && a.GetPartitionIndex() == partitionIndex {
+					a.Offset = newOffset
+					break
+				}
+			}
+		}
+	}
+	cstate.mux.Unlock()
 }
 
 // UpdateAssignments update assignment of consumer group

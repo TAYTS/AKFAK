@@ -2,8 +2,8 @@ package broker
 
 import (
 	"AKFAK/cluster"
-	"AKFAK/consumermetadata"
 	"AKFAK/config"
+	"AKFAK/consumermetadata"
 	"AKFAK/proto/adminpb"
 	"AKFAK/proto/clientpb"
 	"AKFAK/proto/clustermetadatapb"
