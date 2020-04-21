@@ -368,7 +368,22 @@ func (n *Node) Consume(stream clientpb.ClientService_ConsumeServer) error {
 		})
 	} else {
 		// Error will be handled explicitly at ReadRecordBatchFromLocal
+		// Offset is adjusted in ReadNextRecordBatch
 		recordBatch, _ := n.ReadRecordBatchFromLocal(topicName, int(partitionIndex))
+
+		// Get the new ConsumerState Metadata with the new offset adjustment
+		newConsumerMetadataState := &consumermetadatapb.MetadataConsumerState{
+			ConsumerGroups: n.ConsumerMetadata.GetConsumerGroups(),
+		}
+
+		// Assume ZK is always up so an update will always happen so no need to handle any error
+		n.zkClient.UpdateConsumerMetadata(
+			context.Background(),
+			&zkmessagepb.UpdateConsumerMetadataRequest{
+				NewState: newConsumerMetadataState,
+			})
+
+		
 		stream.Send(&consumepb.ConsumeResponse{
 			TopicName:            topicName,
 			Partition:            partitionIndex,
