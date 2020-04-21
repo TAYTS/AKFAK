@@ -19,6 +19,7 @@ type ConsumerGroup struct {
 	id    			int
 	topics 			[]string
 	consumers   	[]Consumer
+	assignments 	[]*consumepb.MetadataAssignment
 	// key - topic, value - consumer
 	topicConsumer map[string]*Consumer
 	mux     		sync.RWMutex
@@ -70,7 +71,7 @@ func InitConsumerGroup(id int, _topics string, brokerAddr string) *ConsumerGroup
 	for _, topic := range topics {
 		cg.topicPartPoint[topic] = 0
 	}
-	
+
 	return &cg
 }
 
