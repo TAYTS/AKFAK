@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 	"sync"
 
@@ -22,7 +23,7 @@ type ConsumerGroup struct {
 	consumers   	[]*Consumer
 	assignments 	[]*consumepb.MetadataAssignment
 	// key - topic, value - consumer
-	topicConsumer map[string]*Consumer
+	topicConsumer 	map[string][]*Consumer
 	mux     		sync.RWMutex
 	// key - topic, value - next partition idx to read from
 	topicPartPoint 	map[string]int
@@ -94,8 +95,18 @@ func (cg *ConsumerGroup) Consume(_topic string) {
 
 	// check which consumers have partitions of that topic
 	// a variable like `topicConsumer` might be useful. In CG struct but not constructed yet.
+	consumers := cg.consumers
+	for _, consumer := range consumers {
+		assignments := consumer.assignments
+		for _, assignment := range assignments {
+			if assignment.GetTopicName() == _topic {
+				consumerList := cg.topicConsumer[assignment.GetTopicName()]
+				consumerList = append(consumerList, consumer)
+			}
+		}
+	}
 
-	cg.mux.Lock()
+	//cg.mux.Lock()
 	// check which consumer should call consume now 
 	/* say if consumer 1 has assignment T0-P1 and consumer 2 has assignment TO-P2
 	// then make consumer 1 consume ->  consumer 2 consume -> consumer 1 consume so that the 
@@ -103,7 +114,7 @@ func (cg *ConsumerGroup) Consume(_topic string) {
 	// lock is here because the initial idea is that there might be multiple consumer
 	// threads consuming and changing the `topicPartPoint` value, remove if not required
 
-	cg.mux.Unlock()
+	//cg.mux.Unlock()
 
 	// handle different cases of consume
 	// 1) Normal consumption with no problem -> print msg
