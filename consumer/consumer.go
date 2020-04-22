@@ -249,7 +249,28 @@ func (c *Consumer) createBrokersAddrMap() {
 	}
 }
 
-func (c *Consumer) setupStreamToConsumeMsg() {
+func (c *Consumer) setupStreamToConsumeMsg() error {
+	brokerCount := len(c.brokersAddr)
 	brokersConnections := make(map[int]clientpb.ClientService_ConsumeClient)
-	// TODO: Refer to producer to see a stream is set up to multiple brokers
+	for brokerId, brokerAddr := range c.brokersAddr {
+		opts := []grpc.DialOption{grpc.WithInsecure(), grpc.WithBlock()}
+		conn, err := grpc.Dial(brokerAddr, opts...)
+		if err != nil {
+			brokerCount --
+			continue
+		}
+		consumerClient := clientpb.NewClientServiceClient(conn)
+
+		stream, err := consumerClient.Consume(context.Background())
+		if err != nil {
+			brokerCount --
+			continue
+		}
+		brokersConnections[brokerId] = stream
+	}
+	c.brokerCon = brokersConnections
+	if brokerCount == 0 {
+		return errors.New("No brokers available")
+	}
+	return nil
 }

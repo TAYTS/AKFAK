@@ -6,6 +6,7 @@ import (
 	"AKFAK/proto/adminpb"
 	"AKFAK/proto/clientpb"
 	"AKFAK/proto/clustermetadatapb"
+	"AKFAK/proto/consumepb"
 	"AKFAK/proto/zkmessagepb"
 	"AKFAK/proto/zookeeperpb"
 	"context"
@@ -27,6 +28,14 @@ type Node struct {
 	clientServiceClient map[int]clientpb.ClientServiceClient
 	zkClient            zookeeperpb.ZookeeperServiceClient
 	config              config.BrokerConfig
+}
+
+func (n *Node) Consume(clientpb.ClientService_ConsumeServer) error {
+	panic("implement me")
+}
+
+func (n *Node) GetAssignment(context.Context, *consumepb.GetAssignmentRequest) (*consumepb.GetAssignmentResponse, error) {
+	panic("implement me")
 }
 
 // InitNode create new broker node instance
