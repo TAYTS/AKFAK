@@ -103,6 +103,16 @@ func (cg *ConsumerGroup) Consume(_topic string) error {
 	// key - topic, value - []*Consumer
 	// can assume one assignment for the same topic for each consumer
 	// and the consumerlist is sorted based on partitionId
+	//go func() {
+	//	for {
+	//		// Check each topic
+	//		for _, t := range topics {
+	//
+	//		}
+	//
+	//	}
+	//}()
+
 	for _, consumer := range cg.topicConsumer[_topic] {
 		consumer.assignments[0].GetPartitionIndex()
 	}
@@ -229,4 +239,17 @@ func (c *Consumer) createBrokerAssignmentMap() {
 	for k, v := range c.assignments {
 		c.brokerAssignmentMap[int(v.GetBroker())] = append(c.brokerAssignmentMap[int(v.GetBroker())], k)
 	}
+}
+
+func (c *Consumer) createBrokersAddrMap() {
+	for _, assignment := range c.assignments {
+		for _, isr := range assignment.GetIsrBrokers() {
+			c.brokersAddr[int(isr.GetID())] = fmt.Sprintf("%v:%v", isr.GetHost(), isr.GetPort())
+		}
+	}
+}
+
+func (c *Consumer) setupStreamToConsumeMsg() {
+	brokersConnections := make(map[int]clientpb.ClientService_ConsumeClient)
+	// TODO: Refer to producer to see a stream is set up to multiple brokers
 }

@@ -1,3 +1,5 @@
+package others
+
 import (
     "fmt"
     "log"
