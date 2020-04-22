@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"sync"
 
 	"AKFAK/proto/clientpb"
 	"AKFAK/proto/consumepb"
@@ -18,7 +19,7 @@ import (
 type ConsumerGroup struct {
 	id    			int
 	topics 			[]string
-	consumers   	[]Consumer
+	consumers   	[]*Consumer
 	assignments 	[]*consumepb.MetadataAssignment
 	// key - topic, value - consumer
 	topicConsumer map[string]*Consumer
@@ -34,30 +35,26 @@ type Consumer struct {
 	// assignments are given an idx (key)
 	assignments map[int]*consumepb.MetadataAssignment
 	brokerCon   map[int]clientpb.ClientService_ConsumeClient
-	// key - brokerID, value - assignmentID
-	brokerAssignmentMap map[int]int
+	// key - brokerID, value - assignmentIDs
+	brokerAssignmentMap map[int][]int
 	brokersAddr         map[int]string
-}
-
-// InitConsumer creates a consumer
-func InitConsumer(id int, groupID int) *Consumer {
-	return &Consumer{
-		id:      id,
-		groupID: groupID,
-	}
 }
 
 // InitConsumerGroup creates a consumergroup and sets up broker connections
 func InitConsumerGroup(id int, _topics string, brokerAddr string) *ConsumerGroup {
-	topics := strings.Split(_topics, ";")
-	cg := ConsumerGroup{id: id}
+	topics := strings.Split(_topics, ",")
+	cg := ConsumerGroup{
+		id: id,
+		topics: topics,
+	}
 	fmt.Printf("Group %d initiated\n", id)
 	const numConsumers = 2
 	for i := 1; i <= numConsumers; i++ {
-		cg.consumers = append(cg.consumers, InitConsumer(i, id))
-		fmt.Printf("Consumer %d created under %d\n", i, id)
+		cg.consumers = append(cg.consumers, initConsumer(i, id))
+		fmt.Printf("Consumer %d created under Group %d\n", i, id)
 	}
-	fmt.Printf("Done initialising group\n")
+	fmt.Println("Done initialising group")
+	fmt.Println(topics)
 
 	err := cg.getAssignments(brokerAddr, topics, 100*time.Millisecond)
 	if err != nil {
@@ -75,9 +72,24 @@ func InitConsumerGroup(id int, _topics string, brokerAddr string) *ConsumerGroup
 	return &cg
 }
 
+// initConsumer creates a consumer
+func initConsumer(id int, groupID int) *Consumer {
+	return &Consumer{
+		id:      id,
+		groupID: groupID,
+	}
+}
 
 // Consume tries to consume information on the topic
-func (cg *ConsumerGroup) Consume(topic string) {
+func (cg *ConsumerGroup) Consume(_topic string) {
+	for i, topic := range cg.topics {
+		if topic == _topic {
+			break
+		} else if i == len(cg.topics)-1 {
+			// already reached the end
+			fmt.Println("Consumer group not set up to pull from this topic")
+		}
+	}
 	// TODO: Add/disregard comments based on your own intuition
 
 	// check which consumers have partitions of that topic
@@ -104,7 +116,7 @@ func (cg *ConsumerGroup) Consume(topic string) {
 func (cg *ConsumerGroup) getAssignments(brokerAddr string, topics []string, maxWaitMs time.Duration) error {
 	// connect to a broker
 	opts := []grpc.DialOption{grpc.WithInsecure(), grpc.WithBlock()}
-	conn, err := grpc.Dial(addr, opts...)
+	conn, err := grpc.Dial(brokerAddr, opts...)
 	if err != nil {
 		return err
 	}
@@ -118,7 +130,7 @@ func (cg *ConsumerGroup) getAssignments(brokerAddr string, topics []string, maxW
 	for _, topic := range topics {
 		// create a request for a topic
 		req := &consumepb.GetAssignmentRequest{
-			GroupID:   cg.id,
+			GroupID:   int32(cg.id),
 			TopicName: topic,
 		}
 		// send request to get assignments
@@ -127,7 +139,7 @@ func (cg *ConsumerGroup) getAssignments(brokerAddr string, topics []string, maxW
 			statusErr, ok := status.FromError(err)
 			if ok {
 				if statusErr.Code() == codes.DeadlineExceeded {
-					fmt.Printf("assignment not received for topic %v after %d ms", cg.topic, maxWaitMs)
+					fmt.Printf("assignment not received for topic %v after %d ms", topic, maxWaitMs)
 				} else {
 					fmt.Printf("unexpected error: %v", statusErr)
 				}
@@ -141,7 +153,7 @@ func (cg *ConsumerGroup) getAssignments(brokerAddr string, topics []string, maxW
 			return err
 		}
 		// save the assignment to the consumer group
-		cg.assignments = append(cg.assignments, res)
+		cg.assignments = append(cg.assignments, res.GetAssignments()...)
 	}
 
 	// clean up resources
@@ -161,6 +173,7 @@ func (c *Consumer) getBrokerIdxAddrForAssignment(assignmentIdx int) (int, string
 			panic("No matching broker ID in isrbrokers")
 		}
 	}
+	return -1, ""
 }
 
 
@@ -174,6 +187,6 @@ func (cg *ConsumerGroup) distributeAssignments(numConsumers int) {
 
 func (c *Consumer) createBrokerAssignmentMap() {
 	for k, v := range c.assignments {
-		c.brokerAssignmentMap[v.GetBroker()] = append(c.brokerAssignmentMap[v.GetBroker()], k)
+		c.brokerAssignmentMap[int(v.GetBroker())] = append(c.brokerAssignmentMap[int(v.GetBroker())], k)
 	}
 }
