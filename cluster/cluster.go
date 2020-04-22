@@ -45,7 +45,7 @@ func (cls *Cluster) GetAvailablePartitionsByTopic(topicName string) []*clusterme
 	return partition
 }
 
-// GetNodesByID return the nodesByID
+// GetNodesByID return the node if the node is alive else nil
 func (cls *Cluster) GetNodesByID(nodeID int) *clustermetadatapb.MetadataBroker {
 	cls.mux.RLock()
 	node, exist := cls.nodesByID[nodeID]
@@ -116,8 +116,9 @@ func (cls *Cluster) refreshPartitionTopicMapping() {
 	cls.mux.Unlock()
 }
 
-// moveBrkToISRByPartition move the specified broker into the ISR of the specified topic and partition index
-func (cls *Cluster) moveBrkToISRByPartition(brkID int32, topicName string, partitionIdx int32) {
+// MoveBrkToISRByPartition move the specified broker into the ISR of the specified topic and partition index
+// This is used when the broker reboot and done syncing a partition
+func (cls *Cluster) MoveBrkToISRByPartition(brkID int32, topicName string, partitionIdx int32) {
 	cls.mux.Lock()
 	// get the partitions of the topic
 	partitions := cls.partitionsByTopic[topicName]
@@ -142,9 +143,9 @@ func (cls *Cluster) moveBrkToISRByPartition(brkID int32, topicName string, parti
 	cls.mux.Unlock()
 }
 
-// moveBrkToOfflineAndElectLeader move the specified broker to offline replicas
+// MoveBrkToOfflineAndElectLeader move the specified broker to offline replicas
 // for all the topics and partitions and elect new leader if required
-func (cls *Cluster) moveBrkToOfflineAndElectLeader(brkID int32) {
+func (cls *Cluster) MoveBrkToOfflineAndElectLeader(brkID int32) {
 	needRefereshPartMapping := false
 	cls.mux.Lock()
 	for _, tpState := range cls.GetTopicStates() {
@@ -183,8 +184,8 @@ func (cls *Cluster) moveBrkToOfflineAndElectLeader(brkID int32) {
 	}
 }
 
-// checkBrokerInSync check if the broker is a insync replica for all the partition
-func (cls *Cluster) checkBrokerInSync(brkID int32) bool {
+// CheckBrokerInSync check if the broker is a insync replica for all the partition
+func (cls *Cluster) CheckBrokerInSync(brkID int32) bool {
 	cls.mux.RLock()
 	for _, tpState := range cls.GetTopicStates() {
 		for _, partState := range tpState.GetPartitionStates() {
@@ -201,4 +202,40 @@ func (cls *Cluster) checkBrokerInSync(brkID int32) bool {
 	cls.mux.RUnlock()
 	// if the broker is not in any of the offline replicas mean it is insync
 	return true
+}
+
+// GetBrkOfflineTopics get all the offline replicas belongs to the specified broker return nil if there is no offline replicas
+func (cls *Cluster) GetBrkOfflineTopics(brkID int32) []*clustermetadatapb.MetadataTopicState {
+	// buffer to store all the offline replicas
+	offlineTopics := []*clustermetadatapb.MetadataTopicState{}
+
+	cls.mux.RLock()
+	for _, tpState := range cls.GetTopicStates() {
+		// temporary buffer to store all the offline replicas
+		tp := &clustermetadatapb.MetadataTopicState{
+			TopicName:       tpState.GetTopicName(),
+			PartitionStates: []*clustermetadatapb.MetadataPartitionState{},
+		}
+
+		// get the specified broker offline replicass
+		for _, partState := range tpState.GetPartitionStates() {
+			for _, offlineReplica := range partState.GetOfflineReplicas() {
+				if offlineReplica == brkID {
+					tp.PartitionStates = append(tp.PartitionStates, partState)
+					break
+				}
+			}
+		}
+
+		// if there is offline replicas add to the reply buffer
+		if len(tp.GetPartitionStates()) > 0 {
+			offlineTopics = append(offlineTopics, tp)
+		}
+	}
+	cls.mux.RUnlock()
+
+	if len(offlineTopics) > 0 {
+		return offlineTopics
+	}
+	return nil
 }
