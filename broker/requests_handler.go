@@ -11,7 +11,6 @@ import (
 	"AKFAK/proto/metadatapb"
 	"AKFAK/proto/producepb"
 	"AKFAK/proto/recordpb"
-	"AKFAK/proto/zkmessagepb"
 	"context"
 	"errors"
 	"fmt"
@@ -77,15 +76,28 @@ func (n *Node) Produce(stream clientpb.ClientService_ProduceServer) error {
 				// find the partition state that match the request partition ID
 				partID := int(partState.GetPartitionIndex())
 				if partID == int(tpData.GetPartition()) {
+					// update file handler mapping
+					if _, exist := fileHandlerMapping[partID]; !exist {
+						filePath := fmt.Sprintf("%v/%v/%v", n.config.LogDir, partition.ConstructPartitionDirName(topicName, partID), partition.ContructPartitionLogName(topicName))
+						fileRecordHandler, _ := recordpb.InitialiseFileRecordFromFilepath(filePath)
+						fileHandlerMapping[partID] = fileRecordHandler
+					}
+
+					// save to local
+					newRcdBatch, _ := fileHandlerMapping[partID].WriteToFileByBaseOffset(tpData.GetRecordSet())
+
+					// update the request RecordSet with the BaseOffset
+					tpData.RecordSet = newRcdBatch
+
 					// current broker is the leader of the partition
 					if int(partState.GetLeader()) == n.ID {
-						// save to local
 						log.Printf("Broker %v receive message for partition %v\n", n.ID, partID)
-						n.writeRecordBatchToLocal(topicName, partID, fileHandlerMapping, tpData.GetRecordSet())
 
 						// broadcast to all insync replica
 						log.Printf("Broker %v broadcast message for partition %v to %v\n", n.ID, partID, partState.GetIsr())
+
 						for _, brkID := range partState.GetIsr() {
+							// TODO: check if the replica connection exist if not create it as the cluster is just updated
 							err := replicaConn[int(brkID)].Send(producepb.InitProduceRequest(topicName, partID, tpData.GetRecordSet().GetRecords()...))
 							if err != nil {
 								log.Printf("Broker %v unable to send message to replica %v\n", n.ID, brkID)
@@ -98,7 +110,6 @@ func (n *Node) Produce(stream clientpb.ClientService_ProduceServer) error {
 					} else {
 						// insync replica broker, save to local
 						log.Printf("Broker %v receive replica message for partition %v\n", n.ID, partID)
-						n.writeRecordBatchToLocal(topicName, partID, fileHandlerMapping, tpData.GetRecordSet())
 					}
 				}
 			}
@@ -258,19 +269,11 @@ func (n *Node) AdminClientNewTopic(ctx context.Context, req *adminclientpb.Admin
 		TopicStates: newTopicStates,
 	}
 
-	// send UpdateMetadata request to ZK
-	_, err = n.zkClient.UpdateClusterMetadata(
-		context.Background(),
-		&zkmessagepb.UpdateClusterMetadataRequest{
-			NewClusterInfo: newClusterState,
-		})
-	if err != nil {
-		return &adminclientpb.AdminClientNewTopicResponse{
-			Response: &commonpb.Response{Status: commonpb.ResponseStatus_FAIL}}, errors.New("Fail to update ZK")
-	}
-
 	// update local cluster metadata cache
 	n.ClusterMetadata.UpdateTopicState(newTopicStates)
+
+	// send UpdateMetadata request to ZK
+	n.updateZKClusterMetadata()
 
 	// send UpdateMetadata request to every live broker
 	for _, brk := range n.ClusterMetadata.GetLiveBrokers() {
@@ -323,12 +326,7 @@ func (n *Node) UpdateMetadata(ctx context.Context, req *adminclientpb.UpdateMeta
 		n.setupPeerHeartbeatsReceiver(newPeers)
 
 		// update peer cluster metadata
-		for _, peer := range n.adminServiceClient {
-			_, err := peer.UpdateMetadata(context.Background(), req)
-			if err != nil {
-				// TODO: update ZK about broker failure
-			}
-		}
+		n.updatePeerClusterMetadata()
 	}
 
 	return &adminclientpb.UpdateMetadataResponse{Response: &commonpb.Response{Status: commonpb.ResponseStatus_SUCCESS}}, nil
@@ -401,22 +399,6 @@ func (n *Node) SyncMessages(stream adminpb.AdminService_SyncMessagesServer) erro
 			doneSetup = true
 		}
 
-		// clean up resources
-		forgotTps := req.GetForgottenTopics()
-		if len(forgotTps) > 0 {
-			for _, forgotTp := range forgotTps {
-				topicName := forgotTp.GetTopic()
-				for _, forgotPartID := range forgotTp.GetPartitions() {
-					partDirname := partition.ConstructPartitionDirName(topicName, int(forgotPartID))
-					if fileHandler, exist := partDirnameFileHandlerMap[partDirname]; exist {
-						fileHandler.CloseFile()
-						delete(partDirnameFileHandlerMap, partDirname)
-					}
-
-				}
-			}
-		}
-
 		// prepare data to send
 		syncTpResp := []*adminclientpb.SyncTopicResponse{}
 		syncPartResp := []*adminclientpb.SyncPartitionResponse{}
@@ -447,6 +429,31 @@ func (n *Node) SyncMessages(stream adminpb.AdminService_SyncMessagesServer) erro
 				Topic:              topicName,
 				PartitionResponses: syncPartResp,
 			})
+		}
+
+		forgotTps := req.GetForgottenTopics()
+		if len(forgotTps) > 0 {
+			for _, forgotTp := range forgotTps {
+				topicName := forgotTp.GetTopic()
+				for _, forgotPartID := range forgotTp.GetPartitions() {
+					// update local cluster metadata
+					n.ClusterMetadata.MoveBrkToISRByPartition(req.GetReplicaID(), topicName, forgotPartID)
+
+					// update cluster metadata
+					if n.ID == int(n.ClusterMetadata.GetController().GetID()) {
+						n.updateZKClusterMetadata()
+						n.updatePeerClusterMetadata()
+					} else {
+						n.updateCtrlClusterMetadata()
+					}
+
+					partDirname := partition.ConstructPartitionDirName(topicName, int(forgotPartID))
+					if fileHandler, exist := partDirnameFileHandlerMap[partDirname]; exist {
+						fileHandler.CloseFile()
+						delete(partDirnameFileHandlerMap, partDirname)
+					}
+				}
+			}
 		}
 
 		// sending response
