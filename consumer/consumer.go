@@ -3,6 +3,7 @@ package consumer
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -17,21 +18,21 @@ import (
 
 // ConsumerGroup holds consumers
 type ConsumerGroup struct {
-	id    			int
-	topics 			[]string
-	consumers   	[]Consumer
-	assignments 	[]*consumepb.MetadataAssignment
+	id          int
+	topics      []string
+	consumers   []Consumer
+	assignments []*consumepb.MetadataAssignment
 	// key - topic, value - consumer
-	topicConsumer 	map[string][]*Consumer
-	mux     		sync.RWMutex
+	topicConsumer map[string][]*Consumer
+	mux           sync.RWMutex
 	// key - topic, value - next partition idx to read from
-	topicPartPoint 	map[string]int
+	topicPartPoint map[string]int
 }
 
 // Consumer is a member of a consumer group
 type Consumer struct {
-	id      	int
-	groupID 	int
+	id      int
+	groupID int
 	// assignments are given an idx (key)
 	assignments map[int]*consumepb.MetadataAssignment
 	brokerCon   map[int]clientpb.ClientService_ConsumeClient
@@ -76,28 +77,28 @@ func InitConsumerGroup(id int, _topics string, brokerAddr string) *ConsumerGroup
 	return &cg
 }
 
-
 // Consume tries to consume information on the topic
 func (cg *ConsumerGroup) Consume(topic string) error {
 	// TODO: Add/disregard comments based on your own intuition
+	// sorted by partitionIndex
+	cg.createTopicConsumerMap(topic)
+
+	// key - topic, value - []*Consumer
+	// can assume one assignment for the same topic for each consumer
+	// and the consumerlist is sorted based on partitionId
+	for _, consumer := range cg.topicConsumer[topic] {
+		consumer.assignments[0].GetPartitionIndex()
+		// Connect to broker
+		// Get the message
+		//
+	}
+	return nil
 
 	// check which consumers have partitions of that topic
 	// a variable like `topicConsumer` might be useful. In CG struct but not constructed yet.
-	consumers := cg.consumers
-	for _, consumer := range consumers {
-		assignments := consumer.assignments
-		for _, assignment := range assignments {
-			if assignment.GetTopicName() == topic {
-				consumerList := cg.topicConsumer[assignment.GetTopicName()]
-				consumerList = append(consumerList, &consumer)
-			}
-		}
-	}
-
-	//cg.mux.Lock()
-	// check which consumer should call consume now 
+	// check which consumer should call consume now
 	/* say if consumer 1 has assignment T0-P1 and consumer 2 has assignment TO-P2
-	// then make consumer 1 consume ->  consumer 2 consume -> consumer 1 consume so that the 
+	// then make consumer 1 consume ->  consumer 2 consume -> consumer 1 consume so that the
 	// order of consumption of messages is the same as the order of production of messages */
 	// lock is here because the initial idea is that there might be multiple consumer
 	// threads consuming and changing the `topicPartPoint` value, remove if not required
@@ -106,10 +107,16 @@ func (cg *ConsumerGroup) Consume(topic string) error {
 
 	// handle different cases of consume
 	// 1) Normal consumption with no problem -> print msg
-	
+
 	// 2) Consume fails --> setup stream for next broker and call consume again
+}
 
+func (cg *ConsumerGroup) doSend(brokerID int) {
+	for {
+		select {
 
+		}
+	}
 }
 
 func (cg *ConsumerGroup) getAssignments(brokerAddr string, topics []string, maxWaitMs time.Duration) error {
@@ -162,7 +169,6 @@ func (cg *ConsumerGroup) getAssignments(brokerAddr string, topics []string, maxW
 	return nil
 }
 
-
 func (c *Consumer) getBrokerIdxAddrForAssignment(assignmentIdx int) (int, string) {
 	brokerID := c.assignments[assignmentIdx].GetBroker()
 	for i, isrbroker := range c.assignments[assignmentIdx].GetIsrBrokers() {
@@ -174,13 +180,30 @@ func (c *Consumer) getBrokerIdxAddrForAssignment(assignmentIdx int) (int, string
 	}
 }
 
-
 // distributeAssignments to consumers in a round-robin manner
 func (cg *ConsumerGroup) distributeAssignments(numConsumers int) {
 	for i, assignment := range cg.assignments {
 		idx := i % numConsumers
 		cg.consumers[idx].assignments[i/numConsumers] = assignment
 	}
+}
+
+func (cg *ConsumerGroup) createTopicConsumerMap(topic string) {
+	for _, consumer := range cg.topicConsumer[topic] {
+		assignments := consumer.assignments
+		for _, assignment := range assignments {
+			if assignment.GetTopicName() == topic {
+				cg.topicConsumer[topic] = append(cg.topicConsumer[assignment.GetTopicName()], consumer)
+			}
+		}
+	}
+	sort.Slice(cg.topicConsumer[topic], func(i, j int) bool {
+		if cg.topicConsumer[topic][i].assignments[0].GetPartitionIndex() <= cg.topicConsumer[topic][j].assignments[0].GetPartitionIndex() {
+			return cg.topicConsumer[topic][i].assignments[0].GetPartitionIndex() < cg.topicConsumer[topic][j].assignments[0].GetPartitionIndex()
+		} else {
+			return cg.topicConsumer[topic][i].assignments[0].GetPartitionIndex() > cg.topicConsumer[topic][j].assignments[0].GetPartitionIndex()
+		}
+	})
 }
 
 func (c *Consumer) createBrokerAssignmentMap() {
