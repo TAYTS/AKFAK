@@ -65,9 +65,9 @@ func (rcdBatch *RecordBatch) AppendRecord(records ...*Record) {
 
 // writeEmptyHeader setup the default fields (BatchLength: []byte of size 4 and Magic: 2) in the RecordBatch
 func (rcdBatch *RecordBatch) writeEmptyHeader() {
-	// Only update the BatchLength and Magic as the rest are using the default value
-	rcdBatch.BatchLength = make([]byte, 4)
-	rcdBatch.Magic = 2 // Do not change; originally used for handling different Record version
+	rcdBatch.BaseOffset = -1
+	rcdBatch.BatchLength = make([]byte, 4) // fix byte size for retrieve record later
+	rcdBatch.Magic = 2                     // Do not change; originally used for handling different Record version
 }
 
 // updateBatchLength compute and update the BatchLength
