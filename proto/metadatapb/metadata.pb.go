@@ -5,9 +5,8 @@ package metadatapb
 
 import (
 	fmt "fmt"
-	math "math"
-
 	proto "github.com/golang/protobuf/proto"
+	math "math"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -93,9 +92,9 @@ func (m *MetadataResponse) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_MetadataResponse proto.InternalMessageInfo
 
-func (m *MetadataResponse) GetBroker() *Broker {
+func (m *MetadataResponse) GetBrokers() []*Broker {
 	if m != nil {
-		return m.Broker
+		return m.Brokers
 	}
 	return nil
 }
