@@ -55,7 +55,10 @@ func (n *Node) InitAdminListener() {
 	// setup the cluster metadata cache
 	n.initClusterMetadataCache()
 
-	// TODO [Fault tolerance]: check if the broker is not insync
+	if !n.ClusterMetadata.CheckBrokerInSync(int32(n.ID)) {
+		log.Printf("Broker %v is not insync with other replicas\n", n.ID)
+		go n.syncLocalPartition()
+	}
 
 	// start controller routine if the broker is select as the controller
 	if int(n.ClusterMetadata.GetController().GetID()) == n.ID {
@@ -88,6 +91,14 @@ func (n *Node) initControllerRoutine() {
 
 	// connect and store ZK rpc client
 	n.zkClient = getZKClient(n.config.ZKConn)
+
+	// update the cluster to move all offline broker to fail replicas
+	for _, brk := range n.ClusterMetadata.GetBrokers() {
+		if n.ClusterMetadata.GetNodesByID(int(brk.GetID())) == nil {
+			log.Printf("Controller detect Broker %v failure\n", brk.GetID())
+			n.handleBrokerFailure(brk.GetID())
+		}
+	}
 
 	// setup heartbeats request to ZK
 	n.setupZKHeartbeatsRequest()
