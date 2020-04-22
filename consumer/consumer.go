@@ -2,6 +2,7 @@ package consumer
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -83,42 +84,33 @@ func initConsumer(id int, groupID int) *Consumer {
 
 // Consume tries to consume information on the topic
 func (cg *ConsumerGroup) Consume(_topic string) error {
+	topics := strings.Split(_topic, ",") // []String
 	for i, topic := range cg.topics {
 		if topic == _topic {
 			break
 		} else if i == len(cg.topics)-1 {
 			// already reached the end
 			fmt.Println("Consumer group not set up to pull from this topic")
+			return errors.New("Consumer group not set up to pull from this topic")
 		}
 	}
+	for _, t := range topics {
+		cg.createTopicConsumerMap(t)
+	}
+
 	// TODO: Add/disregard comments based on your own intuition
 	// sorted by partitionIndex
-	cg.createTopicConsumerMap(_topic)
-
 	// key - topic, value - []*Consumer
 	// can assume one assignment for the same topic for each consumer
 	// and the consumerlist is sorted based on partitionId
 	for _, consumer := range cg.topicConsumer[_topic] {
 		consumer.assignments[0].GetPartitionIndex()
-		// Connect to broker
-		// Get the message
-		//
 	}
+
 
 	// check which consumers have partitions of that topic
 	// a variable like `topicConsumer` might be useful. In CG struct but not constructed yet.
 	// check which consumer should call consume now
-	consumers := cg.consumers
-	for _, consumer := range consumers {
-		assignments := consumer.assignments
-		for _, assignment := range assignments {
-			if assignment.GetTopicName() == _topic {
-				consumerList := cg.topicConsumer[assignment.GetTopicName()]
-				consumerList = append(consumerList, consumer)
-			}
-		}
-	}
-	return nil
 
 	//cg.mux.Lock()
 	// check which consumer should call consume now 
@@ -134,6 +126,7 @@ func (cg *ConsumerGroup) Consume(_topic string) error {
 	// 1) Normal consumption with no problem -> print msg
 
 	// 2) Consume fails --> setup stream for next broker and call consume again
+	return nil
 }
 
 func (cg *ConsumerGroup) doSend(brokerID int) {
