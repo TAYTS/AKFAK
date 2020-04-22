@@ -7,27 +7,17 @@ import (
 	"AKFAK/proto/clientpb"
 	"AKFAK/proto/heartbeatspb"
 	"AKFAK/proto/recordpb"
+	"AKFAK/proto/zkmessagepb"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log"
+	"sync"
 	"time"
 
 	"google.golang.org/grpc"
 )
-
-// writeRecordBatchToLocal is a helper function for Produce request handler to save the RecordBatch to the local log file
-func (n *Node) writeRecordBatchToLocal(topicName string, partitionID int, fileHandlerMapping map[int]*recordpb.FileRecord, recordBatch *recordpb.RecordBatch) {
-	fHandler, exist := fileHandlerMapping[partitionID]
-	if exist {
-		fHandler.WriteToFile(recordBatch)
-	} else {
-		filePath := fmt.Sprintf("%v/%v/%v", n.config.LogDir, partition.ConstructPartitionDirName(topicName, partitionID), partition.ContructPartitionLogName(topicName))
-		fileRecordHandler, _ := recordpb.InitialiseFileRecordFromFilepath(filePath)
-		fileHandlerMapping[partitionID] = fileRecordHandler
-		fileRecordHandler.WriteToFile(recordBatch)
-	}
-}
 
 // cleanupProducerResource help to clean up the Producer resources
 func cleanupProducerResource(replicaConn map[int]clientpb.ClientService_ProduceClient, fileHandlerMapping map[int]*recordpb.FileRecord) {
@@ -216,5 +206,225 @@ func (n *Node) setupZKHeartbeatsRequest() {
 
 		// wait for 1 second
 		time.Sleep(time.Second)
+	}
+}
+
+// updateZKClusterMetadata is used by controller to update ZK about the current cluster state
+func (n *Node) updateZKClusterMetadata() {
+	log.Println("Controller update ZK about new cluster state")
+
+	n.zkClient.UpdateClusterMetadata(
+		context.Background(),
+		&zkmessagepb.UpdateClusterMetadataRequest{
+			NewClusterInfo: n.ClusterMetadata.MetadataCluster,
+		})
+}
+
+// updateControllerMetadata used by broker to update controller about the new cluster metadata
+func (n *Node) updateCtrlClusterMetadata() {
+	log.Printf("Broker %v update controller about new cluster state\n", n.ID)
+
+	for {
+		ctrlAddr := fmt.Sprintf("%v:%v", n.ClusterMetadata.GetController().GetHost(), n.ClusterMetadata.GetController().GetHost())
+
+		ctrlCon, err := grpc.Dial(ctrlAddr, grpc.WithInsecure())
+		if err != nil {
+			// broker ignore controller failure(none of their business)
+			// try update controller until success
+			ctrlCon.Close()
+			time.Sleep(300 * time.Millisecond)
+			continue
+		}
+
+		adminServiceClient := adminpb.NewAdminServiceClient(ctrlCon)
+
+		// broker ignore controller failure
+		_, err = adminServiceClient.UpdateMetadata(context.Background(), &adminclientpb.UpdateMetadataRequest{
+			NewClusterInfo: n.ClusterMetadata.MetadataCluster,
+		})
+		if err != nil {
+			// broker ignore controller failure(none of their business)
+			// try update controller until success
+			ctrlCon.Close()
+			time.Sleep(300 * time.Millisecond)
+			continue
+		}
+		break
+	}
+}
+
+// updatePeerClusterMetadata used by controller to update peer about the new cluster metadata
+func (n *Node) updatePeerClusterMetadata() {
+	req := &adminclientpb.UpdateMetadataRequest{
+		NewClusterInfo: n.ClusterMetadata.MetadataCluster,
+	}
+	for _, peer := range n.adminServiceClient {
+		_, err := peer.UpdateMetadata(context.Background(), req)
+		if err != nil {
+			// TODO: update ZK about broker failure
+		}
+	}
+}
+
+// handleBrokerFailure is used by controller to handle broker failure
+func (n *Node) handleBrokerFailure(brkID int32) {
+	// remove the broker from the ISR and elect new leader if required
+	n.ClusterMetadata.MoveBrkToOfflineAndElectLeader(brkID)
+
+	// update ZK about the new cluster state
+	n.updateZKClusterMetadata()
+}
+
+// syncLocalPartition is used by broker on startup to sync the local partition with other replicas
+func (n *Node) syncLocalPartition() {
+	log.Printf("Broker %v starts to sync the local partition\n", n.ID)
+	// get all partitions need to sync
+	offlineTopics := n.ClusterMetadata.GetBrkOfflineTopics(int32(n.ID))
+
+	// if there is no offline topic return
+	if offlineTopics == nil {
+		return
+	}
+
+	// prepare the sync requests
+	leaderSyncReqMap := make(map[int32]*adminclientpb.SyncMessagesRequest)
+	partFileHandleMap := make(map[string]*recordpb.FileRecord)
+	for _, tpState := range offlineTopics {
+		topicName := tpState.GetTopicName()
+
+		// create mapping for keeping track the leader of each partition
+		leaderPartsMap := make(map[int32][]*adminclientpb.SyncPartition)
+		for _, partState := range tpState.GetPartitionStates() {
+			// TODO: leaderID = -1
+			leaderID := partState.GetLeader()
+			partIdx := partState.GetPartitionIndex()
+
+			// create the file handler
+			partDirname := partition.ConstructPartitionDirName(topicName, int(partIdx))
+			logName := partition.ContructPartitionLogName(topicName)
+			fileHandler, _ := recordpb.InitialiseFileRecordFromFilepath(fmt.Sprintf("%v/%v/%v", n.config.LogDir, partDirname, logName))
+			partFileHandleMap[partDirname] = fileHandler
+
+			// create sync partition
+			syncPart := &adminclientpb.SyncPartition{
+				Partition:      partState.GetPartitionIndex(),
+				LogStartOffset: fileHandler.GetFileSize(),
+			}
+
+			// add sync partition to the respective leader
+			if parts, exist := leaderPartsMap[leaderID]; exist {
+				parts = append(parts, syncPart)
+			} else {
+				leaderPartsMap[leaderID] = []*adminclientpb.SyncPartition{syncPart}
+			}
+		}
+
+		// add/update sync req for the respective leader
+		for leader, syncParts := range leaderPartsMap {
+			syncTopic := &adminclientpb.SyncTopic{
+				Topic:      topicName,
+				Partitions: syncParts,
+			}
+			if syncReq, exist := leaderSyncReqMap[leader]; exist {
+				syncReq.Topics = append(syncReq.GetTopics(), syncTopic)
+			} else {
+				leaderSyncReqMap[leader] = &adminclientpb.SyncMessagesRequest{
+					ReplicaID: int32(n.ID),
+					Topics:    []*adminclientpb.SyncTopic{syncTopic},
+				}
+			}
+		}
+	}
+
+	// wait group for waiting all leader syncing is complete
+	var syncWG sync.WaitGroup
+
+	// sending sync request to each leader
+	for leader, syncReq := range leaderSyncReqMap {
+		brk := n.ClusterMetadata.GetNodesByID(int(leader))
+		peerAddr := fmt.Sprintf("%v:%v", brk.GetHost(), brk.GetPort())
+		clientCon, err := grpc.Dial(peerAddr, grpc.WithInsecure())
+		defer clientCon.Close()
+		if err != nil {
+			log.Printf("Fail to connect to %v: %v\n", peerAddr, err)
+			// TODO: Update the ZK about the fail node
+			continue
+		}
+		adminServiceClient := adminpb.NewAdminServiceClient(clientCon)
+		stream, err := adminServiceClient.SyncMessages(context.Background())
+		if err != nil {
+			// TODO: Handle broker failure
+			continue
+		}
+
+		// wait for one more leader
+		syncWG.Add(1)
+
+		go func(syncReq *adminclientpb.SyncMessagesRequest) {
+			// buffer used to keep track all partitions end offset
+			partEndOffsetMap := make(map[string]int64)
+			for {
+				// send the sync request
+				stream.Send(syncReq)
+
+				// clear the forgotten topics
+				syncReq.ForgottenTopics = []*adminclientpb.SyncForgottenTopicsData{}
+
+				// get response from leader
+				resp, err := stream.Recv()
+				if err == io.EOF {
+					// done syncing
+					syncWG.Done()
+					break
+				}
+				syncResp := resp.GetResponses()
+
+				// writting the record batches to local log files
+				for _, tp := range syncResp {
+					topicName := tp.GetTopic()
+					for _, part := range tp.GetPartitionResponses() {
+						partIdx := part.GetPartition()
+						partDirname := partition.ConstructPartitionDirName(topicName, int(partIdx))
+						if offset, exist := partEndOffsetMap[partDirname]; exist {
+							offset = part.GetLogStartOffset()
+						} else {
+							partEndOffsetMap[partDirname] = offset
+						}
+
+						// write record batches and get the updated record end offset
+						var newEndOffset int64
+						for _, record := range part.GetRecordSets() {
+							partFileHandleMap[partDirname].WriteToFileByBaseOffset(record)
+							newEndOffset = partFileHandleMap[partDirname].GetFileSize()
+						}
+
+						// update the req forgetten topic
+						if newEndOffset == partEndOffsetMap[partDirname] {
+							forgotTpExist := false
+							for _, forgetTp := range syncReq.GetForgottenTopics() {
+								if forgetTp.GetTopic() == topicName {
+									forgotTpExist = true
+									forgetTp.Partitions = append(forgetTp.GetPartitions(), partIdx)
+								}
+							}
+							if !forgotTpExist {
+								syncReq.ForgottenTopics = append(syncReq.GetForgottenTopics(), &adminclientpb.SyncForgottenTopicsData{
+									Topic:      topicName,
+									Partitions: []int32{partIdx},
+								})
+							}
+						}
+					}
+				}
+			}
+		}(syncReq)
+	}
+
+	// wait for all the syncing with leaders to be done
+	syncWG.Wait()
+
+	// clean up resource
+	for _, fileHandler := range partFileHandleMap {
+		fileHandler.CloseFile()
 	}
 }
