@@ -68,6 +68,19 @@ func (cstate *ConsumerMetadata) UpdateOffset(assignment *consumepb.MetadataAssig
 	cstate.mux.Unlock()
 }
 
+// AddAssignment adds a consumer group to metadata
+func (cstate *ConsumerMetadata) AddAssignment(cg int, assignments []*consumepb.MetadataAssignment) {
+	// create new consumer group with assignment
+	cgrp := &consumermetadatapb.ConsumerGroup{
+		ID:	int32(cg),
+		Assignments: assignments,
+	}
+	cstate.mux.Lock()
+	cstate.MetadataConsumerState.ConsumerGroups = append (cstate.MetadataConsumerState.ConsumerGroups, cgrp)
+	cstate.mux.Unlock()
+	cstate.populateMetadata()
+}
+
 // UpdateAssignments update assignment of consumer group
 func (cstate *ConsumerMetadata) UpdateAssignments(cg int, assignments []*consumepb.MetadataAssignment) {
 	cstate.mux.Lock()

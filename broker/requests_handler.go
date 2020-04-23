@@ -420,7 +420,7 @@ func (n *Node) GetAssignment(ctx context.Context, req *consumepb.GetAssignmentRe
 		if grp.GetID() == cg {
 			for _, assignment := range grp.GetAssignments() {
 				if assignment.GetTopicName() == topicName {
-					return nil, nil
+					return nil, errors.New("You already have an assignment for this topic!")
 				}
 			}
 		}
@@ -438,22 +438,36 @@ func (n *Node) GetAssignment(ctx context.Context, req *consumepb.GetAssignmentRe
 	for _, partState := range partitions {
 		isrBrokers := []*clustermetadatapb.MetadataBroker{}
 		brokerIDs := partState.GetIsr()
+		if len(brokerIDs)==0 {
+			return nil, errors.New("No broker is storing data on this topic")
+		}
 		for _, i := range brokerIDs {
 			isrBrokers = append(isrBrokers, n.ClusterMetadata.GetNodesByID(int(i)))
 		}
 		replica := &consumepb.MetadataAssignment{
 			TopicName:      topicName,
 			PartitionIndex: int32(partState.GetPartitionIndex()),
+			//assign the first broker to be the one the consumer should contact
 			Broker:         int32(brokerIDs[0]),
+			Broker:         int32(1),
 			IsrBrokers:     isrBrokers,
 		}
 		assignments = append(assignments, replica)
 	}
 
+	// if no consumergroups available in metadata 
+	if len(n.ConsumerMetadata.GetConsumerGroups()) == 0 {
+		// add this consumer group
+		n.ConsumerMetadata.AddAssignment(int(cg), assignments)
+	}
+
 	// update consumer group metadata
-	for _, grp := range n.ConsumerMetadata.GetConsumerGroups() {
+	for i, grp := range n.ConsumerMetadata.GetConsumerGroups() {
 		if grp.GetID() == cg {
 			n.ConsumerMetadata.UpdateAssignments(int(cg), assignments)
+			break
+		} else if i == len(n.ConsumerMetadata.GetConsumerGroups())-1 {
+			n.ConsumerMetadata.AddAssignment(int(cg), assignments)
 		}
 	}
 

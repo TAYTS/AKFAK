@@ -11,8 +11,9 @@ import (
 )
 
 func main() {
+	// mock consumer
 	opts := grpc.WithInsecure()
-	cc, err := grpc.Dial("localhost:5001", opts)
+	cc, err := grpc.Dial("0.0.0.0:5000", opts)
 	if err != nil {
 		log.Fatalf("could not connect: %v", err)
 	}
@@ -21,15 +22,15 @@ func main() {
 	c := clientpb.NewClientServiceClient(cc)
 
 	req := &consumepb.GetAssignmentRequest{
-		GroupID:	c.GroupID,
-		TopicName:	c.TopicName,
+		GroupID:	2,
+		TopicName:	"topic1",
 	}
 
 
-	res, err := c.GetAssignments(context.Background(), req)
+	res, err := c.GetAssignment(context.Background(), req)
 	if err != nil {
 		log.Fatalf("Error whil calling controller RPC: %v\n", err)
 	}
 
-	fmt.Println("Result:", res.GetResponse())
+	fmt.Println("Result:", res)
 }
