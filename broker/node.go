@@ -95,7 +95,6 @@ func (n *Node) initControllerRoutine() {
 	// update the cluster to move all offline broker to fail replicas
 	for _, brk := range n.ClusterMetadata.GetBrokers() {
 		if n.ClusterMetadata.GetNodesByID(int(brk.GetID())) == nil {
-			log.Printf("Controller detect Broker %v failure\n", brk.GetID())
 			n.handleBrokerFailure(brk.GetID())
 		}
 	}

@@ -121,18 +121,16 @@ func (n *Node) updateAdminPeerConnection() []int {
 	}
 
 	// remove dead broker
-	if len(n.ClusterMetadata.GetLiveBrokers()) != len(n.adminServiceClient) {
-		for ID := range n.adminServiceClient {
-			if n.ClusterMetadata.GetNodesByID(ID) == nil {
-				delete(n.adminServiceClient, ID)
-			}
+	for ID := range n.adminServiceClient {
+		if n.ClusterMetadata.GetNodesByID(ID) == nil {
+			delete(n.adminServiceClient, ID)
 		}
 	}
 
 	return newPeer
 }
 
-// updateClientPeerConnection is used to store all the peer gRPC connections for client service
+// updateClientPeerConnection is used to update the mapping that store all the peer gRPC connections for client service
 func (n *Node) updateClientPeerConnection() {
 	// add new connection
 	for _, brk := range n.ClusterMetadata.GetLiveBrokers() {
@@ -168,6 +166,7 @@ func (n *Node) setupPeerHeartbeatsReceiver(peerIDs []int) {
 			stream, err := adminClient.Heartbeats(context.Background())
 			if err != nil {
 				n.handleBrokerFailure(int32(peerID))
+				continue
 			}
 
 			// start new routine to handle the heartbeat of each peer
@@ -176,6 +175,7 @@ func (n *Node) setupPeerHeartbeatsReceiver(peerIDs []int) {
 					_, err := stream.Recv()
 					if err != nil {
 						n.handleBrokerFailure(int32(peerID))
+						break
 					}
 					log.Printf("Controller receive heartbeats response from  Broker %v\n", peerID)
 				}
@@ -268,10 +268,10 @@ func (n *Node) updatePeerClusterMetadata() {
 	req := &adminclientpb.UpdateMetadataRequest{
 		NewClusterInfo: n.ClusterMetadata.MetadataCluster,
 	}
-	for peerID, peer := range n.adminServiceClient {
+	for _, peer := range n.adminServiceClient {
 		_, err := peer.UpdateMetadata(context.Background(), req)
 		if err != nil {
-			n.handleBrokerFailure(int32(peerID))
+			// 	n.handleBrokerFailure(int32(peerID))
 		}
 	}
 }
@@ -282,6 +282,12 @@ func (n *Node) handleBrokerFailure(brkID int32) {
 
 	// remove the broker from the ISR and elect new leader if required
 	n.ClusterMetadata.MoveBrkToOfflineAndElectLeader(brkID)
+
+	// clean up admin service peer connections
+	n.updateAdminPeerConnection()
+
+	// clean up client service peer connections
+	n.updateClientPeerConnection()
 
 	// update cluster state
 	n.handleClusterUpdateReq()
@@ -307,7 +313,6 @@ func (n *Node) syncLocalPartition() {
 		// create mapping for keeping track the leader of each partition
 		leaderPartsMap := make(map[int32][]*adminclientpb.SyncPartition)
 		for _, partState := range tpState.GetPartitionStates() {
-			// TODO: leaderID = -1
 			leaderID := partState.GetLeader()
 			partIdx := partState.GetPartitionIndex()
 
@@ -367,13 +372,13 @@ func (n *Node) syncLocalPartition() {
 		clientCon, err := grpc.Dial(peerAddr, grpc.WithInsecure())
 		defer clientCon.Close()
 		if err != nil {
-			n.handleBrokerFailure(leader)
+			// n.handleBrokerFailure(leader)
 			continue
 		}
 		adminServiceClient := adminpb.NewAdminServiceClient(clientCon)
 		stream, err := adminServiceClient.SyncMessages(context.Background())
 		if err != nil {
-			n.handleBrokerFailure(leader)
+			// n.handleBrokerFailure(leader)
 			continue
 		}
 

@@ -79,17 +79,22 @@ func (cls *Cluster) UpdateClusterMetadata(newClsMeta *clustermetadatapb.Metadata
 
 // populateCluster refresh the internal mapping for easy access
 func (cls *Cluster) populateCluster() {
-	cls.mux.Lock()
 	// update nodesByID mapping
+	cls.refreshNodesByID()
+
+	// refresh partitionsByTopic and availablePartitionsByTopic mapping
+	cls.refreshPartitionTopicMapping()
+}
+
+// refreshNodesByID refresh the nodesByID mapping
+func (cls *Cluster) refreshNodesByID() {
+	cls.mux.Lock()
 	nodesByID := make(map[int]*clustermetadatapb.MetadataBroker)
 	for _, node := range cls.MetadataCluster.GetLiveBrokers() {
 		nodesByID[int(node.GetID())] = node
 	}
 	cls.nodesByID = nodesByID
 	cls.mux.Unlock()
-
-	// refresh partitionsByTopic and availablePartitionsByTopic mapping
-	cls.refreshPartitionTopicMapping()
 }
 
 // refreshPartitionTopicMapping refresh the partitionsByTopic & availablePartitionsByTopic mapping
@@ -143,10 +148,25 @@ func (cls *Cluster) MoveBrkToISRByPartition(brkID int32, topicName string, parti
 	cls.mux.Unlock()
 }
 
-// MoveBrkToOfflineAndElectLeader move the specified broker to offline replicas
-// for all the topics and partitions and elect new leader if required
+// MoveBrkToOfflineAndElectLeader remove th broker from LiveBrokers and move
+// the specified broker to offline replicas for all the topics and partitions
+// and elect new leader if required
 func (cls *Cluster) MoveBrkToOfflineAndElectLeader(brkID int32) {
-	needRefereshPartMapping := false
+	cls.mux.Lock()
+	// update live brokers
+	for idx, brk := range cls.MetadataCluster.GetLiveBrokers() {
+		if brk.GetID() == brkID {
+			liveBrkCopy := cls.MetadataCluster.GetLiveBrokers()
+			cls.MetadataCluster.LiveBrokers = append(liveBrkCopy[:idx], liveBrkCopy[idx+1:]...)
+			break
+		}
+	}
+	cls.mux.Unlock()
+
+	// refresh the nodesByID mapping
+	cls.refreshNodesByID()
+
+	needRefreshPartMapping := false
 	cls.mux.Lock()
 	for _, tpState := range cls.GetTopicStates() {
 		for _, partState := range tpState.GetPartitionStates() {
@@ -166,7 +186,7 @@ func (cls *Cluster) MoveBrkToOfflineAndElectLeader(brkID int32) {
 
 			// if the broker is the leader then choose the next broker in the ISR as leader
 			if partState.GetLeader() == brkID {
-				needRefereshPartMapping = true
+				needRefreshPartMapping = true
 				// if there is broker in the ISR select the first one as the leader
 				if len(partState.GetIsr()) > 0 {
 					partState.Leader = partState.GetIsr()[0]
@@ -179,7 +199,7 @@ func (cls *Cluster) MoveBrkToOfflineAndElectLeader(brkID int32) {
 	}
 	cls.mux.Unlock()
 
-	if needRefereshPartMapping {
+	if needRefreshPartMapping {
 		cls.refreshPartitionTopicMapping()
 	}
 }
