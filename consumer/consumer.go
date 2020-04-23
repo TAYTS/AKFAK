@@ -66,10 +66,24 @@ func InitConsumerGroup(id int, _topics string, brokerAddr string) *ConsumerGroup
 	// distribute assignments to consumers in a round-robin manner
 	cg.distributeAssignments(numConsumers)
 
+	for _, c := range cg.consumers {
+		c.createBrokerAssignmentMap()
+		fmt.Sprintf("Consumer %v has created a broker-assignment map", c.id)
+		c.createBrokersAddrMap()
+		fmt.Sprintf("Consumer %v has created a broker-address map", c.id)
+		err := c.setupStreamToConsumeMsg()
+		if err != nil {
+			panic(fmt.Sprintf("Unable to set up stream to broker: %v\n", err))
+		}
+		fmt.Sprintf("Consumer %v has set up a broker-connection map\n", c.id)
+	}
+
 	// set the first partition idx to be read from = 0
 	for _, topic := range topics {
 		cg.topicPartPoint[topic] = 0
 	}
+	cg.createTopicConsumerMap(_topics)
+	fmt.Sprintf("Consumer Group %v has created a topic-consumers map", cg.id)
 
 	return &cg
 }
@@ -93,9 +107,6 @@ func (cg *ConsumerGroup) Consume(_topic string) error {
 			fmt.Println("Consumer group not set up to pull from this topic")
 			return errors.New("Consumer group not set up to pull from this topic")
 		}
-	}
-	for _, t := range topics {
-		cg.createTopicConsumerMap(t)
 	}
 
 	// TODO: Add/disregard comments based on your own intuition
