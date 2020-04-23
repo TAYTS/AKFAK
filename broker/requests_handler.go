@@ -76,7 +76,6 @@ func (n *Node) Produce(stream clientpb.ClientService_ProduceServer) error {
 								stream, err := n.clientServiceClient[brkIDInt].Produce(context.Background())
 								if err != nil {
 									delete(replicaConn, brkIDInt)
-									n.handleBrokerFailure(brkID)
 								} else {
 									replicaConn[brkIDInt] = stream
 								}
@@ -91,7 +90,6 @@ func (n *Node) Produce(stream clientpb.ClientService_ProduceServer) error {
 								if err != nil {
 									delete(replicaConn, brkIDInt)
 									log.Printf("Broker %v unable to send message to replica %v\n", n.ID, brkID)
-									n.handleBrokerFailure(brkID)
 								} else {
 									replicaConn[brkIDInt] = newStream
 									newStream.Send(producepb.InitProduceRequest(topicName, partID, tpData.GetRecordSet().GetRecords()...))
@@ -102,7 +100,6 @@ func (n *Node) Produce(stream clientpb.ClientService_ProduceServer) error {
 							_, err = replicaConn[brkIDInt].Recv()
 							if err != nil {
 								delete(replicaConn, brkIDInt)
-								n.handleBrokerFailure(brkID)
 							}
 						}
 					} else {
@@ -114,7 +111,6 @@ func (n *Node) Produce(stream clientpb.ClientService_ProduceServer) error {
 			}
 		}
 
-		// TODO: Update this when dealing with fault tolerance
 		sendErr := stream.Send(&producepb.ProduceResponse{Response: &commonpb.Response{Status: commonpb.ResponseStatus_SUCCESS, Message: "Received"}})
 		if sendErr != nil {
 			log.Printf("Error while sending data to client: %v", sendErr)
@@ -180,7 +176,7 @@ func (n *Node) WaitOnMetadata(ctx context.Context, req *metadatapb.MetadataReque
 	return metadataResp, nil
 }
 
-// ControllerElection used for the ZK to inform the broker to start the controller routine
+// ControllerElection used by the ZK to inform the broker to start the controller routine
 func (n *Node) ControllerElection(ctx context.Context, req *adminclientpb.ControllerElectionRequest) (*adminclientpb.ControllerElectionResponse, error) {
 	// get the selected brokerID to be the controller from ZK
 	brokerID := int(req.GetBrokerID())
@@ -188,7 +184,7 @@ func (n *Node) ControllerElection(ctx context.Context, req *adminclientpb.Contro
 	// if the broker got selected start the controller routine
 	if brokerID == n.ID {
 		log.Printf("Node %v received controller election request for broker %v\n", n.ID, req.GetBrokerID())
-		n.initControllerRoutine()
+		go n.initControllerRoutine()
 	}
 
 	return &adminclientpb.ControllerElectionResponse{Response: &commonpb.Response{Status: commonpb.ResponseStatus_SUCCESS}}, nil
@@ -258,38 +254,13 @@ func (n *Node) AdminClientNewTopic(ctx context.Context, req *adminclientpb.Admin
 		}
 	}
 
-	// create new MetadataCluster instead of update the local cache
-	// as ZK might fail (ZK is the persistent store)
 	newTopicStates := append(n.ClusterMetadata.GetTopicStates(), metaTopicState)
-	newClusterState := &clustermetadatapb.MetadataCluster{
-		LiveBrokers: n.ClusterMetadata.GetLiveBrokers(),
-		Brokers:     n.ClusterMetadata.GetBrokers(),
-		Controller:  n.ClusterMetadata.GetController(),
-		TopicStates: newTopicStates,
-	}
 
 	// update local cluster metadata cache
 	n.ClusterMetadata.UpdateTopicState(newTopicStates)
 
-	// send UpdateMetadata request to ZK
-	n.updateZKClusterMetadata()
-
-	// send UpdateMetadata request to every live broker
-	for _, brk := range n.ClusterMetadata.GetLiveBrokers() {
-		brkID := int(brk.GetID())
-		// update other broker
-		if brkID != n.ID {
-			_, err := n.adminServiceClient[brkID].UpdateMetadata(
-				context.Background(),
-				&adminclientpb.UpdateMetadataRequest{
-					NewClusterInfo: newClusterState,
-				},
-			)
-			if err != nil {
-				// update ZK about the fail broker
-			}
-		}
-	}
+	// update ZK and peer about the new cluster state
+	n.handleClusterUpdateReq()
 
 	// response
 	return &adminclientpb.AdminClientNewTopicResponse{

@@ -268,10 +268,17 @@ func (n *Node) updatePeerClusterMetadata() {
 	req := &adminclientpb.UpdateMetadataRequest{
 		NewClusterInfo: n.ClusterMetadata.MetadataCluster,
 	}
-	for _, peer := range n.adminServiceClient {
-		_, err := peer.UpdateMetadata(context.Background(), req)
-		if err != nil {
-			// 	n.handleBrokerFailure(int32(peerID))
+
+	ctrlID := n.ClusterMetadata.GetController().GetID()
+
+	// update all live brokers
+	for _, brk := range n.ClusterMetadata.GetLiveBrokers() {
+		brkID := brk.GetID()
+		if brkID != ctrlID {
+			_, err := n.adminServiceClient[int(brkID)].UpdateMetadata(context.Background(), req)
+			if err != nil {
+				n.handleBrokerFailure(brkID)
+			}
 		}
 	}
 }
@@ -295,7 +302,6 @@ func (n *Node) handleBrokerFailure(brkID int32) {
 
 // syncLocalPartition is used by broker on startup to sync the local partition with other replicas
 func (n *Node) syncLocalPartition() {
-	log.Printf("Broker %v starts to sync the local partition\n", n.ID)
 	// get all partitions need to sync
 	offlineTopics := n.ClusterMetadata.GetBrkOfflineTopics(int32(n.ID))
 
@@ -303,6 +309,8 @@ func (n *Node) syncLocalPartition() {
 	if offlineTopics == nil {
 		return
 	}
+
+	log.Printf("Broker %v start syncing the partition\n", n.ID)
 
 	// prepare the sync requests
 	leaderSyncReqMap := make(map[int32]*adminclientpb.SyncMessagesRequest)
