@@ -33,7 +33,7 @@ message MetadataAssignment {
     // for that partition
     int32 broker = 4;
     // list of brokers holding isr for partition
-    // contacted when an assigned replica fails to respond 
+    // contacted when an assigned replica fails to respond
     repeated clustermetadatapb.MetadataBroker isrBrokers = 5;
 }
 

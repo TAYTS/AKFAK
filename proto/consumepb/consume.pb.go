@@ -194,7 +194,7 @@ type MetadataAssignment struct {
 	// brokerid for broker holding replica that is assigned to consumer
 	// for that partition
 	Broker int32 `protobuf:"varint,4,opt,name=broker,proto3" json:"broker,omitempty"`
-	// list of brokers holding isr for partition
+	// list of brokers holding isr for partition (includes broker with assigned replica)
 	// contacted when an assigned replica fails to respond
 	IsrBrokers           []*clustermetadatapb.MetadataBroker `protobuf:"bytes,5,rep,name=isrBrokers,proto3" json:"isrBrokers,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}                            `json:"-"`
