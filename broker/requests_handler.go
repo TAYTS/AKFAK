@@ -347,33 +347,28 @@ func (n *Node) GetController(ctx context.Context, req *adminclientpb.GetControll
 
 // Consume responds to pull request from consumer, sending record batch on topic-X partition-Y
 func (n *Node) Consume(stream clientpb.ClientService_ConsumeServer) error {
-	// TODO: find if consumer group id that is pulling messages is new (not in assignments), if so, update zookeeper.
-	// TODO: retrieve message
-	// TODO: update offset in consumer metadata & zk
-
 	req, err := stream.Recv()
 	if err != nil {
+		log.Printf("Error while reading client stream: %v", err)
 		return err
 	}
-	// Check if there is an assignment to this broker
+	// Check if consumer group has an existing assignment to this broker
 	assignment, assignmentErr := n.checkAndGetAssignment(req)
 	if assignmentErr != nil {
-		return err
+		return assignmentErr
 	}
 
 	offset := int32(0)
 	// When there is no assignment:
-	// 1) Call ZK and init cache again to get latest offset for assignments
-	// 2) Update MetadataAssignment and update the Broker field to the current Broker handling this consume request
 	if assignment == nil {
 		// Call ZK and init cache again to make sure most updated information in cache
 		n.initConsumerMetadataCache()
 		offset = n.ConsumerMetadata.GetOffset(assignment, req.GetGroupID())
+		// update the metadata in node's own metadatacache
 		for _, group := range n.ConsumerMetadata.GetConsumerGroups() {
 			if group.GetID() == req.GetGroupID() {
 				for _, assignment := range group.GetAssignments() {
-					assignedBroker := n.ID
-					assignment.Broker = int32(assignedBroker)
+					assignment.Broker = int32(n.ID)
 				}
 			}
 		}
@@ -389,9 +384,9 @@ func (n *Node) Consume(stream clientpb.ClientService_ConsumeServer) error {
 		return fileErr
 	}
 	stream.Send(&consumepb.ConsumeResponse{
-		TopicName:            req.GetTopicName(),
-		Partition:            req.GetPartition(),
-		RecordSet:            recordBatch,
+		TopicName: req.GetTopicName(),
+		Partition: req.GetPartition(),
+		RecordSet: recordBatch,
 	})
 	// Update offset in ConsumerMetadata
 	n.ConsumerMetadata.UpdateOffset(assignment, req.GetGroupID())
@@ -400,6 +395,8 @@ func (n *Node) Consume(stream clientpb.ClientService_ConsumeServer) error {
 	newConsumerMetadataState := &consumermetadatapb.MetadataConsumerState{
 		ConsumerGroups: n.ConsumerMetadata.GetConsumerGroups(),
 	}
+
+	// update zookeeper on new assignment
 	_, zkErr := n.zkClient.UpdateConsumerMetadata(context.Background(), &zkmessagepb.UpdateConsumerMetadataRequest{
 		NewState: newConsumerMetadataState,
 	})
@@ -438,7 +435,7 @@ func (n *Node) GetAssignment(ctx context.Context, req *consumepb.GetAssignmentRe
 	for _, partState := range partitions {
 		isrBrokers := []*clustermetadatapb.MetadataBroker{}
 		brokerIDs := partState.GetIsr()
-		if len(brokerIDs)==0 {
+		if len(brokerIDs) == 0 {
 			return nil, errors.New("No broker is storing data on this topic")
 		}
 		for _, i := range brokerIDs {
@@ -448,14 +445,13 @@ func (n *Node) GetAssignment(ctx context.Context, req *consumepb.GetAssignmentRe
 			TopicName:      topicName,
 			PartitionIndex: int32(partState.GetPartitionIndex()),
 			//assign the first broker to be the one the consumer should contact
-			Broker:         int32(brokerIDs[0]),
-			Broker:         int32(1),
-			IsrBrokers:     isrBrokers,
+			Broker:     int32(brokerIDs[0]),
+			IsrBrokers: isrBrokers,
 		}
 		assignments = append(assignments, replica)
 	}
 
-	// if no consumergroups available in metadata 
+	// if no consumergroups available in metadata
 	if len(n.ConsumerMetadata.GetConsumerGroups()) == 0 {
 		// add this consumer group
 		n.ConsumerMetadata.AddAssignment(int(cg), assignments)
@@ -467,6 +463,7 @@ func (n *Node) GetAssignment(ctx context.Context, req *consumepb.GetAssignmentRe
 			n.ConsumerMetadata.UpdateAssignments(int(cg), assignments)
 			break
 		} else if i == len(n.ConsumerMetadata.GetConsumerGroups())-1 {
+			// consumergroup not in metadata yet
 			n.ConsumerMetadata.AddAssignment(int(cg), assignments)
 		}
 	}
