@@ -167,8 +167,7 @@ func (n *Node) setupPeerHeartbeatsReceiver(peerIDs []int) {
 			log.Printf("Controller setup heartbeat connection to Broker %v\n", peerID)
 			stream, err := adminClient.Heartbeats(context.Background())
 			if err != nil {
-				log.Printf("Controller detect Broker %v has failed\n", peerID)
-				// TODO: update ZK about fail broker
+				n.handleBrokerFailure(int32(peerID))
 			}
 
 			// start new routine to handle the heartbeat of each peer
@@ -176,8 +175,7 @@ func (n *Node) setupPeerHeartbeatsReceiver(peerIDs []int) {
 				for {
 					_, err := stream.Recv()
 					if err != nil {
-						log.Printf("Controller detect Broker %v has failed\n", peerID)
-						// TODO: update ZK about fail broker
+						n.handleBrokerFailure(int32(peerID))
 					}
 					log.Printf("Controller receive heartbeats response from  Broker %v\n", peerID)
 				}
@@ -206,6 +204,18 @@ func (n *Node) setupZKHeartbeatsRequest() {
 
 		// wait for 1 second
 		time.Sleep(time.Second)
+	}
+}
+
+// handleClusterUpdateReq is update the cluster state based on the role of the broker
+// - controller: update ZK then peer
+// - broker: update controller
+func (n *Node) handleClusterUpdateReq() {
+	if n.ID == int(n.ClusterMetadata.GetController().GetID()) {
+		n.updateZKClusterMetadata()
+		n.updatePeerClusterMetadata()
+	} else {
+		n.updateCtrlClusterMetadata()
 	}
 }
 
@@ -258,10 +268,10 @@ func (n *Node) updatePeerClusterMetadata() {
 	req := &adminclientpb.UpdateMetadataRequest{
 		NewClusterInfo: n.ClusterMetadata.MetadataCluster,
 	}
-	for _, peer := range n.adminServiceClient {
+	for peerID, peer := range n.adminServiceClient {
 		_, err := peer.UpdateMetadata(context.Background(), req)
 		if err != nil {
-			// TODO: update ZK about broker failure
+			n.handleBrokerFailure(int32(peerID))
 		}
 	}
 }
@@ -273,16 +283,8 @@ func (n *Node) handleBrokerFailure(brkID int32) {
 	// remove the broker from the ISR and elect new leader if required
 	n.ClusterMetadata.MoveBrkToOfflineAndElectLeader(brkID)
 
-	// if the current not is the controller
-	if n.ID == int(n.ClusterMetadata.GetController().GetID()) {
-		// update ZK about the new cluster state
-		n.updateZKClusterMetadata()
-
-		// update peer about the new cluster state
-		n.updatePeerClusterMetadata()
-	} else {
-		n.updateCtrlClusterMetadata()
-	}
+	// update cluster state
+	n.handleClusterUpdateReq()
 }
 
 // syncLocalPartition is used by broker on startup to sync the local partition with other replicas
@@ -308,6 +310,15 @@ func (n *Node) syncLocalPartition() {
 			// TODO: leaderID = -1
 			leaderID := partState.GetLeader()
 			partIdx := partState.GetPartitionIndex()
+
+			if leaderID == -1 {
+				// if there is no leader available at the first place elect itself
+				n.ClusterMetadata.MoveBrkToISRByPartition(int32(n.ID), topicName, partIdx)
+				n.handleClusterUpdateReq()
+			} else if int(leaderID) == n.ID {
+				// if the current broker is the leader not need to update
+				continue
+			}
 
 			// create the file handler
 			partDirname := partition.ConstructPartitionDirName(topicName, int(partIdx))
@@ -356,14 +367,13 @@ func (n *Node) syncLocalPartition() {
 		clientCon, err := grpc.Dial(peerAddr, grpc.WithInsecure())
 		defer clientCon.Close()
 		if err != nil {
-			log.Printf("Fail to connect to %v: %v\n", peerAddr, err)
-			// TODO: Update the ZK about the fail node
+			n.handleBrokerFailure(leader)
 			continue
 		}
 		adminServiceClient := adminpb.NewAdminServiceClient(clientCon)
 		stream, err := adminServiceClient.SyncMessages(context.Background())
 		if err != nil {
-			// TODO: Handle broker failure
+			n.handleBrokerFailure(leader)
 			continue
 		}
 
