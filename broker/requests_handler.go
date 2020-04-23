@@ -178,13 +178,20 @@ func (n *Node) WaitOnMetadata(ctx context.Context, req *metadatapb.MetadataReque
 
 // ControllerElection used by the ZK to inform the broker to start the controller routine
 func (n *Node) ControllerElection(ctx context.Context, req *adminclientpb.ControllerElectionRequest) (*adminclientpb.ControllerElectionResponse, error) {
+	newClsInfo := req.GetNewClusterInfo()
+
 	// get the selected brokerID to be the controller from ZK
-	brokerID := int(req.GetBrokerID())
+	brokerID := int(newClsInfo.GetController().GetID())
 
 	// if the broker got selected start the controller routine
 	if brokerID == n.ID {
-		log.Printf("Node %v received controller election request for broker %v\n", n.ID, req.GetBrokerID())
-		go n.initControllerRoutine()
+		log.Printf("Broker %v is the new controller\n", n.ID)
+
+		// update local cluster metadata cache
+		n.ClusterMetadata.UpdateClusterMetadata(newClsInfo)
+
+		// start the controller routine
+		n.initControllerRoutine()
 	}
 
 	return &adminclientpb.ControllerElectionResponse{Response: &commonpb.Response{Status: commonpb.ResponseStatus_SUCCESS}}, nil

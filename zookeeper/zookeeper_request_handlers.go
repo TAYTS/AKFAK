@@ -12,13 +12,6 @@ import (
 // GetClusterMetadata return the current cluster state stored in the ZK
 func (zk *Zookeeper) GetClusterMetadata(ctx context.Context, req *zkmessagepb.GetClusterMetadataRequest) (*zkmessagepb.GetClusterMetadataResponse, error) {
 	zk.mux.Lock()
-	// check if the controller has set
-	controllerSet := zk.clusterMetadata.GetController().GetID() != -1
-	if !controllerSet {
-		// set the requesting broker as the controller
-		zk.clusterMetadata.Controller = req.GetBroker()
-	}
-
 	// add the requesting broker to live brokers
 	exist := false
 	reqBrk := req.GetBroker()
@@ -30,6 +23,13 @@ func (zk *Zookeeper) GetClusterMetadata(ctx context.Context, req *zkmessagepb.Ge
 	}
 	if !exist {
 		zk.clusterMetadata.LiveBrokers = append(zk.clusterMetadata.LiveBrokers, reqBrk)
+	}
+
+	// check if the controller has set
+	controllerSet := zk.clusterMetadata.GetController().GetID() != -1
+	if !controllerSet {
+		// set the requesting broker as the controller
+		zk.clusterMetadata.UpdateController(req.GetBroker())
 	}
 	zk.mux.Unlock()
 
@@ -67,8 +67,7 @@ func (zk *Zookeeper) Heartbeats(stream zookeeperpb.ZookeeperService_HeartbeatsSe
 		_, err := stream.Recv()
 		log.Println("ZK receive heartbeats request from controller")
 		if err != nil {
-			log.Println("ZK detect controller fail")
-			// TODO: start controller election
+			zk.handleControllerFailure()
 			return err
 		}
 	}

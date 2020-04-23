@@ -14,6 +14,10 @@ type Cluster struct {
 	mux                        sync.RWMutex
 }
 
+///////////////////////////////////
+// 		     Public Methods		     //
+///////////////////////////////////
+
 // InitCluster create a thread safe wrapper for handling the cluster metadata
 func InitCluster(clusterMetadata *clustermetadatapb.MetadataCluster) *Cluster {
 	cls := &Cluster{MetadataCluster: clusterMetadata}
@@ -75,50 +79,6 @@ func (cls *Cluster) UpdateClusterMetadata(newClsMeta *clustermetadatapb.Metadata
 	cls.MetadataCluster = newClsMeta
 	cls.mux.Unlock()
 	cls.populateCluster()
-}
-
-// populateCluster refresh the internal mapping for easy access
-func (cls *Cluster) populateCluster() {
-	// update nodesByID mapping
-	cls.refreshNodesByID()
-
-	// refresh partitionsByTopic and availablePartitionsByTopic mapping
-	cls.refreshPartitionTopicMapping()
-}
-
-// refreshNodesByID refresh the nodesByID mapping
-func (cls *Cluster) refreshNodesByID() {
-	cls.mux.Lock()
-	nodesByID := make(map[int]*clustermetadatapb.MetadataBroker)
-	for _, node := range cls.MetadataCluster.GetLiveBrokers() {
-		nodesByID[int(node.GetID())] = node
-	}
-	cls.nodesByID = nodesByID
-	cls.mux.Unlock()
-}
-
-// refreshPartitionTopicMapping refresh the partitionsByTopic & availablePartitionsByTopic mapping
-func (cls *Cluster) refreshPartitionTopicMapping() {
-	cls.mux.Lock()
-	partitionsByTopic := make(map[string][]*clustermetadatapb.MetadataPartitionState)
-	availablePartitionsByTopic := make(map[string][]*clustermetadatapb.MetadataPartitionState)
-	for _, topic := range cls.MetadataCluster.GetTopicStates() {
-		partitionsByTopic[topic.GetTopicName()] = topic.GetPartitionStates()
-
-		// create a tmp array to store all the available partition (partition with leader != -1)
-		tmpAvailablePartition := make([]*clustermetadatapb.MetadataPartitionState, 0, len(topic.GetPartitionStates()))
-
-		for _, partition := range topic.GetPartitionStates() {
-			// partition that is stil available (leader != -1)
-			if int(partition.GetLeader()) != -1 {
-				tmpAvailablePartition = append(tmpAvailablePartition, partition)
-			}
-		}
-		availablePartitionsByTopic[topic.GetTopicName()] = tmpAvailablePartition
-	}
-	cls.partitionsByTopic = partitionsByTopic
-	cls.availablePartitionsByTopic = availablePartitionsByTopic
-	cls.mux.Unlock()
 }
 
 // MoveBrkToISRByPartition move the specified broker into the ISR of the specified topic and partition index
@@ -258,4 +218,61 @@ func (cls *Cluster) GetBrkOfflineTopics(brkID int32) []*clustermetadatapb.Metada
 		return offlineTopics
 	}
 	return nil
+}
+
+// UpdateController used to replace the new controller
+func (cls *Cluster) UpdateController(brk *clustermetadatapb.MetadataBroker) {
+	cls.mux.Lock()
+	if brk != nil {
+		cls.Controller = brk
+	}
+	cls.mux.Unlock()
+}
+
+///////////////////////////////////
+// 	 	    Private Methods	    	 //
+///////////////////////////////////
+
+// populateCluster refresh the internal mapping for easy access
+func (cls *Cluster) populateCluster() {
+	// update nodesByID mapping
+	cls.refreshNodesByID()
+
+	// refresh partitionsByTopic and availablePartitionsByTopic mapping
+	cls.refreshPartitionTopicMapping()
+}
+
+// refreshNodesByID refresh the nodesByID mapping
+func (cls *Cluster) refreshNodesByID() {
+	cls.mux.Lock()
+	nodesByID := make(map[int]*clustermetadatapb.MetadataBroker)
+	for _, node := range cls.MetadataCluster.GetLiveBrokers() {
+		nodesByID[int(node.GetID())] = node
+	}
+	cls.nodesByID = nodesByID
+	cls.mux.Unlock()
+}
+
+// refreshPartitionTopicMapping refresh the partitionsByTopic & availablePartitionsByTopic mapping
+func (cls *Cluster) refreshPartitionTopicMapping() {
+	cls.mux.Lock()
+	partitionsByTopic := make(map[string][]*clustermetadatapb.MetadataPartitionState)
+	availablePartitionsByTopic := make(map[string][]*clustermetadatapb.MetadataPartitionState)
+	for _, topic := range cls.MetadataCluster.GetTopicStates() {
+		partitionsByTopic[topic.GetTopicName()] = topic.GetPartitionStates()
+
+		// create a tmp array to store all the available partition (partition with leader != -1)
+		tmpAvailablePartition := make([]*clustermetadatapb.MetadataPartitionState, 0, len(topic.GetPartitionStates()))
+
+		for _, partition := range topic.GetPartitionStates() {
+			// partition that is stil available (leader != -1)
+			if int(partition.GetLeader()) != -1 {
+				tmpAvailablePartition = append(tmpAvailablePartition, partition)
+			}
+		}
+		availablePartitionsByTopic[topic.GetTopicName()] = tmpAvailablePartition
+	}
+	cls.partitionsByTopic = partitionsByTopic
+	cls.availablePartitionsByTopic = availablePartitionsByTopic
+	cls.mux.Unlock()
 }

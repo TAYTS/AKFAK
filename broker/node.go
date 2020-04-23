@@ -100,7 +100,7 @@ func (n *Node) initControllerRoutine() {
 	}
 
 	// setup heartbeats request to ZK
-	n.setupZKHeartbeatsRequest()
+	go n.setupZKHeartbeatsRequest()
 }
 
 // establishClientServicePeerConn start the ClientService peer connection
