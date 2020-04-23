@@ -124,10 +124,7 @@ func (fileRcd *FileRecord) getNextBatchLength() (int, error) {
 	recordBatch := &RecordBatch{}
 
 	// Parse the bytes data into the proto message
-	unmarshalErr := proto.Unmarshal(rcrBatchPartialHeaderData, recordBatch)
-	if unmarshalErr != nil {
-		return 0, unmarshalErr
-	}
+	proto.Unmarshal(rcrBatchPartialHeaderData, recordBatch)
 
 	// Get the BatchLength from proto message and convert to ints
 	batchLength := utils.BytesToInt(recordBatch.GetBatchLength())

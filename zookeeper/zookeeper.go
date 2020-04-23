@@ -3,6 +3,7 @@ package zookeeper
 import (
 	"AKFAK/cluster"
 	"AKFAK/config"
+	"AKFAK/consumermetadata"
 	"AKFAK/proto/zookeeperpb"
 	"fmt"
 	"log"
@@ -14,23 +15,26 @@ import (
 
 // Zookeeper represent the Zookeeper server state
 type Zookeeper struct {
-	Host            string
-	Port            int
-	clusterMetadata *cluster.Cluster
-	mux             sync.Mutex
-	config          config.ZKConfig
+	Host             string
+	Port             int
+	clusterMetadata  *cluster.Cluster
+	consumerMetadata *consumermetadata.ConsumerMetadata
+	mux              sync.Mutex
+	config           config.ZKConfig
 }
 
 // InitZookeeper create the Zookeeper instance and load the cluster state data
 func InitZookeeper(config config.ZKConfig) *Zookeeper {
 	// load the cluster state file into in-memory data
 	clusterMetadata := LoadClusterStateFromFile(config.DataDir)
+	consumerMetadata := LoadConsumerStateFromFile(config.ConsumerDataDir)
 
 	return &Zookeeper{
-		Host:            config.Host,
-		Port:            config.Port,
-		clusterMetadata: cluster.InitCluster(&clusterMetadata),
-		config:          config,
+		Host:             config.Host,
+		Port:             config.Port,
+		clusterMetadata:  cluster.InitCluster(&clusterMetadata),
+		consumerMetadata: consumermetadata.InitConsumerMetadata(&consumerMetadata),
+		config:           config,
 	}
 }
 
