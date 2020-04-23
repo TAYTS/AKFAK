@@ -39,6 +39,7 @@ func (cstate *ConsumerMetadata) GetOffset(assignment *consumepb.MetadataAssignme
 		if group.GetID() == cgID {
 			for _, a := range group.GetAssignments() {
 				if a.GetTopicName() == topicName && a.GetPartitionIndex() == partitionIndex {
+					cstate.mux.RUnlock()
 					return a.Offset
 				}
 			}
@@ -52,7 +53,6 @@ func (cstate *ConsumerMetadata) GetOffset(assignment *consumepb.MetadataAssignme
 func (cstate *ConsumerMetadata) UpdateOffset(assignment *consumepb.MetadataAssignment, cgID int32) {
 	cstate.mux.Lock()
 	newOffset := assignment.GetOffset() + 1
-
 	topicName := assignment.GetTopicName()
 	partitionIndex := assignment.GetPartitionIndex()
 	for _, group := range cstate.MetadataConsumerState.GetConsumerGroups() {

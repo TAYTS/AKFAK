@@ -358,12 +358,10 @@ func (n *Node) Consume(stream clientpb.ClientService_ConsumeServer) error {
 		return assignmentErr
 	}
 
-	offset := int32(0)
 	// When there is no assignment:
 	if assignment == nil {
 		// Call ZK and init cache again to make sure most updated information in cache
 		n.initConsumerMetadataCache()
-		offset = n.ConsumerMetadata.GetOffset(assignment, req.GetGroupID())
 		// update the metadata in node's own metadatacache
 		for _, group := range n.ConsumerMetadata.GetConsumerGroups() {
 			if group.GetID() == req.GetGroupID() {
@@ -372,14 +370,10 @@ func (n *Node) Consume(stream clientpb.ClientService_ConsumeServer) error {
 				}
 			}
 		}
-	} else {
-		// not sure if this is required - depends on whether n.ReadRecordBatchFromLocal will keep track of offset by itself
-		offset = n.ConsumerMetadata.GetOffset(assignment, req.GetGroupID())
 	}
 
-
 	// Retrieve and send batch record to consumer
-	recordBatch, fileErr := n.ReadRecordBatchFromLocal(req.GetTopicName(), int(req.GetPartition()), int64(offset))
+	recordBatch, fileErr := n.ReadRecordBatchFromLocal(req.GetTopicName(), int(req.GetPartition()))
 	if fileErr != nil {
 		return fileErr
 	}
