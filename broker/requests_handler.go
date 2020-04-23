@@ -25,9 +25,6 @@ func (n *Node) Produce(stream clientpb.ClientService_ProduceServer) error {
 	replicaConn := make(map[int]clientpb.ClientService_ProduceClient)
 	fileHandlerMapping := make(map[int]*recordpb.FileRecord)
 
-	// optimise the replica stream setup
-	doneReplicaStreamSetup := false
-
 	for {
 		req, err := stream.Recv()
 		if err == io.EOF {
@@ -44,31 +41,7 @@ func (n *Node) Produce(stream clientpb.ClientService_ProduceServer) error {
 		// check if the topic exist or the partition for requested topic is available
 		partitions := n.ClusterMetadata.GetAvailablePartitionsByTopic(topicName)
 		if partitions == nil {
-			// TODO: Test this part
 			return errors.New("Topic Not Available")
-		}
-
-		// setup Produce RPC call to all the insync replicas if the current broker is the leader
-		if !doneReplicaStreamSetup {
-			for _, partState := range partitions {
-				if int(partState.GetLeader()) == n.ID {
-					// get all insync replicas for each partition of the specific topic
-					insycBrks := partState.GetIsr()
-					// create stream connection to each insync replica
-					for _, brkID := range insycBrks {
-						brkIDInt := int(brkID)
-						if _, exist := replicaConn[brkIDInt]; !exist {
-							// setup the stream connection
-							stream, err := n.clientServiceClient[brkIDInt].Produce(context.Background())
-							if err != nil {
-								// TODO: Update controller about the fail broker
-							}
-							replicaConn[brkIDInt] = stream
-						}
-					}
-				}
-			}
-			doneReplicaStreamSetup = true
 		}
 
 		for _, tpData := range topicData {
@@ -97,17 +70,43 @@ func (n *Node) Produce(stream clientpb.ClientService_ProduceServer) error {
 						log.Printf("Broker %v broadcast message for partition %v to %v\n", n.ID, partID, partState.GetIsr())
 
 						for _, brkID := range partState.GetIsr() {
-							// TODO: check if the replica connection exist if not create it as the cluster is just updated
-							err := replicaConn[int(brkID)].Send(producepb.InitProduceRequest(topicName, partID, tpData.GetRecordSet().GetRecords()...))
-							if err != nil {
-								log.Printf("Broker %v unable to send message to replica %v\n", n.ID, brkID)
-								// TODO: Update controller about the fail broker
-								// TODO: Exclude the current broker from the ISR
+							brkIDInt := int(brkID)
+							if _, exist := replicaConn[brkIDInt]; !exist {
+								// setup the stream connection
+								stream, err := n.clientServiceClient[brkIDInt].Produce(context.Background())
+								if err != nil {
+									delete(replicaConn, brkIDInt)
+									n.handleBrokerFailure(brkID)
+								} else {
+									replicaConn[brkIDInt] = stream
+								}
 							}
 
-							_, err = replicaConn[int(brkID)].Recv()
+							// broadcast message
+							err := replicaConn[brkIDInt].Send(producepb.InitProduceRequest(topicName, partID, tpData.GetRecordSet().GetRecords()...))
+							if err != nil {
+								// this is used for the case where the stream connection was broken then the broker come back alive
+								// before sending the message
+								newStream, err := n.clientServiceClient[brkIDInt].Produce(context.Background())
+								if err != nil {
+									delete(replicaConn, brkIDInt)
+									log.Printf("Broker %v unable to send message to replica %v\n", n.ID, brkID)
+									n.handleBrokerFailure(brkID)
+								} else {
+									replicaConn[brkIDInt] = newStream
+									newStream.Send(producepb.InitProduceRequest(topicName, partID, tpData.GetRecordSet().GetRecords()...))
+								}
+							}
+
+							// if the broker does not reply mean it has failed
+							_, err = replicaConn[brkIDInt].Recv()
+							if err != nil {
+								delete(replicaConn, brkIDInt)
+								n.handleBrokerFailure(brkID)
+							}
 						}
 					} else {
+						// this else case solely for logging purpose
 						// insync replica broker, save to local
 						log.Printf("Broker %v receive replica message for partition %v\n", n.ID, partID)
 					}
@@ -116,7 +115,7 @@ func (n *Node) Produce(stream clientpb.ClientService_ProduceServer) error {
 		}
 
 		// TODO: Update this when dealing with fault tolerance
-		sendErr := stream.Send(&producepb.ProduceResponse{Response: &commonpb.Response{Status: commonpb.ResponseStatus_SUCCESS, Message: "Thank you"}})
+		sendErr := stream.Send(&producepb.ProduceResponse{Response: &commonpb.Response{Status: commonpb.ResponseStatus_SUCCESS, Message: "Received"}})
 		if sendErr != nil {
 			log.Printf("Error while sending data to client: %v", sendErr)
 			return sendErr
