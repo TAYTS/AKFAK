@@ -130,9 +130,12 @@ func doConsume(sortedConsumers[]*Consumer, topic string) {
 					TopicName:            topic,
 				})
 				if err != nil {
-					// First index is always the broker and the subsequent ones are the replicas.
-					for i := 1; i < len(assignment.GetIsrBrokers()); i ++ {
+					for i := 0; i < len(assignment.GetIsrBrokers()); i ++ {
 						chosenBrokenID := assignment.GetIsrBrokers()[i].ID
+						if chosenBrokenID == assignment.GetBroker(){
+							// main broker is down based on above attempt
+							continue
+						}
 						stream := c.brokerCon[int(chosenBrokenID)]
 						err2 := stream.Send(&consumepb.ConsumeRequest{
 							GroupID:              int32(c.groupID),
@@ -145,6 +148,7 @@ func doConsume(sortedConsumers[]*Consumer, topic string) {
 							log.Fatalf("ISRs exhausted. No more brokers to connect to. Error msg: %v\n", err)
 						} else if err2 == nil {
 							connectedBrokenID = int(chosenBrokenID)
+							assignment.Broker = chosenBrokenID
 							break
 						}
 					}
