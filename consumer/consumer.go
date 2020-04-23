@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"sort"
 	"strings"
 	"sync"
@@ -98,7 +99,8 @@ func initConsumer(id int, groupID int) *Consumer {
 
 // Consume tries to consume information on the topic
 func (cg *ConsumerGroup) Consume(_topic string) error {
-	topics := strings.Split(_topic, ",") // []String
+	// TODO: Consider the event when there is a fault
+	// TODO: Add mutex locks
 	for i, topic := range cg.topics {
 		if topic == _topic {
 			break
@@ -109,23 +111,20 @@ func (cg *ConsumerGroup) Consume(_topic string) error {
 		}
 	}
 
-	// TODO: Add/disregard comments based on your own intuition
 	// sorted by partitionIndex
 	// key - topic, value - []*Consumer
 	// can assume one assignment for the same topic for each consumer
 	// and the consumerlist is sorted based on partitionId
-	//go func() {
-	//	for {
-	//		// Check each topic
-	//		for _, t := range topics {
-	//
-	//		}
-	//
-	//	}
-	//}()
 
-	for _, consumer := range cg.topicConsumer[_topic] {
-		consumer.assignments[0].GetPartitionIndex()
+	for {
+		// TODO: For each topic, find get the consumers in charge of getting that particular topic
+		// TODO: Spawn go routine to get message
+		for _, t := range cg.topics {
+			// topic-consumer takes in a topic as key, and returns an ordered array of consumer, with the
+			// ascending partitionIndex
+			consumers := cg.topicConsumer[t]
+			go doConsume(consumers, t)
+		}
 	}
 
 
@@ -150,11 +149,41 @@ func (cg *ConsumerGroup) Consume(_topic string) error {
 	return nil
 }
 
-func (cg *ConsumerGroup) doSend(brokerID int) {
-	for {
-		select {
+func doConsume(sortedConsumers[]*Consumer, topic string) {
+	for _, c := range sortedConsumers {
+		for _, assignment := range c.assignments {
+			// search for the correct assignment
+			if assignment.GetTopicName() == topic {
+				stream := c.brokerCon[int(assignment.GetBroker())]
+				err := stream.Send(&consumepb.ConsumeRequest{
+					GroupID:              int32(c.groupID),
+					ConsumerID:           int32(c.id),
+					Partition:            assignment.GetPartitionIndex(),
+					TopicName:            topic,
+				})
+				if err != nil {
+					panic(fmt.Sprintf("Unable send request to broker. Error msg: %v\n", err))
+				}
 
+				res, err := c.brokerCon[int(assignment.GetBroker())].Recv()
+				responseHandler(int(assignment.GetBroker()), c.id, res, err)
+			}
 		}
+	}
+}
+
+func responseHandler(brokerID int, consumerID int, res *consumepb.ConsumeResponse, err error) {
+	if err != nil {
+		log.Printf("Error when sending messages to Broker %v\n", err)
+	} else {
+		recordSet := res.GetRecordSet()
+		records := recordSet.GetRecords()
+		for _, r := range records {
+			bytes := r.GetValue()
+			msg := string(bytes)
+			fmt.Sprintf("Consumer %v has received message: %v\n", consumerID, msg)
+		}
+		log.Printf("Successfully send the request to Broker %v\n", brokerID)
 	}
 }
 
