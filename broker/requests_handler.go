@@ -361,10 +361,15 @@ func (n *Node) Consume(stream clientpb.ClientService_ConsumeServer) error {
 		return err
 	}
 
+	offset := int32(0)
 	// When there is no assignment:
-	// 1) Update MetadataAssignment and update the Broker field to the current Broker handling this consume request
+	// 1) Call ZK and init cache again to get latest offset for assignments
+	// 2) Update MetadataAssignment and update the Broker field to the current Broker handling this consume request
 	if assignment == nil {
-		for _, group := range n.ConsumerMetadata.ConsumerGroups {
+		// Call ZK and init cache again to make sure most updated information in cache
+		n.initConsumerMetadataCache()
+		offset = n.ConsumerMetadata.GetOffset(assignment, req.GetGroupID())
+		for _, group := range n.ConsumerMetadata.GetConsumerGroups() {
 			if group.GetID() == req.GetGroupID() {
 				for _, assignment := range group.GetAssignments() {
 					assignedBroker := n.ID
@@ -372,9 +377,14 @@ func (n *Node) Consume(stream clientpb.ClientService_ConsumeServer) error {
 				}
 			}
 		}
+	} else {
+		// not sure if this is required - depends on whether n.ReadRecordBatchFromLocal will keep track of offset by itself
+		offset = n.ConsumerMetadata.GetOffset(assignment, req.GetGroupID())
 	}
+
+
 	// Retrieve and send batch record to consumer
-	recordBatch, fileErr := n.ReadRecordBatchFromLocal(req.GetTopicName(), int(req.GetPartition()))
+	recordBatch, fileErr := n.ReadRecordBatchFromLocal(req.GetTopicName(), int(req.GetPartition()), int64(offset))
 	if fileErr != nil {
 		return fileErr
 	}

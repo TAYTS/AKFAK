@@ -28,9 +28,12 @@ func (n *Node) writeRecordBatchToLocal(topicName string, partitionID int, fileHa
 }
 
 // ReadRecordBatchFromLocal is a helper function for Consume request handler to read the Record from local log file
-func (n *Node) ReadRecordBatchFromLocal(topicName string, partitionID int) (*recordpb.RecordBatch, error) {
+func (n *Node) ReadRecordBatchFromLocal(topicName string, partitionID int, offset int64) (*recordpb.RecordBatch, error) {
 	filePath := fmt.Sprintf("%v/%v/%v", n.config.LogDir, partition.ConstructPartitionDirName(topicName, partitionID), partition.ContructPartitionLogName(topicName))
 	fileRecordHandler, err := recordpb.InitialiseFileRecordFromFile(filePath)
+	if offset != 0 {
+		fileRecordHandler.SetOffset(offset)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -176,7 +179,7 @@ func (n *Node) updateClientPeerConnection() {
 }
 
 func (n *Node) checkAndGetAssignment(req *consumepb.ConsumeRequest) (*consumepb.MetadataAssignment, error) {
-	for _, group := range n.ConsumerMetadata.ConsumerGroups {
+	for _, group := range n.ConsumerMetadata.GetConsumerGroups() {
 		// check for assignments in the consumer group id
 		if group.GetID() == req.GetGroupID() {
 			assignments := group.GetAssignments()
