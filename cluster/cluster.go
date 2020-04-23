@@ -150,6 +150,7 @@ func (cls *Cluster) MoveBrkToOfflineAndElectLeader(brkID int32) {
 				// if there is broker in the ISR select the first one as the leader
 				if len(partState.GetIsr()) > 0 {
 					partState.Leader = partState.GetIsr()[0]
+					partState.Isr = partState.GetIsr()[1:]
 				} else {
 					// if no broker in ISR set the leader to -1
 					partState.Leader = -1
