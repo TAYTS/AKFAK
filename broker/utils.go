@@ -268,11 +268,21 @@ func (n *Node) updatePeerClusterMetadata() {
 
 // handleBrokerFailure is used by controller to handle broker failure
 func (n *Node) handleBrokerFailure(brkID int32) {
+	log.Printf("Detect Broker %v failure, updating the Cluster state\n", brkID)
+
 	// remove the broker from the ISR and elect new leader if required
 	n.ClusterMetadata.MoveBrkToOfflineAndElectLeader(brkID)
 
-	// update ZK about the new cluster state
-	n.updateZKClusterMetadata()
+	// if the current not is the controller
+	if n.ID == int(n.ClusterMetadata.GetController().GetID()) {
+		// update ZK about the new cluster state
+		n.updateZKClusterMetadata()
+
+		// update peer about the new cluster state
+		n.updatePeerClusterMetadata()
+	} else {
+		n.updateCtrlClusterMetadata()
+	}
 }
 
 // syncLocalPartition is used by broker on startup to sync the local partition with other replicas
