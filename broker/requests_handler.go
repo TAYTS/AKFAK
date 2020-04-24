@@ -247,22 +247,30 @@ func (n *Node) AdminClientNewTopic(ctx context.Context, req *adminclientpb.Admin
 			if partitionState == nil {
 				replicas := make([]int32, 0, replicaFactor)
 				replicas = append(replicas, brokerIDint32)
+				isr := make([]int32, 0, replicaFactor-1)
+
+				leader := int32(-1)
+				if idx == 0 {
+					leader = brokerIDint32
+				} else {
+					isr = append(isr, brokerIDint32)
+				}
 
 				metaTopicState.GetPartitionStates()[partIDInt] = &clustermetadatapb.MetadataPartitionState{
 					TopicName:       topicName,
 					PartitionIndex:  partID,
-					Leader:          -1,
+					Leader:          leader,
 					Isr:             make([]int32, 0, replicaFactor-1),
 					Replicas:        replicas,
 					OfflineReplicas: []int32{},
 				}
 			} else {
-				partitionState.Isr = append(partitionState.Isr, brokerIDint32)
+				if idx == 0 {
+					partitionState.Leader = brokerIDint32
+				} else {
+					partitionState.Isr = append(partitionState.Isr, brokerIDint32)
+				}
 				partitionState.Replicas = append(partitionState.Replicas, brokerIDint32)
-			}
-
-			if idx == 0 {
-				metaTopicState.GetPartitionStates()[partIDInt].Leader = brokerIDint32
 			}
 		}
 	}
