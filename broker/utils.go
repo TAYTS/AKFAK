@@ -56,7 +56,7 @@ func (n *Node) generateNewPartitionRequestData(topicName string, numPartitions i
 		for partID := 0; partID < numPartitions; partID++ {
 			// distribute the partitions among the brokers
 			brokerID := int(n.ClusterMetadata.GetLiveBrokers()[partID%numBrokers].GetID())
-
+			leader := brokerID
 			for replicaIdx := 0; replicaIdx < replicaFactor; replicaIdx++ {
 				// distribute the replicas among the brokers
 				replicaBrokerIdx := (brokerID + replicaIdx + partID) % numBrokers
@@ -64,7 +64,11 @@ func (n *Node) generateNewPartitionRequestData(topicName string, numPartitions i
 
 				request, exist := newTopicPartitionRequests[replicaBrokerID]
 				if exist {
-					request.PartitionID = append(request.PartitionID, int32(partID))
+					if replicaBrokerID == leader {
+						request.PartitionID = append([]int32{int32(partID)}, request.PartitionID...)
+					} else {
+						request.PartitionID = append(request.PartitionID, int32(partID))
+					}
 				} else {
 					request := &adminclientpb.AdminClientNewPartitionRequest{
 						Topic:       topicName,
