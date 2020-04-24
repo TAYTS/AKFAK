@@ -185,6 +185,21 @@ func (cls *Cluster) CheckBrokerInSync(brkID int32) bool {
 	return true
 }
 
+// CheckBrokerIsLeader used to check if the given broker is the leader for the specific topic and partition
+func (cls *Cluster) CheckBrokerIsLeader(brkID int32, topicName string, partIdx int32) bool {
+	cls.mux.RLock()
+	partitions := cls.availablePartitionsByTopic[topicName]
+	for _, part := range partitions {
+		if part.GetPartitionIndex() == partIdx && part.GetLeader() == brkID {
+			cls.mux.RUnlock()
+			return true
+		}
+	}
+	cls.mux.RUnlock()
+
+	return false
+}
+
 // GetBrkOfflineTopics get all the offline replicas belongs to the specified broker return nil if there is no offline replicas
 func (cls *Cluster) GetBrkOfflineTopics(brkID int32) []*clustermetadatapb.MetadataTopicState {
 	// buffer to store all the offline replicas
