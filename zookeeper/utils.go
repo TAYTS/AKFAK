@@ -96,23 +96,31 @@ func (zk *Zookeeper) handleControllerFailure() {
 		Port: -1,
 	})
 
-	// remove controller from live broker
-	zk.clusterMetadata.MoveBrkToOfflineAndElectLeader(ctrlID)
+	for {
+		// remove controller from live broker
+		zk.clusterMetadata.MoveBrkToOfflineAndElectLeader(ctrlID)
 
-	// select the first live broker to be controller
-	availableLiveBrks := zk.clusterMetadata.GetLiveBrokers()
-	if len(availableLiveBrks) > 0 {
-		zk.clusterMetadata.UpdateController(availableLiveBrks[0])
-		log.Println("zk", zk.clusterMetadata.GetController())
-	} else {
-		zk.mux.Unlock()
-		return
+		// select the first live broker to be controller
+		availableLiveBrks := zk.clusterMetadata.GetLiveBrokers()
+
+		if len(availableLiveBrks) > 0 {
+			zk.clusterMetadata.UpdateController(availableLiveBrks[0])
+			ctrlID = zk.clusterMetadata.GetController().GetID()
+
+			err := zk.sendControllerElection()
+			if err == nil {
+				break
+			}
+		} else {
+			break
+		}
 	}
-	zk.sendControllerElection()
+
 	zk.mux.Unlock()
 }
 
-func (zk *Zookeeper) sendControllerElection() {
+// sendControllerElection send ControllerElection RPC request to the selected broker
+func (zk *Zookeeper) sendControllerElection() error {
 	// setup gRPC connection to controller
 	ctrl := zk.clusterMetadata.GetController()
 
@@ -122,8 +130,7 @@ func (zk *Zookeeper) sendControllerElection() {
 	defer ctrlConn.Close()
 	if err != nil {
 		log.Fatalf("Fail to connect to controller: %v\n", err)
-		zk.handleControllerFailure()
-		return
+		return err
 	}
 
 	// setup RPC service
@@ -135,8 +142,9 @@ func (zk *Zookeeper) sendControllerElection() {
 	})
 	if err != nil {
 		log.Println("ZK failed to elect new controller", err)
-		zk.handleControllerFailure()
+		return err
 	}
-
 	log.Println("ZK successfully elect new controller")
+
+	return nil
 }
