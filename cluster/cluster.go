@@ -130,12 +130,11 @@ func (cls *Cluster) MoveBrkToOfflineAndElectLeader(brkID int32) {
 	cls.mux.Lock()
 	for _, tpState := range cls.GetTopicStates() {
 		for _, partState := range tpState.GetPartitionStates() {
-			// update ISR and Offline replicas
+			// add broker ID to the offline replicas
+			partState.OfflineReplicas = append(partState.GetOfflineReplicas(), brkID)
+			// update ISR
 			for idx, isrID := range partState.GetIsr() {
 				if isrID == brkID {
-					// add broker ID to the offline replicas
-					partState.OfflineReplicas = append(partState.GetOfflineReplicas(), brkID)
-
 					// remove the broker ID from ISR
 					isrCopy := partState.GetIsr()
 					partState.Isr = append(isrCopy[:idx], isrCopy[idx+1:]...)
@@ -144,6 +143,7 @@ func (cls *Cluster) MoveBrkToOfflineAndElectLeader(brkID int32) {
 				}
 			}
 
+			// update leader
 			// if the broker is the leader then choose the next broker in the ISR as leader
 			if partState.GetLeader() == brkID {
 				needRefreshPartMapping = true
@@ -179,7 +179,6 @@ func (cls *Cluster) CheckBrokerInSync(brkID int32) bool {
 			}
 		}
 	}
-
 	cls.mux.RUnlock()
 	// if the broker is not in any of the offline replicas mean it is insync
 	return true
