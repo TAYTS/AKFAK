@@ -30,7 +30,3 @@ Thumbs.db
 bin/*
 src/*
 pkg/*
-
-# For users using go.mod
-go.mod
-go.sum
