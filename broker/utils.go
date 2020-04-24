@@ -238,7 +238,7 @@ func (n *Node) updateCtrlClusterMetadata() {
 	log.Printf("Broker %v update controller about new cluster state\n", n.ID)
 
 	for len(n.ClusterMetadata.GetLiveBrokers()) > 1 {
-		ctrlAddr := fmt.Sprintf("%v:%v", n.ClusterMetadata.GetController().GetHost(), n.ClusterMetadata.GetController().GetHost())
+		ctrlAddr := fmt.Sprintf("%v:%v", n.ClusterMetadata.GetController().GetHost(), n.ClusterMetadata.GetController().GetPort())
 
 		ctrlCon, err := grpc.Dial(ctrlAddr, grpc.WithInsecure())
 		defer ctrlCon.Close()
