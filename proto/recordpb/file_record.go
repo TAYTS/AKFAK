@@ -2,20 +2,24 @@ package recordpb
 
 import (
 	"AKFAK/utils"
+	"bufio"
 	"errors"
+	fmt "fmt"
 	"log"
 	"os"
 	fpath "path/filepath"
+	"strconv"
 
 	"github.com/golang/protobuf/proto"
 )
 
 // FileRecord is the used for handling/interact with the RecordBatch stored in the local file
 type FileRecord struct {
-	dir           string
-	filename      string
-	file          *os.File
-	currentOffset int64
+	dir                string
+	filename           string
+	file               *os.File
+	currentOffset      int64
+	lastOffsetFHandler *os.File
 }
 
 const maxBaseOffsetSize = 10 // int64: 8 bytes, 2 bytes for proto message key
@@ -34,14 +38,21 @@ func InitialiseFileRecordFromFilepath(filepath string) (*FileRecord, error) {
 		log.Fatalf("Unable to create or open the file: %v\n", err)
 		return nil, err
 	}
-
 	dir, filename := fpath.Split(filepath)
+
+	lastOffsetFHandler, err := os.OpenFile(fmt.Sprintf("%voffset", dir), os.O_CREATE|os.O_RDWR, 0644)
+	if err != nil {
+		log.Fatalf("Unable to create or open the file: %v\n", err)
+		return nil, err
+	}
+
 	// Create an instance of FileRecord
 	fileRecord := &FileRecord{
-		dir:           dir,
-		filename:      filename,
-		file:          file,
-		currentOffset: 0,
+		dir:                dir,
+		filename:           filename,
+		file:               file,
+		currentOffset:      0,
+		lastOffsetFHandler: lastOffsetFHandler,
 	}
 
 	return fileRecord, nil
@@ -89,7 +100,7 @@ func (fileRcd *FileRecord) WriteToFileByBaseOffset(rcdBatch *RecordBatch) (*Reco
 	localRcdBatch := *rcdBatch
 	// Convert proto message to []byte
 	if localRcdBatch.GetBaseOffset() == -1 {
-		localRcdBatch.BaseOffset = fileRcd.GetFileSize()
+		localRcdBatch.UpdateBaseOffset(fileRcd.getFileSize())
 	}
 	recordBatchByte, err := proto.Marshal(&localRcdBatch)
 	if err != nil {
@@ -102,6 +113,11 @@ func (fileRcd *FileRecord) WriteToFileByBaseOffset(rcdBatch *RecordBatch) (*Reco
 		log.Fatalf("Unable to write to file: %v\n", err)
 		return nil, err
 	}
+	fileRcd.file.Sync()
+
+	// update the last log offset
+	fileRcd.lastOffsetFHandler.WriteAt([]byte(fmt.Sprintf("%v", localRcdBatch.GetBaseOffset())), 0)
+	fileRcd.lastOffsetFHandler.Sync()
 
 	// return the new file size
 	return &localRcdBatch, nil
@@ -118,18 +134,19 @@ func (fileRcd *FileRecord) CloseFile() error {
 	return nil
 }
 
+// GetLastEndOffset get the last committed log offset
+func (fileRcd *FileRecord) GetLastEndOffset() int64 {
+	reader := bufio.NewScanner(fileRcd.lastOffsetFHandler)
+	reader.Scan()
+	offset, _ := strconv.ParseInt(reader.Text(), 10, 64)
+	return offset
+}
+
 // ShiftReadOffset is used to shift the current file reading head/pointer
 // ** Please use with care and make sure the offset provided is correctly
 // match the record batch starting position **
 func (fileRcd *FileRecord) ShiftReadOffset(offset int64) {
 	fileRcd.currentOffset = offset
-}
-
-// GetFileSize get the current file size (num of bytes)
-func (fileRcd *FileRecord) GetFileSize() int64 {
-	// Get the current file byte size
-	stats, _ := fileRcd.file.Stat()
-	return stats.Size()
 }
 
 ///////////////////////////////////
@@ -149,10 +166,7 @@ func (fileRcd *FileRecord) getNextBatchLength() (int, error) {
 	recordBatch := &RecordBatch{}
 
 	// Parse the bytes data into the proto message
-	unmarshalErr := proto.Unmarshal(rcrBatchPartialHeaderData, recordBatch)
-	if unmarshalErr != nil {
-		return 0, unmarshalErr
-	}
+	proto.Unmarshal(rcrBatchPartialHeaderData, recordBatch)
 
 	// Get the BatchLength from proto message and convert to ints
 	batchLength := utils.BytesToInt(recordBatch.GetBatchLength())
@@ -163,12 +177,18 @@ func (fileRcd *FileRecord) getNextBatchLength() (int, error) {
 // hasRemaining check if there are any more bytes to read from the reader buffer
 func (fileRcd *FileRecord) hasRemaining() bool {
 	// Get the current file byte size
-	stats, _ := fileRcd.file.Stat()
-	currentFileSize := stats.Size()
+	lastLogOffset := fileRcd.GetLastEndOffset()
 
 	// Compare the file size and the current file read position
-	if currentFileSize > fileRcd.currentOffset {
+	if lastLogOffset > fileRcd.currentOffset {
 		return true
 	}
 	return false
+}
+
+// getFileSize get the current file size (num of bytes)
+func (fileRcd *FileRecord) getFileSize() int64 {
+	// Get the current file byte size
+	stats, _ := fileRcd.file.Stat()
+	return stats.Size()
 }
