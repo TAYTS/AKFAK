@@ -226,11 +226,18 @@ func (n *Node) handleClusterUpdateReq() {
 func (n *Node) updateZKClusterMetadata() {
 	log.Println("Controller update ZK about new cluster state")
 
-	n.zkClient.UpdateClusterMetadata(
-		context.Background(),
-		&zkmessagepb.UpdateClusterMetadataRequest{
-			NewClusterInfo: n.ClusterMetadata.MetadataCluster,
-		})
+	for {
+		if n.zkClient != nil {
+			n.zkClient.UpdateClusterMetadata(
+				context.Background(),
+				&zkmessagepb.UpdateClusterMetadataRequest{
+					NewClusterInfo: n.ClusterMetadata.MetadataCluster,
+				})
+			break
+		} else {
+			time.Sleep(300 * time.Millisecond)
+		}
+	}
 }
 
 // updateControllerMetadata used by broker to update controller about the new cluster metadata
