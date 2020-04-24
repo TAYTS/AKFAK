@@ -341,8 +341,9 @@ func (n *Node) syncLocalPartition() {
 
 			if leaderID == -1 {
 				// if there is no leader available at the first place elect itself
-				n.ClusterMetadata.MoveBrkToISRByPartition(int32(n.ID), topicName, partIdx)
+				n.ClusterMetadata.MoveBrkToOnlineByPartition(int32(n.ID), topicName, partIdx)
 				n.handleClusterUpdateReq()
+				continue
 			} else if int(leaderID) == n.ID {
 				// if the current broker is the leader not need to update
 				continue
@@ -370,6 +371,10 @@ func (n *Node) syncLocalPartition() {
 			Topic:      topicName,
 			Partitions: tpSyncParts,
 		})
+	}
+
+	if len(allSyncTp) == 0 {
+		return
 	}
 
 	syncReq := &adminclientpb.SyncMessagesRequest{

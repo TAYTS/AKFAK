@@ -431,7 +431,7 @@ func (n *Node) SyncMessages(stream adminpb.AdminService_SyncMessagesServer) erro
 				if fileHandler, exist := partDirnameFileHandlerMap[partDirname]; exist {
 					// update local cluster metadata
 					log.Printf("Broker %v update the ISR\n", n.ID)
-					n.ClusterMetadata.MoveBrkToISRByPartition(req.GetReplicaID(), topicName, forgotPartID)
+					n.ClusterMetadata.MoveBrkToOnlineByPartition(req.GetReplicaID(), topicName, forgotPartID)
 
 					// update cluster metadata
 					n.handleClusterUpdateReq()

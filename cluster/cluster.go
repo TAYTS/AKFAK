@@ -81,20 +81,28 @@ func (cls *Cluster) UpdateClusterMetadata(newClsMeta *clustermetadatapb.Metadata
 	cls.populateCluster()
 }
 
-// MoveBrkToISRByPartition move the specified broker into the ISR of the specified topic and partition index
+// MoveBrkToOnlineByPartition move the specified broker into the ISR or elect the broker as the
+// leader of the specified topic and partition index
 // This is used when the broker reboot and done syncing a partition
-func (cls *Cluster) MoveBrkToISRByPartition(brkID int32, topicName string, partitionIdx int32) {
+func (cls *Cluster) MoveBrkToOnlineByPartition(brkID int32, topicName string, partitionIdx int32) {
 	cls.mux.Lock()
 	// get the partitions of the topic
 	partitions := cls.partitionsByTopic[topicName]
 
+	needRefreshPartMapping := false
 	// update the partition
 	for _, partState := range partitions {
 		if partState.GetPartitionIndex() == partitionIdx {
 			for idx, replicaID := range partState.GetOfflineReplicas() {
 				if replicaID == brkID {
-					// add the broker ID to the ISR
-					partState.Isr = append(partState.GetIsr(), brkID)
+					// if no leader, set the broker as the leader
+					if partState.GetLeader() == -1 {
+						needRefreshPartMapping = true
+						partState.Leader = brkID
+					} else {
+						// add the broker ID to the ISR
+						partState.Isr = uniqueInsertInt32(brkID, partState.GetIsr())
+					}
 
 					// remove the broker ID from offline replicas
 					offlineReplicaCopy := partState.GetOfflineReplicas()
@@ -106,6 +114,10 @@ func (cls *Cluster) MoveBrkToISRByPartition(brkID int32, topicName string, parti
 		}
 	}
 	cls.mux.Unlock()
+
+	if needRefreshPartMapping {
+		cls.refreshPartitionTopicMapping()
+	}
 }
 
 // MoveBrkToOfflineAndElectLeader remove th broker from LiveBrokers and move
@@ -131,7 +143,7 @@ func (cls *Cluster) MoveBrkToOfflineAndElectLeader(brkID int32) {
 	for _, tpState := range cls.GetTopicStates() {
 		for _, partState := range tpState.GetPartitionStates() {
 			// add broker ID to the offline replicas
-			partState.OfflineReplicas = append(partState.GetOfflineReplicas(), brkID)
+			partState.OfflineReplicas = uniqueInsertInt32(brkID, partState.GetOfflineReplicas())
 			// update ISR
 			for idx, isrID := range partState.GetIsr() {
 				if isrID == brkID {
