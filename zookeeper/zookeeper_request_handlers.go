@@ -33,7 +33,9 @@ func (zk *Zookeeper) GetClusterMetadata(ctx context.Context, req *zkmessagepb.Ge
 	}
 	zk.mux.Unlock()
 
-	if controllerSet {
+	if !controllerSet {
+		go zk.sendControllerElection()
+	} else {
 		// update controller
 		log.Printf("ZK update controller for new Broker %v\n", reqBrk.GetID())
 		go zk.updateControllerMetadata()

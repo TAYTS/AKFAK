@@ -267,6 +267,7 @@ func (n *Node) updateCtrlClusterMetadata() {
 
 // updatePeerClusterMetadata used by controller to update peer about the new cluster metadata
 func (n *Node) updatePeerClusterMetadata() {
+	log.Println("Controller update peers about the new Cluster state")
 	req := &adminclientpb.UpdateMetadataRequest{
 		NewClusterInfo: n.ClusterMetadata.MetadataCluster,
 	}

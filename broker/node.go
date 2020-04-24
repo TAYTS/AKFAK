@@ -60,11 +60,6 @@ func (n *Node) InitAdminListener() {
 		go n.syncLocalPartition()
 	}
 
-	// start controller routine if the broker is select as the controller
-	if int(n.ClusterMetadata.GetController().GetID()) == n.ID {
-		go n.initControllerRoutine()
-	}
-
 	// setup ClientService peer connection
 	go n.establishClientServicePeerConn()
 
