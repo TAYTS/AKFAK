@@ -11,7 +11,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"log"
 	"sync"
 	"time"
@@ -234,33 +233,36 @@ func (n *Node) updateZKClusterMetadata() {
 func (n *Node) updateCtrlClusterMetadata() {
 	log.Printf("Broker %v update controller about new cluster state\n", n.ID)
 
-	for {
+	for len(n.ClusterMetadata.GetLiveBrokers()) > 1 {
 		ctrlAddr := fmt.Sprintf("%v:%v", n.ClusterMetadata.GetController().GetHost(), n.ClusterMetadata.GetController().GetHost())
 
 		ctrlCon, err := grpc.Dial(ctrlAddr, grpc.WithInsecure())
+		defer ctrlCon.Close()
 		if err != nil {
 			// broker ignore controller failure(none of their business)
 			// try update controller until success
-			ctrlCon.Close()
+			log.Printf("Broker %v send update req to controller about new cluster state: %v", n.ID, err)
 			time.Sleep(300 * time.Millisecond)
 			continue
 		}
 
 		adminServiceClient := adminpb.NewAdminServiceClient(ctrlCon)
-
 		// broker ignore controller failure
 		_, err = adminServiceClient.UpdateMetadata(context.Background(), &adminclientpb.UpdateMetadataRequest{
 			NewClusterInfo: n.ClusterMetadata.MetadataCluster,
 		})
+		log.Printf("Broker %v send update req to controller about new cluster state\n", n.ID)
+
 		if err != nil {
 			// broker ignore controller failure(none of their business)
 			// try update controller until success
-			ctrlCon.Close()
+			log.Printf("Broker %v send update req to controller about new cluster state: %v", n.ID, err)
 			time.Sleep(300 * time.Millisecond)
 			continue
 		}
 		break
 	}
+	log.Printf("Broker %v done update controller about new cluster state\n", n.ID)
 }
 
 // updatePeerClusterMetadata used by controller to update peer about the new cluster metadata
@@ -313,13 +315,14 @@ func (n *Node) syncLocalPartition() {
 	log.Printf("Broker %v start syncing the partition\n", n.ID)
 
 	// prepare the sync requests
-	leaderSyncReqMap := make(map[int32]*adminclientpb.SyncMessagesRequest)
 	partFileHandleMap := make(map[string]*recordpb.FileRecord)
+	partEndOffsetMap := make(map[string]int64)
+	allSyncTp := []*adminclientpb.SyncTopic{}
 	for _, tpState := range offlineTopics {
 		topicName := tpState.GetTopicName()
 
-		// create mapping for keeping track the leader of each partition
-		leaderPartsMap := make(map[int32][]*adminclientpb.SyncPartition)
+		// sync partition buffer for the current topic
+		tpSyncParts := []*adminclientpb.SyncPartition{}
 		for _, partState := range tpState.GetPartitionStates() {
 			leaderID := partState.GetLeader()
 			partIdx := partState.GetPartitionIndex()
@@ -337,107 +340,88 @@ func (n *Node) syncLocalPartition() {
 			partDirname := partition.ConstructPartitionDirName(topicName, int(partIdx))
 			logName := partition.ContructPartitionLogName(topicName)
 			fileHandler, _ := recordpb.InitialiseFileRecordFromFilepath(fmt.Sprintf("%v/%v/%v", n.config.LogDir, partDirname, logName))
+			lastOffset := fileHandler.GetLastEndOffset()
 			partFileHandleMap[partDirname] = fileHandler
+			partEndOffsetMap[partDirname] = lastOffset
 
 			// create sync partition
 			syncPart := &adminclientpb.SyncPartition{
 				Partition:      partState.GetPartitionIndex(),
-				LogStartOffset: fileHandler.GetFileSize(),
+				LogStartOffset: lastOffset,
 			}
 
-			// add sync partition to the respective leader
-			if parts, exist := leaderPartsMap[leaderID]; exist {
-				parts = append(parts, syncPart)
-			} else {
-				leaderPartsMap[leaderID] = []*adminclientpb.SyncPartition{syncPart}
-			}
+			// add to the sync partition buffer for the current topic
+			tpSyncParts = append(tpSyncParts, syncPart)
 		}
 
-		// add/update sync req for the respective leader
-		for leader, syncParts := range leaderPartsMap {
-			syncTopic := &adminclientpb.SyncTopic{
-				Topic:      topicName,
-				Partitions: syncParts,
-			}
-			if syncReq, exist := leaderSyncReqMap[leader]; exist {
-				syncReq.Topics = append(syncReq.GetTopics(), syncTopic)
-			} else {
-				leaderSyncReqMap[leader] = &adminclientpb.SyncMessagesRequest{
-					ReplicaID: int32(n.ID),
-					Topics:    []*adminclientpb.SyncTopic{syncTopic},
-				}
-			}
-		}
+		allSyncTp = append(allSyncTp, &adminclientpb.SyncTopic{
+			Topic:      topicName,
+			Partitions: tpSyncParts,
+		})
 	}
 
-	// wait group for waiting all leader syncing is complete
-	var syncWG sync.WaitGroup
+	syncReq := &adminclientpb.SyncMessagesRequest{
+		ReplicaID: int32(n.ID),
+		Topics:    allSyncTp,
+	}
 
-	// sending sync request to each leader
-	for leader, syncReq := range leaderSyncReqMap {
-		brk := n.ClusterMetadata.GetNodesByID(int(leader))
+	var brkWG sync.WaitGroup
+
+	// send the sync request to all live brokers, since only the leader brokers will reply
+	for _, brk := range n.ClusterMetadata.GetLiveBrokers() {
 		peerAddr := fmt.Sprintf("%v:%v", brk.GetHost(), brk.GetPort())
 		clientCon, err := grpc.Dial(peerAddr, grpc.WithInsecure())
 		defer clientCon.Close()
 		if err != nil {
-			// n.handleBrokerFailure(leader)
 			continue
 		}
+
 		adminServiceClient := adminpb.NewAdminServiceClient(clientCon)
 		stream, err := adminServiceClient.SyncMessages(context.Background())
 		if err != nil {
-			// n.handleBrokerFailure(leader)
 			continue
 		}
+		brkWG.Add(1)
 
-		// wait for one more leader
-		syncWG.Add(1)
-
-		go func(syncReq *adminclientpb.SyncMessagesRequest) {
-			// buffer used to keep track all partitions end offset
-			partEndOffsetMap := make(map[string]int64)
+		go func() {
 			for {
-				// send the sync request
 				stream.Send(syncReq)
-
-				// clear the forgotten topics
-				syncReq.ForgottenTopics = []*adminclientpb.SyncForgottenTopicsData{}
-
-				// get response from leader
 				resp, err := stream.Recv()
-				if err == io.EOF {
-					// done syncing
-					syncWG.Done()
+				if err != nil {
+					brkWG.Done()
 					break
 				}
-				syncResp := resp.GetResponses()
+				data := resp.GetResponses()
+				for _, tpResp := range data {
+					topicName := tpResp.GetTopic()
+					for _, partResp := range tpResp.GetPartitionResponses() {
+						partIdx := partResp.GetPartition()
+						endOffset := partResp.GetLogStartOffset()
+						rcrdBatches := partResp.GetRecordSets()
 
-				// writting the record batches to local log files
-				for _, tp := range syncResp {
-					topicName := tp.GetTopic()
-					for _, part := range tp.GetPartitionResponses() {
-						partIdx := part.GetPartition()
 						partDirname := partition.ConstructPartitionDirName(topicName, int(partIdx))
-						if offset, exist := partEndOffsetMap[partDirname]; exist {
-							offset = part.GetLogStartOffset()
-						} else {
-							partEndOffsetMap[partDirname] = offset
-						}
-
-						// write record batches and get the updated record end offset
-						var newEndOffset int64
-						for _, record := range part.GetRecordSets() {
-							partFileHandleMap[partDirname].WriteToFileByBaseOffset(record)
-							newEndOffset = partFileHandleMap[partDirname].GetFileSize()
+						partEndOffsetMap[partDirname] = endOffset
+						fileHandler := partFileHandleMap[partDirname]
+						for _, rcrdBatch := range rcrdBatches {
+							fileHandler.WriteToFileByBaseOffset(rcrdBatch)
 						}
 
 						// update the req forgetten topic
-						if newEndOffset == partEndOffsetMap[partDirname] {
+						newEndOffset := fileHandler.GetLastEndOffset()
+						if newEndOffset >= partEndOffsetMap[partDirname] {
 							forgotTpExist := false
 							for _, forgetTp := range syncReq.GetForgottenTopics() {
 								if forgetTp.GetTopic() == topicName {
 									forgotTpExist = true
-									forgetTp.Partitions = append(forgetTp.GetPartitions(), partIdx)
+									forgotPartExist := false
+									for _, partID := range forgetTp.GetPartitions() {
+										if partID == partIdx {
+											forgotPartExist = true
+										}
+									}
+									if !forgotPartExist {
+										forgetTp.Partitions = append(forgetTp.GetPartitions(), partIdx)
+									}
 								}
 							}
 							if !forgotTpExist {
@@ -450,11 +434,11 @@ func (n *Node) syncLocalPartition() {
 					}
 				}
 			}
-		}(syncReq)
+		}()
 	}
+	brkWG.Wait()
 
-	// wait for all the syncing with leaders to be done
-	syncWG.Wait()
+	log.Printf("Broker %v done sending sync req\n", n.ID)
 
 	// clean up resource
 	for _, fileHandler := range partFileHandleMap {

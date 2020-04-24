@@ -76,20 +76,22 @@ func (n *Node) Produce(stream clientpb.ClientService_ProduceServer) error {
 								stream, err := n.clientServiceClient[brkIDInt].Produce(context.Background())
 								if err != nil {
 									delete(replicaConn, brkIDInt)
+									continue
 								} else {
 									replicaConn[brkIDInt] = stream
 								}
 							}
 
 							// broadcast message
-							err := replicaConn[brkIDInt].Send(producepb.InitProduceRequest(topicName, partID, tpData.GetRecordSet().GetRecords()...))
+							err := replicaConn[brkIDInt].Send(req)
 							if err != nil {
 								// this is used for the case where the stream connection was broken then the broker come back alive
 								// before sending the message
 								newStream, err := n.clientServiceClient[brkIDInt].Produce(context.Background())
 								if err != nil {
 									delete(replicaConn, brkIDInt)
-									log.Printf("Broker %v unable to send message to replica %v\n", n.ID, brkID)
+									log.Printf("Broker %v unable to send message to replica %v: %v\n", n.ID, brkID, err)
+									continue
 								} else {
 									replicaConn[brkIDInt] = newStream
 									newStream.Send(producepb.InitProduceRequest(topicName, partID, tpData.GetRecordSet().GetRecords()...))
@@ -336,99 +338,97 @@ func (n *Node) Heartbeats(stream adminpb.AdminService_HeartbeatsServer) error {
 
 // SyncMessages is used to sync the record batch of the broker whose records are outdated
 func (n *Node) SyncMessages(stream adminpb.AdminService_SyncMessagesServer) error {
-	replicaID := int32(-1)
 	const MAX_MESSAGE_PER_PARTITION = 5
-	doneSetup := false
 
+	partDirnameFileHandlerMap := make(map[string]*recordpb.FileRecord)
+	partDirCompleteMap := make(map[string]bool)
 	for {
 		req, err := stream.Recv()
-		if err == io.EOF {
+		if err != nil {
 			return nil
 		}
-		if err != nil {
-			log.Printf("Broker %v unable to get sync request from %v\n", n.ID, replicaID)
-		}
 
-		// set the requesting replicaID
-		replicaID = req.GetReplicaID()
-
-		topicPartMapping := make(map[string][]*adminclientpb.SyncPartition)
-		partDirnameFileHandlerMap := make(map[string]*recordpb.FileRecord)
-
-		// initial setup
-		if !doneSetup {
-			for _, syncTp := range req.GetTopics() {
-				topicName := syncTp.GetTopic()
-				// setup topic to partition mapping
-				topicPartMapping[topicName] = syncTp.GetPartitions()
-
-				// setup partition directory name to file handler mapping
-				for _, syncPart := range syncTp.GetPartitions() {
-					partDirname := partition.ConstructPartitionDirName(topicName, int(syncPart.GetPartition()))
-					logName := partition.ContructPartitionLogName(topicName)
-					// create the file handler
-					fileHandler, _ := recordpb.InitialiseFileRecordFromFilepath(fmt.Sprintf("%v/%v/%v", n.config.LogDir, partDirname, logName))
-					// shift the file read offset to the log start offset
-					fileHandler.ShiftReadOffset(syncPart.GetLogStartOffset())
-					partDirnameFileHandlerMap[partDirname] = fileHandler
-				}
-			}
-			doneSetup = true
-		}
-
-		// prepare data to send
 		syncTpResp := []*adminclientpb.SyncTopicResponse{}
-		syncPartResp := []*adminclientpb.SyncPartitionResponse{}
 		for _, syncTp := range req.GetTopics() {
 			topicName := syncTp.GetTopic()
-			for _, syncPart := range syncTp.GetPartitions() {
-				partID := syncPart.GetPartition()
-				partDirname := partition.ConstructPartitionDirName(topicName, int(partID))
 
-				// pull all the record batches
-				rcrdBatches := make([]*recordpb.RecordBatch, 0, MAX_MESSAGE_PER_PARTITION)
-				for i := 0; i < MAX_MESSAGE_PER_PARTITION; i++ {
-					rcrdBatch, err := partDirnameFileHandlerMap[partDirname].ReadNextRecordBatch()
-					if rcrdBatch != nil && err != nil {
-						rcrdBatches = append(rcrdBatches, rcrdBatch)
-					} else {
-						break
-					}
+			syncPartResp := []*adminclientpb.SyncPartitionResponse{}
+			for _, syncPart := range syncTp.GetPartitions() {
+				partIdx := syncPart.GetPartition()
+
+				// if the current broker is not the leader for this partition skip
+				if !n.ClusterMetadata.CheckBrokerIsLeader(int32(n.ID), topicName, partIdx) {
+					continue
 				}
 
-				syncPartResp = append(syncPartResp, &adminclientpb.SyncPartitionResponse{
-					Partition:      partID,
-					LogStartOffset: partDirnameFileHandlerMap[partDirname].GetFileSize(),
-					RecordSets:     rcrdBatches,
+				partDirname := partition.ConstructPartitionDirName(topicName, int(partIdx))
+				if _, exist := partDirCompleteMap[partDirname]; !exist {
+					partDirCompleteMap[partDirname] = false
+				}
+
+				if !partDirCompleteMap[partDirname] {
+					if _, exist := partDirnameFileHandlerMap[partDirname]; !exist {
+						logName := partition.ContructPartitionLogName(topicName)
+						// create the file handler
+						fileHandler, _ := recordpb.InitialiseFileRecordFromFilepath(fmt.Sprintf("%v/%v/%v", n.config.LogDir, partDirname, logName))
+
+						if fileHandler.GetLastEndOffset() == syncPart.GetLogStartOffset() {
+							partDirCompleteMap[partDirname] = true
+						}
+						// shift the file read offset to the log start offset
+						fileHandler.ShiftReadOffset(syncPart.GetLogStartOffset())
+						partDirnameFileHandlerMap[partDirname] = fileHandler
+					}
+
+					// pull all the record batches
+					rcrdBatches := make([]*recordpb.RecordBatch, 0, MAX_MESSAGE_PER_PARTITION)
+					for i := 0; i < MAX_MESSAGE_PER_PARTITION; i++ {
+						rcrdBatch, err := partDirnameFileHandlerMap[partDirname].ReadNextRecordBatch()
+						if rcrdBatch != nil && err == nil {
+							rcrdBatches = append(rcrdBatches, rcrdBatch)
+						} else {
+							break
+						}
+					}
+
+					syncPartResp = append(syncPartResp, &adminclientpb.SyncPartitionResponse{
+						Partition:      partIdx,
+						LogStartOffset: partDirnameFileHandlerMap[partDirname].GetLastEndOffset(),
+						RecordSets:     rcrdBatches,
+					})
+				}
+
+			}
+			if len(syncPartResp) > 0 {
+				syncTpResp = append(syncTpResp, &adminclientpb.SyncTopicResponse{
+					Topic:              topicName,
+					PartitionResponses: syncPartResp,
 				})
 			}
-			syncTpResp = append(syncTpResp, &adminclientpb.SyncTopicResponse{
-				Topic:              topicName,
-				PartitionResponses: syncPartResp,
-			})
+		}
+
+		if len(partDirnameFileHandlerMap) == 0 {
+			return fmt.Errorf("Broker %v does not have or not the leader for any partitions requested", n.ID)
 		}
 
 		forgotTps := req.GetForgottenTopics()
-		if len(forgotTps) > 0 {
-			for _, forgotTp := range forgotTps {
-				topicName := forgotTp.GetTopic()
-				for _, forgotPartID := range forgotTp.GetPartitions() {
+		for _, forgotTp := range forgotTps {
+			topicName := forgotTp.GetTopic()
+			for _, forgotPartID := range forgotTp.GetPartitions() {
+				partDirname := partition.ConstructPartitionDirName(topicName, int(forgotPartID))
+				if fileHandler, exist := partDirnameFileHandlerMap[partDirname]; exist {
 					// update local cluster metadata
+					log.Printf("Broker %v update the ISR\n", n.ID)
 					n.ClusterMetadata.MoveBrkToISRByPartition(req.GetReplicaID(), topicName, forgotPartID)
 
 					// update cluster metadata
-					if n.ID == int(n.ClusterMetadata.GetController().GetID()) {
-						n.updateZKClusterMetadata()
-						n.updatePeerClusterMetadata()
-					} else {
-						n.updateCtrlClusterMetadata()
-					}
+					n.handleClusterUpdateReq()
 
-					partDirname := partition.ConstructPartitionDirName(topicName, int(forgotPartID))
-					if fileHandler, exist := partDirnameFileHandlerMap[partDirname]; exist {
-						fileHandler.CloseFile()
-						delete(partDirnameFileHandlerMap, partDirname)
-					}
+					// update partDirCompleteMap
+					partDirCompleteMap[partDirname] = true
+
+					fileHandler.CloseFile()
+					delete(partDirnameFileHandlerMap, partDirname)
 				}
 			}
 		}
