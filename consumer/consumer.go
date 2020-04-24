@@ -100,9 +100,12 @@ func initConsumer(id int, groupID int) *Consumer {
 // Consume tries to consume information on the topic
 func (cg *ConsumerGroup) Consume(_topic string) error {
 	// TODO: Consider the event when there is a fault
-	// TODO: Add mutex locks
 	for i, topic := range cg.topics {
 		if topic == _topic {
+			// topic-consumer takes in a topic as key, and returns an ordered array of consumer, with the
+			// ascending partitionIndex
+			consumers := cg.topicConsumer[_topic]
+			go doConsume(consumers, _topic)
 			break
 		} else if i == len(cg.topics)-1 {
 			// already reached the end
@@ -110,42 +113,6 @@ func (cg *ConsumerGroup) Consume(_topic string) error {
 			return errors.New("Consumer group not set up to pull from this topic")
 		}
 	}
-
-	// sorted by partitionIndex
-	// key - topic, value - []*Consumer
-	// can assume one assignment for the same topic for each consumer
-	// and the consumerlist is sorted based on partitionId
-
-	for {
-		// TODO: For each topic, find get the consumers in charge of getting that particular topic
-		// TODO: Spawn go routine to get message
-		for _, t := range cg.topics {
-			// topic-consumer takes in a topic as key, and returns an ordered array of consumer, with the
-			// ascending partitionIndex
-			consumers := cg.topicConsumer[t]
-			go doConsume(consumers, t)
-		}
-	}
-
-
-	// check which consumers have partitions of that topic
-	// a variable like `topicConsumer` might be useful. In CG struct but not constructed yet.
-	// check which consumer should call consume now
-
-	//cg.mux.Lock()
-	// check which consumer should call consume now 
-	/* say if consumer 1 has assignment T0-P1 and consumer 2 has assignment TO-P2
-	// then make consumer 1 consume ->  consumer 2 consume -> consumer 1 consume so that the
-	// order of consumption of messages is the same as the order of production of messages */
-	// lock is here because the initial idea is that there might be multiple consumer
-	// threads consuming and changing the `topicPartPoint` value, remove if not required
-
-	//cg.mux.Unlock()
-
-	// handle different cases of consume
-	// 1) Normal consumption with no problem -> print msg
-
-	// 2) Consume fails --> setup stream for next broker and call consume again
 	return nil
 }
 
@@ -154,6 +121,7 @@ func doConsume(sortedConsumers[]*Consumer, topic string) {
 		for _, assignment := range c.assignments {
 			// search for the correct assignment
 			if assignment.GetTopicName() == topic {
+				var connectedBrokenID int
 				stream := c.brokerCon[int(assignment.GetBroker())]
 				err := stream.Send(&consumepb.ConsumeRequest{
 					GroupID:              int32(c.groupID),
@@ -162,10 +130,33 @@ func doConsume(sortedConsumers[]*Consumer, topic string) {
 					TopicName:            topic,
 				})
 				if err != nil {
-					panic(fmt.Sprintf("Unable send request to broker. Error msg: %v\n", err))
+					for i := 0; i < len(assignment.GetIsrBrokers()); i ++ {
+						chosenBrokenID := assignment.GetIsrBrokers()[i].ID
+						if chosenBrokenID == assignment.GetBroker(){
+							// main broker is down based on above attempt
+							continue
+						}
+						stream := c.brokerCon[int(chosenBrokenID)]
+						err2 := stream.Send(&consumepb.ConsumeRequest{
+							GroupID:              int32(c.groupID),
+							ConsumerID:           int32(c.id),
+							Partition:            assignment.GetPartitionIndex(),
+							TopicName:            topic,
+						})
+						// When there is an error and it is the last broker it tries to connect
+						if err2 != nil && i == len(assignment.GetIsrBrokers()) - 1 {
+							log.Fatalf("ISRs exhausted. No more brokers to connect to. Error msg: %v\n", err)
+						} else if err2 == nil {
+							connectedBrokenID = int(chosenBrokenID)
+							assignment.Broker = chosenBrokenID
+							break
+						}
+					}
+				} else {
+					connectedBrokenID = int(assignment.GetBroker())
 				}
 
-				res, err := c.brokerCon[int(assignment.GetBroker())].Recv()
+				res, err := c.brokerCon[connectedBrokenID].Recv()
 				responseHandler(int(assignment.GetBroker()), c.id, res, err)
 			}
 		}
