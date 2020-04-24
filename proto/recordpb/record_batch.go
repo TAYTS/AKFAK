@@ -26,9 +26,7 @@ func InitialiseEmptyRecordBatch() *RecordBatch {
 func InitialiseRecordBatchWithData(records ...*Record) *RecordBatch {
 	rcdBatch := InitialiseEmptyRecordBatch()
 
-	rcdBatch.Records = records
-	rcdBatch.FirstTimestamp = getCurrentTimeinMs()
-	rcdBatch.updateBatchLength()
+	rcdBatch.AppendRecord(records...)
 
 	return rcdBatch
 }
@@ -56,6 +54,13 @@ func (rcdBatch *RecordBatch) AppendRecord(records ...*Record) {
 	// update LastOffsetDelta
 	rcdBatch.LastOffsetDelta = int32(len(rcdBatch.GetRecords()) - 1)
 
+	rcdBatch.updateBatchLength()
+}
+
+// UpdateBaseOffset update the RecordBatch byte offset in the file
+// Used by FileRecord before write to file
+func (rcdBatch *RecordBatch) UpdateBaseOffset(offset int64) {
+	rcdBatch.BaseOffset = offset
 	rcdBatch.updateBatchLength()
 }
 
