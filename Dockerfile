@@ -1,11 +1,14 @@
 FROM golang:latest
 
+RUN apt-get update -y && \
+  apt-get install vim -y
+
 WORKDIR /go/src/AKFAK
 
-RUN go mod init AKFAK && \
-  go mod tidy && \
-  apt-get update -y && \
-  apt-get install vim -y
+COPY ["go.mod", "go.sum", "./"]
+
+RUN go mod download
+
 
 COPY . .
 
