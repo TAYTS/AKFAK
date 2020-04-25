@@ -79,8 +79,6 @@ func (p *Producer) Send(message string) {
 	// get partition idx for topic
 	partIdx := p.getNextPartition()
 
-	// get leader ID for a partition
-	brkID := p.getLeaderIDByPartition(partIdx)
 	p.metadataMux.RUnlock()
 
 	// create new record
@@ -89,7 +87,7 @@ func (p *Producer) Send(message string) {
 	// pass the record to the request
 	var produceReq *inflightRequest
 	p.mux.RLock()
-	produceReq, exist := p.inflightRequests[brkID]
+	produceReq, exist := p.inflightRequests[partIdx]
 	if exist {
 		// if there is inflight request, append the message to it
 		produceReq.req.AddRecord(partIdx, newRcd)
@@ -104,11 +102,11 @@ func (p *Producer) Send(message string) {
 		}
 		// attach new request to the Producer instance
 		p.mux.Lock()
-		p.inflightRequests[brkID] = produceReq
+		p.inflightRequests[partIdx] = produceReq
 		// set 500ms timeout for the sending the new request
-		p.timers[brkID] = time.NewTimer(500 * time.Millisecond)
+		p.timers[partIdx] = time.NewTimer(500 * time.Millisecond)
 		p.mux.Unlock()
-		go p.doSend(brkID)
+		go p.doSend(partIdx)
 	}
 }
 
@@ -215,37 +213,39 @@ func (p *Producer) setupStreamToSendMsg() {
 	}
 }
 
-func (p *Producer) doSend(brokerID int) {
+func (p *Producer) doSend(partIdx int) {
 	for {
 		p.mux.Lock()
 		select {
-		case <-p.timers[brokerID].C:
-			log.Println("Sending request to Broker", brokerID)
-			if conn, exist := p.brokerCon[brokerID]; exist {
-				conn.Send(p.inflightRequests[brokerID].req)
+		case <-p.timers[partIdx].C:
+			brkID := p.getLeaderIDByPartition(partIdx)
+			log.Println("Sending request to Broker", brkID)
+			if conn, exist := p.brokerCon[brkID]; exist {
+				conn.Send(p.inflightRequests[partIdx].req)
 				// get the response
-				_, err := p.brokerCon[brokerID].Recv()
-				p.postDoSendHook(brokerID, err)
+				_, err := p.brokerCon[brkID].Recv()
+				p.postDoSendHook(partIdx, brkID, err)
 			} else {
-				p.postDoSendHook(brokerID, errBrkNotAvailable)
+				p.postDoSendHook(partIdx, brkID, errBrkNotAvailable)
 			}
 
 			// remove the request
-			delete(p.inflightRequests, brokerID)
+			delete(p.inflightRequests, partIdx)
 			p.mux.Unlock()
 			return
 		default:
 			// Send the request if the req has more than 15 messages
-			if p.inflightRequests[brokerID].msgCount > 15 {
-				log.Println("Sending request to Broker", brokerID)
-				p.brokerCon[brokerID].Send(p.inflightRequests[brokerID].req)
+			if p.inflightRequests[partIdx].msgCount > 15 {
+				brkID := p.getLeaderIDByPartition(partIdx)
+				log.Println("Sending request to Broker", brkID)
+				p.brokerCon[brkID].Send(p.inflightRequests[partIdx].req)
 
 				// get the response
-				_, err := p.brokerCon[brokerID].Recv()
-				p.postDoSendHook(brokerID, err)
+				_, err := p.brokerCon[brkID].Recv()
+				p.postDoSendHook(partIdx, brkID, err)
 
 				// remove the request
-				delete(p.inflightRequests, brokerID)
+				delete(p.inflightRequests, partIdx)
 				p.mux.Unlock()
 				return
 			}
@@ -256,10 +256,10 @@ func (p *Producer) doSend(brokerID int) {
 
 // postDoSendHook is used after the doSend operation
 // Used to handle broker failure and print send log
-func (p *Producer) postDoSendHook(brokerID int, err error) {
+func (p *Producer) postDoSendHook(partIdx int, brokerID int, err error) {
 	if err != nil {
 		log.Printf("Detect Broker %v failure, retry to send message to other broker", brokerID)
-		reqData := p.inflightRequests[brokerID].req
+		reqData := p.inflightRequests[partIdx].req
 		newBrkID := brokerID
 
 		if err == errBrkNotAvailable {
@@ -279,11 +279,18 @@ func (p *Producer) postDoSendHook(brokerID int, err error) {
 			// reset broker connection
 			p.resetBrokerConnection()
 
-			// get partition idx for topic
-			partIdx := p.getNextPartition()
-
 			// get leader ID for a partition
 			newBrkID = p.getLeaderIDByPartition(partIdx)
+
+			// if the current partition does not have any brokers left
+			// change the partition
+			if newBrkID == -1 {
+				partIdx = p.getNextPartition()
+				newBrkID = p.getLeaderIDByPartition(partIdx)
+				for _, topic := range reqData.GetTopicData() {
+					topic.Partition = int32(partIdx)
+				}
+			}
 
 			// send request
 			err := p.brokerCon[newBrkID].Send(reqData)
