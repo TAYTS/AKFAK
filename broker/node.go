@@ -7,7 +7,6 @@ import (
 	"AKFAK/proto/adminpb"
 	"AKFAK/proto/clientpb"
 	"AKFAK/proto/clustermetadatapb"
-	"AKFAK/proto/consumepb"
 	"AKFAK/proto/zkmessagepb"
 	"AKFAK/proto/zookeeperpb"
 	"context"

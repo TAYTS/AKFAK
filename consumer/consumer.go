@@ -64,8 +64,14 @@ func InitConsumerGroup(id int, _topics string, brokerAddr string) *ConsumerGroup
 	cg.distributeAssignments(numConsumers)
 
 	for _, c := range cg.consumers {
+		fmt.Printf("Consumer %v has the following assignments %v\n", c.id, c.assignments)
 		c.createBrokersAddrMap()
 		fmt.Sprintf("Consumer %v has created a broker-address map", c.id)
+	}
+
+
+	for _, c := range cg.consumers {
+		fmt.Printf("BrokerAddrMap for Consumer %v, BrokerAddrMap: %v\n", c, c.brokersAddr)
 		err := c.setupStreamToConsumeMsg()
 		if err != nil {
 			panic(fmt.Sprintf("Unable to set up stream to broker: %v\n", err))
@@ -107,10 +113,14 @@ func (cg *ConsumerGroup) Consume(_topic string) error {
 }
 
 func doConsume(sortedConsumers[]*Consumer, topic string) {
+	fmt.Println("Running doConsume...")
+	fmt.Println("Searching for topic", topic)
 	for _, c := range sortedConsumers {
 		for _, assignment := range c.assignments {
 			// search for the correct assignment
+			fmt.Printf("\nAssignment %v by Consumer %v", assignment, c.id)
 			if assignment.GetTopicName() == topic {
+				fmt.Println("Found topic name in assignment")
 				var connectedBrokenID int
 				stream := c.brokerCon[int(assignment.GetBroker())]
 				err := stream.Send(&consumepb.ConsumeRequest{
@@ -144,6 +154,7 @@ func doConsume(sortedConsumers[]*Consumer, topic string) {
 					}
 				} else {
 					connectedBrokenID = int(assignment.GetBroker())
+					fmt.Println("Connected to Broker:", int(assignment.GetBroker()))
 				}
 
 				res, err := c.brokerCon[connectedBrokenID].Recv()
@@ -154,6 +165,7 @@ func doConsume(sortedConsumers[]*Consumer, topic string) {
 }
 
 func responseHandler(brokerID int, consumerID int, res *consumepb.ConsumeResponse, err error) {
+	fmt.Println("responseHandling...")
 	if err != nil {
 		log.Printf("Error when sending messages to Broker %v\n", err)
 	} else {
@@ -169,6 +181,7 @@ func responseHandler(brokerID int, consumerID int, res *consumepb.ConsumeRespons
 }
 
 func (cg *ConsumerGroup) getAssignments(brokerAddr string, topics []string, maxWaitMs time.Duration) error {
+	fmt.Println("Connecting to", brokerAddr)
 	// connect to a broker
 	opts := []grpc.DialOption{grpc.WithInsecure()}
 	conn, err := grpc.Dial(brokerAddr, opts...)
@@ -261,10 +274,13 @@ func (cg *ConsumerGroup) createTopicConsumerMap(topic string) {
 func (c *Consumer) createBrokersAddrMap() {
 	c.brokersAddr = make(map[int]string)
 	for _, assignment := range c.assignments {
+		fmt.Printf("Assigment for Consumer %v is %v\n", c.id, c.assignments)
+		// CANNOT FIND ISR Brokers
 		for _, isr := range assignment.GetIsrBrokers() {
 			c.brokersAddr[int(isr.GetID())] = fmt.Sprintf("%v:%v", isr.GetHost(), isr.GetPort())
 		}
 	}
+	fmt.Println(c.brokersAddr)
 }
 
 func (c *Consumer) setupStreamToConsumeMsg() error {

@@ -523,21 +523,23 @@ func (n *Node) GetAssignment(ctx context.Context, req *consumepb.GetAssignmentRe
 	topicName := req.GetTopicName()
 	assignments := []*consumepb.MetadataAssignment{}
 
+	// Replica will always be Assigned
 	// check if replicas already assigned to consumer group for that topic
-	for _, grp := range n.ConsumerMetadata.GetConsumerGroups() {
-		if grp.GetID() == cg {
-			for i, assignment := range grp.GetAssignments() {
-				if assignment.GetTopicName() == topicName {
-					assignments = append(assignments, assignment)
-				}
-				if i == (len(grp.GetAssignments())-1) && len(assignments) != 0 {
-					return &consumepb.GetAssignmentResponse{Assignments: assignments}, nil
-					// decide not to throw error so that consumer can get assignments again
-					// return &consumepb.GetAssignmentResponse{Assignments: assignments}, errors.New("You already have an assignment for this topic!")
-				}
-			}
-		}
-	}
+	//for _, grp := range n.ConsumerMetadata.GetConsumerGroups() {
+	//	if grp.GetID() == cg {
+	//		for i, assignment := range grp.GetAssignments() {
+	//			if assignment.GetTopicName() == topicName {
+	//				//fmt.Println("Inserting ISR Brokers to Assignment", assignment.GetIsrBrokers())
+	//				assignments = append(assignments, assignment)
+	//			}
+	//			if i == (len(grp.GetAssignments())-1) && len(assignments) != 0 {
+	//				return &consumepb.GetAssignmentResponse{Assignments: assignments}, nil
+	//				// decide not to throw error so that consumer can get assignments again
+	//				// return &consumepb.GetAssignmentResponse{Assignments: assignments}, errors.New("You already have an assignment for this topic!")
+	//			}
+	//		}
+	//	}
+	//}
 
 	// if no available partition for that topic
 	partitions := n.ClusterMetadata.GetAvailablePartitionsByTopic(topicName)
@@ -596,6 +598,6 @@ func (n *Node) GetAssignment(ctx context.Context, req *consumepb.GetAssignmentRe
 	if err != nil {
 		return nil, errors.New("Could not update zookeeper")
 	}
-
+	fmt.Println("GetAssignmentResponse from Broker:", &consumepb.GetAssignmentResponse{Assignments: assignments})
 	return &consumepb.GetAssignmentResponse{Assignments: assignments}, nil
 }
