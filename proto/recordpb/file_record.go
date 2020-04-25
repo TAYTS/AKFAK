@@ -58,6 +58,11 @@ func InitialiseFileRecordFromFilepath(filepath string) (*FileRecord, error) {
 	return fileRecord, nil
 }
 
+// SetOffset allows the filerecord offset to be set 
+func (fileRcd *FileRecord) SetOffset(offset int64) {
+	fileRcd.currentOffset = offset
+}
+
 // ReadNextRecordBatch retrieve the next RecordBatch in the file buffer else return EOF error
 func (fileRcd *FileRecord) ReadNextRecordBatch() (*RecordBatch, error) {
 	// Check if the are still remaining bytes
