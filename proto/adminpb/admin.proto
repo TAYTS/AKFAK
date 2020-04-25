@@ -11,6 +11,7 @@ import "proto/adminclientpb/update_metadata.proto";
 import "proto/adminclientpb/get_controller.proto";
 import "proto/heartbeatspb/heartbeats.proto";
 import "proto/adminclientpb/sync_messages.proto";
+import "proto/adminclientpb/insync_message.proto";
 
 service AdminService {
   rpc ControllerElection(adminclientpb.ControllerElectionRequest)
@@ -27,4 +28,6 @@ service AdminService {
       returns (stream heartbeatspb.HeartbeatsResponse) {}
   rpc SyncMessages(stream adminclientpb.SyncMessagesRequest)
       returns (stream adminclientpb.SyncMessagesResponse) {}
+  rpc InSyncPartition(adminclientpb.InSyncMessagesRequest)
+      returns (adminclientpb.InSyncMessagesResponse) {}
 }
