@@ -1,3 +1,29 @@
 {
- "consumerGroups": []
+  "consumerGroups": [
+    {
+      "ID": 1,
+      "assignments": [
+        {
+          "topicName": "topic1",
+          "partitionIndex": 1,
+          "broker": 1
+        },
+        {
+          "topicName": "topic1",
+          "partitionIndex": 1,
+          "broker": 1
+        }
+      ]
+    },
+    {
+      "ID": 2,
+      "assignments": [
+        {
+          "topicName": "topic1",
+          "partitionIndex": 1,
+          "broker": 1
+        }
+      ]
+    }
+  ]
 }

@@ -468,12 +468,11 @@ func (n *Node) Consume(stream clientpb.ClientService_ConsumeServer) error {
 	if assignmentErr != nil {
 		return assignmentErr
 	}
-	offset := int32(0)
+
 	// When there is no assignment:
 	if assignment == nil {
 		// Call ZK and init cache again to make sure most updated information in cache
 		n.initConsumerMetadataCache()
-		offset = n.ConsumerMetadata.GetOffset(assignment, req.GetGroupID())
 		// update the metadata in node's own metadatacache
 		for _, group := range n.ConsumerMetadata.GetConsumerGroups() {
 			if group.GetID() == req.GetGroupID() {
@@ -482,15 +481,11 @@ func (n *Node) Consume(stream clientpb.ClientService_ConsumeServer) error {
 				}
 			}
 		}
-	} else {
-		offset = n.ConsumerMetadata.GetOffset(assignment, req.GetGroupID())
 	}
-	log.Println("Offset:", offset)
 
 	// Retrieve and send batch record to consumer
-	recordBatch, fileErr := n.ReadRecordBatchFromLocal(req.GetTopicName(), int(req.GetPartition()), int64(offset))
+	recordBatch, fileErr := n.ReadRecordBatchFromLocal(req.GetTopicName(), int(req.GetPartition()))
 	if fileErr != nil {
-		log.Println("error when reading from file:", fileErr)
 		return fileErr
 	}
 	stream.Send(&consumepb.ConsumeResponse{
@@ -521,23 +516,19 @@ func (n *Node) GetAssignment(ctx context.Context, req *consumepb.GetAssignmentRe
 
 	cg := req.GetGroupID()
 	topicName := req.GetTopicName()
-	assignments := []*consumepb.MetadataAssignment{}
 
 	// check if replicas already assigned to consumer group for that topic
 	for _, grp := range n.ConsumerMetadata.GetConsumerGroups() {
 		if grp.GetID() == cg {
-			for i, assignment := range grp.GetAssignments() {
+			for _, assignment := range grp.GetAssignments() {
 				if assignment.GetTopicName() == topicName {
-					assignments = append(assignments, assignment)
-				}
-				if i == (len(grp.GetAssignments())-1) && len(assignments) != 0 {
-					return &consumepb.GetAssignmentResponse{Assignments: assignments}, nil
-					// decide not to throw error so that consumer can get assignments again
-					// return &consumepb.GetAssignmentResponse{Assignments: assignments}, errors.New("You already have an assignment for this topic!")
+					return nil, errors.New("You already have an assignment for this topic!")
 				}
 			}
 		}
 	}
+
+	assignments := []*consumepb.MetadataAssignment{}
 
 	// if no available partition for that topic
 	partitions := n.ClusterMetadata.GetAvailablePartitionsByTopic(topicName)
@@ -548,7 +539,7 @@ func (n *Node) GetAssignment(ctx context.Context, req *consumepb.GetAssignmentRe
 	// loop through partitions and add an assignment for every partition
 	for _, partState := range partitions {
 		isrBrokers := []*clustermetadatapb.MetadataBroker{}
-		brokerIDs := partState.GetReplicas()
+		brokerIDs := partState.GetIsr()
 		if len(brokerIDs) == 0 {
 			return nil, errors.New("No broker is storing data on this topic")
 		}
@@ -568,7 +559,7 @@ func (n *Node) GetAssignment(ctx context.Context, req *consumepb.GetAssignmentRe
 	// if no consumergroups available in metadata
 	if len(n.ConsumerMetadata.GetConsumerGroups()) == 0 {
 		// add this consumer group
-		n.ConsumerMetadata.AddAssignments(int(cg), assignments)
+		n.ConsumerMetadata.AddAssignment(int(cg), assignments)
 	}
 
 	// update consumer group metadata
@@ -578,7 +569,7 @@ func (n *Node) GetAssignment(ctx context.Context, req *consumepb.GetAssignmentRe
 			break
 		} else if i == len(n.ConsumerMetadata.GetConsumerGroups())-1 {
 			// consumergroup not in metadata yet
-			n.ConsumerMetadata.AddAssignments(int(cg), assignments)
+			n.ConsumerMetadata.AddAssignment(int(cg), assignments)
 		}
 	}
 
