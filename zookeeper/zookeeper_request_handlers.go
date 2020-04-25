@@ -30,12 +30,11 @@ func (zk *Zookeeper) GetClusterMetadata(ctx context.Context, req *zkmessagepb.Ge
 	if !controllerSet {
 		// set the requesting broker as the controller
 		zk.clusterMetadata.UpdateController(req.GetBroker())
+		go zk.sendControllerElection()
 	}
 	zk.mux.Unlock()
 
-	if !controllerSet {
-		go zk.sendControllerElection()
-	} else {
+	if controllerSet {
 		// update controller
 		log.Printf("ZK update controller for new Broker %v\n", reqBrk.GetID())
 		go zk.updateControllerMetadata()
@@ -65,6 +64,10 @@ func (zk *Zookeeper) UpdateClusterMetadata(ctx context.Context, req *zkmessagepb
 
 // Heartbeats used to receive the heartbeasts from the controller
 func (zk *Zookeeper) Heartbeats(stream zookeeperpb.ZookeeperService_HeartbeatsServer) error {
+	zk.mux.RLock()
+	// controller called => controller ready
+	zk.waitCtrl.Done()
+	zk.mux.RUnlock()
 	for {
 		_, err := stream.Recv()
 		log.Println("ZK receive heartbeats request from controller")

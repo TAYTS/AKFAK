@@ -58,7 +58,7 @@ func (n *Node) InitAdminListener() {
 
 	// setup the cluster metadata cache
 	n.initClusterMetadataCache()
-	n.initConsumerMetadataCache()
+	go n.initConsumerMetadataCache()
 
 	if !n.ClusterMetadata.CheckBrokerInSync(int32(n.ID)) {
 		log.Printf("Broker %v is not insync with other replicas\n", n.ID)
@@ -84,15 +84,14 @@ func (n *Node) initControllerRoutine() {
 	// setup hearbeats receiver with peers
 	n.setupPeerHeartbeatsReceiver(peers)
 
+	// update client service peer connection
+	n.updateClientPeerConnection()
+
+	// update peer cluster state
+	n.updatePeerClusterMetadata()
+
 	// connect and store ZK rpc client
 	n.zkClient = getZKClient(n.config.ZKConn)
-
-	// update the cluster to move all offline broker to fail replicas
-	for _, brk := range n.ClusterMetadata.GetBrokers() {
-		if n.ClusterMetadata.GetNodesByID(int(brk.GetID())) == nil {
-			n.handleBrokerFailure(brk.GetID())
-		}
-	}
 
 	// setup heartbeats request to ZK
 	go n.setupZKHeartbeatsRequest()

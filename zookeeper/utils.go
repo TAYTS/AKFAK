@@ -79,6 +79,9 @@ func WriteConsumerStateToFile(path string, metadata consumermetadatapb.MetadataC
 
 // updateControllerMetadata used to update the controller when there is new LiveBroker
 func (zk *Zookeeper) updateControllerMetadata() {
+	// wait for controller to be ready
+	zk.waitCtrl.Wait()
+
 	// setup gRPC connection to controller
 	ctrl := zk.clusterMetadata.GetController()
 	ctrlConn, err := grpc.Dial(fmt.Sprintf("%v:%v", ctrl.GetHost(), ctrl.GetPort()), grpc.WithInsecure())
@@ -130,20 +133,23 @@ func (zk *Zookeeper) handleControllerFailure() {
 			zk.clusterMetadata.UpdateController(availableLiveBrks[0])
 			ctrlID = zk.clusterMetadata.GetController().GetID()
 
+			zk.mux.Unlock()
 			err := zk.sendControllerElection()
 			if err == nil {
 				break
+			} else {
+				zk.mux.Lock()
 			}
 		} else {
+			zk.mux.Unlock()
 			break
 		}
 	}
-
-	zk.mux.Unlock()
 }
 
 // sendControllerElection send ControllerElection RPC request to the selected broker
 func (zk *Zookeeper) sendControllerElection() error {
+	zk.mux.Lock()
 	// setup gRPC connection to controller
 	ctrl := zk.clusterMetadata.GetController()
 
@@ -168,6 +174,11 @@ func (zk *Zookeeper) sendControllerElection() error {
 		return err
 	}
 	log.Println("ZK successfully elect new controller")
+
+	// set flag to wait to controller to be ready
+	zk.waitCtrl.Add(1)
+
+	zk.mux.Unlock()
 
 	return nil
 }
