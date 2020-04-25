@@ -22,10 +22,10 @@ func main() {
 
 	c := clientpb.NewClientServiceClient(cc)
 	
-	/*
+	
 	req := &consumepb.GetAssignmentRequest{
 		GroupID:	id,
-		TopicName:	"topic1",
+		TopicName:	"test",
 	}
 
 	res, err := c.GetAssignment(context.Background(), req)
@@ -33,12 +33,13 @@ func main() {
 		log.Fatalf("Error whil calling controller RPC: %v\n", err)
 	}
 
-	fmt.Println("Result:", res)*/
+	fmt.Println("Result:", res)
 
 	// test consume request
 	
 	// ====== //
-	// Add this in front of the n.ReadRecordBatchFromLocal() part if testing without producer
+	// Add this in front of the n.ReadRecordBatchFromLocal() part in requests_handler.go
+	// if testing without producer
 	// fileHandlerMapping := make(map[int]*recordpb.FileRecord)
 	// newRcd := recordpb.InitialiseRecordWithMsg("some random msg")
 	// reqqq := producepb.InitProduceRequest(req.GetTopicName(), int(req.GetPartition()), newRcd)
@@ -53,6 +54,7 @@ func main() {
 
 
 	// setup stream
+	fmt.Println("====consume====")
 	stream, err := c.Consume(context.Background())
 	if err != nil {
 		log.Fatalf("could not consume: %v", err)
@@ -61,7 +63,7 @@ func main() {
 		GroupID:	id,
 		ConsumerID:	1,
 		Partition:	1,
-		TopicName:	"topic1",
+		TopicName:	"test",
 	})
 	res2, err2 := stream.Recv()
 	
