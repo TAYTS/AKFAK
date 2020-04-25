@@ -52,6 +52,5 @@ func main() {
 			go cg.Consume(inputStr)
 		}
 	}(cg)
-
 	<-ch
 }

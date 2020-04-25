@@ -95,6 +95,7 @@ func initConsumer(id int, groupID int) *Consumer {
 
 // Consume tries to consume information on the topic
 func (cg *ConsumerGroup) Consume(_topic string) error {
+	fmt.Println("Consuming....")
 	// TODO: Consider the event when there is a fault
 	for i, topic := range cg.topics {
 		if topic == _topic {
@@ -115,10 +116,12 @@ func (cg *ConsumerGroup) Consume(_topic string) error {
 func doConsume(sortedConsumers[]*Consumer, topic string) {
 	fmt.Println("Running doConsume...")
 	fmt.Println("Searching for topic", topic)
+	fmt.Println("sortedCusumers", sortedConsumers)
 	for _, c := range sortedConsumers {
+		fmt.Printf("Consumer %v has assignment %v\n", c.id, c.assignments)
 		for _, assignment := range c.assignments {
 			// search for the correct assignment
-			fmt.Printf("\nAssignment %v by Consumer %v", assignment, c.id)
+			fmt.Printf("\nAssignment %v by Consumer %v\n", assignment, c.id)
 			if assignment.GetTopicName() == topic {
 				fmt.Println("Found topic name in assignment")
 				var connectedBrokenID int
@@ -130,6 +133,7 @@ func doConsume(sortedConsumers[]*Consumer, topic string) {
 					TopicName:            topic,
 				})
 				if err != nil {
+					fmt.Println("Fail to connect. Retrying...")
 					for i := 0; i < len(assignment.GetIsrBrokers()); i ++ {
 						chosenBrokenID := assignment.GetIsrBrokers()[i].ID
 						if chosenBrokenID == assignment.GetBroker(){
@@ -149,16 +153,29 @@ func doConsume(sortedConsumers[]*Consumer, topic string) {
 						} else if err2 == nil {
 							connectedBrokenID = int(chosenBrokenID)
 							assignment.Broker = chosenBrokenID
+							fmt.Println("Failed but recovered")
+							fmt.Println("Connecting to Broker:", connectedBrokenID)
 							break
 						}
 					}
 				} else {
 					connectedBrokenID = int(assignment.GetBroker())
-					fmt.Println("Connected to Broker:", int(assignment.GetBroker()))
+					fmt.Println("Connecting to Broker:", int(assignment.GetBroker()))
 				}
-
-				res, err := c.brokerCon[connectedBrokenID].Recv()
-				responseHandler(int(assignment.GetBroker()), c.id, res, err)
+				fmt.Println("What is ")
+				fmt.Println("BrokerCon Map:", c.brokerCon)
+				fmt.Println("Connecting to BrokerID:", connectedBrokenID)
+				res, err3 := stream.Recv()
+				//fmt.Println("Response:", res)
+				if err3 != nil {
+					log.Fatalf("Error connecting")
+				}
+				responseHandler(int(assignment.GetBroker()), c.id, res, err3)
+				//go func(connectedBrokenID int) {
+				//	res, err3 := c.brokerCon[connectedBrokenID].Recv()
+				//	fmt.Println("Response:", res)
+				//	responseHandler(int(assignment.GetBroker()), c.id, res, err3)
+				//}(connectedBrokenID)
 			}
 		}
 	}
@@ -167,16 +184,18 @@ func doConsume(sortedConsumers[]*Consumer, topic string) {
 func responseHandler(brokerID int, consumerID int, res *consumepb.ConsumeResponse, err error) {
 	fmt.Println("responseHandling...")
 	if err != nil {
-		log.Printf("Error when sending messages to Broker %v\n", err)
+		log.Printf("Error when receiving messages from Broker %v\n", err)
 	} else {
 		recordSet := res.GetRecordSet()
+		fmt.Println("RecordSet:", recordSet)
 		records := recordSet.GetRecords()
+		fmt.Println("Records:", records)
 		for _, r := range records {
 			bytes := r.GetValue()
 			msg := string(bytes)
 			fmt.Sprintf("Consumer %v has received message: %v\n", consumerID, msg)
 		}
-		log.Printf("Successfully send the request to Broker %v\n", brokerID)
+		log.Printf("Successfully receive the message from Broker %v\n", brokerID)
 	}
 }
 
@@ -254,7 +273,9 @@ func (cg *ConsumerGroup) distributeAssignments(numConsumers int) {
 }
 
 func (cg *ConsumerGroup) createTopicConsumerMap(topic string) {
-	for _, consumer := range cg.topicConsumer[topic] {
+	fmt.Println("Input topic:", topic)
+	cg.topicConsumer = make(map[string][]*Consumer)
+	for _, consumer := range cg.consumers {
 		assignments := consumer.assignments
 		for _, assignment := range assignments {
 			if assignment.GetTopicName() == topic {
@@ -262,6 +283,7 @@ func (cg *ConsumerGroup) createTopicConsumerMap(topic string) {
 			}
 		}
 	}
+	fmt.Println("topicConsumer Map before sort", cg.topicConsumer)
 	sort.Slice(cg.topicConsumer[topic], func(i, j int) bool {
 		if cg.topicConsumer[topic][i].assignments[0].GetPartitionIndex() <= cg.topicConsumer[topic][j].assignments[0].GetPartitionIndex() {
 			return cg.topicConsumer[topic][i].assignments[0].GetPartitionIndex() < cg.topicConsumer[topic][j].assignments[0].GetPartitionIndex()
@@ -269,6 +291,8 @@ func (cg *ConsumerGroup) createTopicConsumerMap(topic string) {
 			return cg.topicConsumer[topic][i].assignments[0].GetPartitionIndex() > cg.topicConsumer[topic][j].assignments[0].GetPartitionIndex()
 		}
 	})
+	fmt.Println("topicConsumer Map after sort", cg.topicConsumer)
+
 }
 
 func (c *Consumer) createBrokersAddrMap() {

@@ -546,7 +546,7 @@ func (n *Node) GetAssignment(ctx context.Context, req *consumepb.GetAssignmentRe
 	if partitions == nil {
 		return nil, errors.New("Topic not available")
 	}
-
+	fmt.Println("Partitions:", partitions)
 	// loop through partitions and add an assignment for every partition
 	for _, partState := range partitions {
 		isrBrokers := []*clustermetadatapb.MetadataBroker{}
