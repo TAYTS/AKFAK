@@ -7,10 +7,13 @@ import (
 	"AKFAK/proto/clientpb"
 	"AKFAK/proto/clustermetadatapb"
 	"AKFAK/proto/commonpb"
+	"AKFAK/proto/consumepb"
+	"AKFAK/proto/consumermetadatapb"
 	"AKFAK/proto/heartbeatspb"
 	"AKFAK/proto/metadatapb"
 	"AKFAK/proto/producepb"
 	"AKFAK/proto/recordpb"
+	"AKFAK/proto/zkmessagepb"
 	"context"
 	"errors"
 	"fmt"
@@ -451,4 +454,139 @@ func (n *Node) SyncMessages(stream adminpb.AdminService_SyncMessagesServer) erro
 		}
 		stream.Send(resp)
 	}
+}
+
+// Consume responds to pull request from consumer, sending record batch on topic-X partition-Y
+func (n *Node) Consume(stream clientpb.ClientService_ConsumeServer) error {
+	req, err := stream.Recv()
+	if err != nil {
+		log.Printf("Error while reading client stream: %v", err)
+		return err
+	}
+	// Check if consumer group has an existing assignment to this broker
+	assignment, assignmentErr := n.checkAndGetAssignment(req)
+	if assignmentErr != nil {
+		return assignmentErr
+	}
+
+	// When there is no assignment:
+	if assignment == nil {
+		// Call ZK and init cache again to make sure most updated information in cache
+		n.initConsumerMetadataCache()
+		// update the metadata in node's own metadatacache
+		for _, group := range n.ConsumerMetadata.GetConsumerGroups() {
+			if group.GetID() == req.GetGroupID() {
+				for _, assignment := range group.GetAssignments() {
+					assignment.Broker = int32(n.ID)
+				}
+			}
+		}
+	}
+
+	// Retrieve and send batch record to consumer
+	recordBatch, fileErr := n.ReadRecordBatchFromLocal(req.GetTopicName(), int(req.GetPartition()))
+	if fileErr != nil {
+		return fileErr
+	}
+	stream.Send(&consumepb.ConsumeResponse{
+		TopicName: req.GetTopicName(),
+		Partition: req.GetPartition(),
+		RecordSet: recordBatch,
+	})
+	// Update offset in ConsumerMetadata
+	n.ConsumerMetadata.UpdateOffset(assignment, req.GetGroupID())
+
+	// Send latest ConsumerMetadata to ZK
+	newConsumerMetadataState := &consumermetadatapb.MetadataConsumerState{
+		ConsumerGroups: n.ConsumerMetadata.GetConsumerGroups(),
+	}
+
+	// update zookeeper on new assignment
+	_, zkErr := n.zkClient.UpdateConsumerMetadata(context.Background(), &zkmessagepb.UpdateConsumerMetadataRequest{
+		NewState: newConsumerMetadataState,
+	})
+	if zkErr != nil {
+		return errors.New("Could not update zookeeper")
+	}
+	return nil
+}
+
+// GetAssignment assigns replicas for partitions of a topic
+func (n *Node) GetAssignment(ctx context.Context, req *consumepb.GetAssignmentRequest) (*consumepb.GetAssignmentResponse, error) {
+
+	cg := req.GetGroupID()
+	topicName := req.GetTopicName()
+
+	// check if replicas already assigned to consumer group for that topic
+	for _, grp := range n.ConsumerMetadata.GetConsumerGroups() {
+		if grp.GetID() == cg {
+			for _, assignment := range grp.GetAssignments() {
+				if assignment.GetTopicName() == topicName {
+					return nil, errors.New("You already have an assignment for this topic!")
+				}
+			}
+		}
+	}
+
+	assignments := []*consumepb.MetadataAssignment{}
+
+	// if no available partition for that topic
+	partitions := n.ClusterMetadata.GetAvailablePartitionsByTopic(topicName)
+	if partitions == nil {
+		return nil, errors.New("Topic not available")
+	}
+
+	// loop through partitions and add an assignment for every partition
+	for _, partState := range partitions {
+		isrBrokers := []*clustermetadatapb.MetadataBroker{}
+		brokerIDs := partState.GetIsr()
+		if len(brokerIDs) == 0 {
+			return nil, errors.New("No broker is storing data on this topic")
+		}
+		for _, i := range brokerIDs {
+			isrBrokers = append(isrBrokers, n.ClusterMetadata.GetNodesByID(int(i)))
+		}
+		replica := &consumepb.MetadataAssignment{
+			TopicName:      topicName,
+			PartitionIndex: int32(partState.GetPartitionIndex()),
+			//assign the first broker to be the one the consumer should contact
+			Broker:     int32(brokerIDs[0]),
+			IsrBrokers: isrBrokers,
+		}
+		assignments = append(assignments, replica)
+	}
+
+	// if no consumergroups available in metadata
+	if len(n.ConsumerMetadata.GetConsumerGroups()) == 0 {
+		// add this consumer group
+		n.ConsumerMetadata.AddAssignment(int(cg), assignments)
+	}
+
+	// update consumer group metadata
+	for i, grp := range n.ConsumerMetadata.GetConsumerGroups() {
+		if grp.GetID() == cg {
+			n.ConsumerMetadata.UpdateAssignments(int(cg), assignments)
+			break
+		} else if i == len(n.ConsumerMetadata.GetConsumerGroups())-1 {
+			// consumergroup not in metadata yet
+			n.ConsumerMetadata.AddAssignment(int(cg), assignments)
+		}
+	}
+
+	newConsumerMetadataState := &consumermetadatapb.MetadataConsumerState{
+		ConsumerGroups: n.ConsumerMetadata.GetConsumerGroups(),
+	}
+
+	// update zookeeper
+	_, err := n.zkClient.UpdateConsumerMetadata(
+		context.Background(),
+		&zkmessagepb.UpdateConsumerMetadataRequest{
+			NewState: newConsumerMetadataState,
+		})
+
+	if err != nil {
+		return nil, errors.New("Could not update zookeeper")
+	}
+
+	return &consumepb.GetAssignmentResponse{Assignments: assignments}, nil
 }

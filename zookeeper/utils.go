@@ -4,6 +4,7 @@ import (
 	"AKFAK/proto/adminclientpb"
 	"AKFAK/proto/adminpb"
 	"AKFAK/proto/clustermetadatapb"
+	"AKFAK/proto/consumermetadatapb"
 	"AKFAK/utils"
 	"context"
 	"fmt"
@@ -47,6 +48,28 @@ func WriteClusterStateToFile(path string, metadata clustermetadatapb.MetadataClu
 		panic(err)
 	}
 
+	return nil
+}
+
+// LoadConsumerStateFromFile parse the Consumer state JSON and return in-memory cache of the Consumer metadata
+func LoadConsumerStateFromFile(path string) consumermetadatapb.MetadataConsumerState {
+	// parse the JSON byte into structs
+	var consumerDataJSON consumermetadatapb.MetadataConsumerState
+	err := utils.LoadJSONData(path, &consumerDataJSON)
+	if err != nil {
+		// load JSON data should not fail at ZK in our case
+		panic(err)
+	}
+
+	return consumerDataJSON
+}
+
+// WriteConsumerStateToFile flush the consumer metadata to file
+func WriteConsumerStateToFile(path string, metadata consumermetadatapb.MetadataConsumerState) error {
+	err := utils.FlushJSONData(path, metadata)
+	if err != nil {
+		panic(err)
+	}
 	return nil
 }
 

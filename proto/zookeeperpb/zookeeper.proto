@@ -7,6 +7,8 @@ option go_package = "AKFAK/proto/zookeeperpb";
 import "proto/zkmessagepb/get_cluster_metadata.proto";
 import "proto/zkmessagepb/update_cluster_metadata.proto";
 import "proto/heartbeatspb/heartbeats.proto";
+import "proto/zkmessagepb/get_consumer_metadata.proto";
+import "proto/zkmessagepb/update_consumer_metadata.proto";
 
 service ZookeeperService {
   rpc GetClusterMetadata(zkmessagepb.GetClusterMetadataRequest)
@@ -15,4 +17,8 @@ service ZookeeperService {
       returns (zkmessagepb.UpdateClusterMetadataResponse) {}
   rpc Heartbeats(stream heartbeatspb.HeartbeatsRequest)
       returns (stream heartbeatspb.HeartbeatsResponse) {}
+  rpc GetConsumerMetadata(zkmessagepb.GetConsumerMetadataRequest)
+      returns (zkmessagepb.GetConsumerMetadataResponse) {}
+  rpc UpdateConsumerMetadata(zkmessagepb.UpdateConsumerMetadataRequest)
+      returns (zkmessagepb.UpdateConsumerMetadataResponse) {}
 }

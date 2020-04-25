@@ -5,6 +5,7 @@ import (
 	"AKFAK/proto/adminclientpb"
 	"AKFAK/proto/adminpb"
 	"AKFAK/proto/clientpb"
+	"AKFAK/proto/consumepb"
 	"AKFAK/proto/heartbeatspb"
 	"AKFAK/proto/recordpb"
 	"AKFAK/proto/zkmessagepb"
@@ -17,6 +18,20 @@ import (
 
 	"google.golang.org/grpc"
 )
+
+// ReadRecordBatchFromLocal is a helper function for Consume request handler to read the Record from local log file
+func (n *Node) ReadRecordBatchFromLocal(topicName string, partitionID int) (*recordpb.RecordBatch, error) {
+	filePath := fmt.Sprintf("%v/%v/%v", n.config.LogDir, partition.ConstructPartitionDirName(topicName, partitionID), partition.ContructPartitionLogName(topicName))
+	fileRecordHandler, err := recordpb.InitialiseFileRecordFromFilepath(filePath)
+	if err != nil {
+		return nil, err
+	}
+	recordBatch, err := fileRecordHandler.ReadNextRecordBatch()
+	if err != nil {
+		return nil, err
+	}
+	return recordBatch, nil
+}
 
 // cleanupProducerResource help to clean up the Producer resources
 func cleanupProducerResource(replicaConn map[int]clientpb.ClientService_ProduceClient, fileHandlerMapping map[int]*recordpb.FileRecord) {
@@ -461,4 +476,21 @@ func (n *Node) syncLocalPartition() {
 	for _, fileHandler := range partFileHandleMap {
 		fileHandler.CloseFile()
 	}
+}
+
+func (n *Node) checkAndGetAssignment(req *consumepb.ConsumeRequest) (*consumepb.MetadataAssignment, error) {
+	for _, group := range n.ConsumerMetadata.GetConsumerGroups() {
+		// check for assignments in the consumer group id
+		if group.GetID() == req.GetGroupID() {
+			assignments := group.GetAssignments()
+			// if assignment broker id matches with its own id, return true
+			for _, assignment := range assignments {
+				if int(assignment.GetBroker()) == n.ID {
+					return assignment, nil
+				}
+			}
+			return nil, nil
+		}
+	}
+	return nil, errors.New("No matching consumer group id found in consumer metadata")
 }

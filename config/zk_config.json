@@ -1,5 +1,6 @@
 {
   "dataDir": "./data/cluster_state.json",
+  "consumerDataDir": "./data/consumer_state.json",
   "host": "zookeeper",
   "port": 2181
 }

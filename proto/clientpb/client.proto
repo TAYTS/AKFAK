@@ -19,7 +19,7 @@ service ClientService {
   /* Consumer RPC */
   rpc Consume(stream consumepb.ConsumeRequest)
       returns (stream consumepb.ConsumeResponse) {}
-  rpc GetReplicas(consumepb.GetReplicasRequest)
-      returns (consumepb.GetReplicasResponse) {}
+  rpc GetAssignment(consumepb.GetAssignmentRequest)
+      returns (consumepb.GetAssignmentResponse) {}
   /* Consumer RPC */
 }
