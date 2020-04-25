@@ -14,6 +14,10 @@ func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
 	// get the user input for initialise the Producer
+	cgID := flag.Int(
+		"cg-id",
+		0,
+		"Consumer group ID (e.g. 1)")
 	contactServer := flag.String(
 		"kafka-server",
 		"",
@@ -33,7 +37,7 @@ func main() {
 	log.Println("Initialising the Consumer Group...")
 
 	// initialise the Consumer Group
-	cg := consumer.InitConsumerGroup(0, *topicPtr, *contactServer)
+	cg := consumer.InitConsumerGroup(*cgID, *topicPtr, *contactServer)
 
 	// Wait for Ctrl-C to exit
 	ch := make(chan os.Signal, 1)
