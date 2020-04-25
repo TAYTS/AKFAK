@@ -263,7 +263,7 @@ func (n *Node) AdminClientNewTopic(ctx context.Context, req *adminclientpb.Admin
 					TopicName:       topicName,
 					PartitionIndex:  partID,
 					Leader:          leader,
-					Isr:             make([]int32, 0, replicaFactor-1),
+					Isr:             isr,
 					Replicas:        replicas,
 					OfflineReplicas: []int32{},
 				}

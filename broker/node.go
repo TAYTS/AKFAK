@@ -33,10 +33,12 @@ type Node struct {
 // InitNode create new broker node instance
 func InitNode(config config.BrokerConfig) *Node {
 	return &Node{
-		ID:     config.ID,
-		Host:   config.Host,
-		Port:   config.Port,
-		config: config,
+		ID:                  config.ID,
+		Host:                config.Host,
+		Port:                config.Port,
+		config:              config,
+		adminServiceClient:  make(map[int]adminpb.AdminServiceClient),
+		clientServiceClient: make(map[int]clientpb.ClientServiceClient),
 	}
 }
 
@@ -64,7 +66,7 @@ func (n *Node) InitAdminListener() {
 	}
 
 	// setup ClientService peer connection
-	go n.establishClientServicePeerConn()
+	go n.updateClientPeerConnection()
 
 	log.Printf("Broker %v start listening\n", n.ID)
 	if err := server.Serve(listener); err != nil {
@@ -75,11 +77,6 @@ func (n *Node) InitAdminListener() {
 // InitControllerRoutine start the controller routine
 func (n *Node) initControllerRoutine() {
 	log.Printf("Broker %v start controller routine\n", n.ID)
-
-	// setup the peer connection mapping
-	if n.adminServiceClient == nil {
-		n.adminServiceClient = make(map[int]adminpb.AdminServiceClient)
-	}
 
 	// Connect to all brokers
 	peers := n.updateAdminPeerConnection()
@@ -99,17 +96,6 @@ func (n *Node) initControllerRoutine() {
 
 	// setup heartbeats request to ZK
 	go n.setupZKHeartbeatsRequest()
-}
-
-// establishClientServicePeerConn start the ClientService peer connection
-func (n *Node) establishClientServicePeerConn() {
-	// initialise the clientServiceClient mapping
-	if n.clientServiceClient == nil {
-		n.clientServiceClient = make(map[int]clientpb.ClientServiceClient)
-	}
-
-	// create client service connection to all broker
-	n.updateClientPeerConnection()
 }
 
 // InitClusterMetadataCache call the ZK to get the Cluster Metadata
