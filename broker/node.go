@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"time"
 
 	"google.golang.org/grpc"
 )
@@ -34,10 +33,12 @@ type Node struct {
 // InitNode create new broker node instance
 func InitNode(config config.BrokerConfig) *Node {
 	return &Node{
-		ID:     config.ID,
-		Host:   config.Host,
-		Port:   config.Port,
-		config: config,
+		ID:                  config.ID,
+		Host:                config.Host,
+		Port:                config.Port,
+		config:              config,
+		adminServiceClient:  make(map[int]adminpb.AdminServiceClient),
+		clientServiceClient: make(map[int]clientpb.ClientServiceClient),
 	}
 }
 
@@ -57,17 +58,15 @@ func (n *Node) InitAdminListener() {
 
 	// setup the cluster metadata cache
 	n.initClusterMetadataCache()
-	n.initConsumerMetadataCache()
+	go n.initConsumerMetadataCache()
 
-	// TODO [Fault tolerance]: check if the broker is not insync
-
-	// start controller routine if the broker is select as the controller
-	if int(n.ClusterMetadata.GetController().GetID()) == n.ID {
-		go n.initControllerRoutine()
+	if !n.ClusterMetadata.CheckBrokerInSync(int32(n.ID)) {
+		log.Printf("Broker %v is not insync with other replicas\n", n.ID)
+		go n.syncLocalPartition()
 	}
 
 	// setup ClientService peer connection
-	go n.establishClientServicePeerConn()
+	go n.updateClientPeerConnection()
 
 	log.Printf("Broker %v start listening\n", n.ID)
 	if err := server.Serve(listener); err != nil {
@@ -79,44 +78,23 @@ func (n *Node) InitAdminListener() {
 func (n *Node) initControllerRoutine() {
 	log.Printf("Broker %v start controller routine\n", n.ID)
 
-	// setup the peer connection mapping
-	if n.adminServiceClient == nil {
-		n.adminServiceClient = make(map[int]adminpb.AdminServiceClient)
-	}
-
 	// Connect to all brokers
-	n.updateAdminPeerConnection()
+	peers := n.updateAdminPeerConnection()
+
+	// setup hearbeats receiver with peers
+	n.setupPeerHeartbeatsReceiver(peers)
+
+	// update client service peer connection
+	n.updateClientPeerConnection()
+
+	// update peer cluster state
+	n.updatePeerClusterMetadata()
 
 	// connect and store ZK rpc client
 	n.zkClient = getZKClient(n.config.ZKConn)
-}
 
-// establishClientServicePeerConn start the ClientService peer connection
-func (n *Node) establishClientServicePeerConn() {
-	opts := grpc.WithInsecure()
-	if n.clientServiceClient == nil {
-		n.clientServiceClient = make(map[int]clientpb.ClientServiceClient)
-	}
-
-	// Connect to all brokers
-	for _, brk := range n.ClusterMetadata.GetLiveBrokers() {
-		peerID := int(brk.GetID())
-		if peerID != n.ID {
-			peerAddr := fmt.Sprintf("%v:%v", brk.GetHost(), brk.GetPort())
-			ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
-			clientCon, err := grpc.DialContext(ctx, peerAddr, opts)
-			if err != nil {
-				log.Printf("Fail to connect to %v: %v\n", peerAddr, err)
-				// TODO: Update the ZK about the fail node
-				cancel()
-				continue
-			}
-			clientServiceClient := clientpb.NewClientServiceClient(clientCon)
-			n.clientServiceClient[peerID] = clientServiceClient
-			cancel()
-		}
-	}
-
+	// setup heartbeats request to ZK
+	go n.setupZKHeartbeatsRequest()
 }
 
 // InitClusterMetadataCache call the ZK to get the Cluster Metadata

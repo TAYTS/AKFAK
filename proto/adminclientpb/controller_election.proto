@@ -4,12 +4,10 @@ package proto.adminclientpb;
 
 option go_package = "AKFAK/proto/adminclientpb";
 
+import "proto/clustermetadatapb/cluster_metadata.proto";
 import "proto/commonpb/response.proto";
 
-// TODO: Need to update again after ZK is finalised
 message ControllerElectionRequest {
-  int32 brokerID = 1;
-  string hostName = 2;
-  int32 port = 3;
+  clustermetadatapb.MetadataCluster newClusterInfo = 1;
 }
 message ControllerElectionResponse { commonpb.Response response = 1; }

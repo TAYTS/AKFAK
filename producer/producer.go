@@ -22,18 +22,24 @@ import (
 type Producer struct {
 	ID               int
 	topic            string
+	grpcConn         map[int]*grpc.ClientConn
 	brokerCon        map[int]clientpb.ClientService_ProduceClient
 	metadata         *metadatapb.MetadataResponse
 	rr               *RoundRobinPartitioner
 	inflightRequests map[int]*inflightRequest
 	timers           map[int]*time.Timer
 	mux              sync.RWMutex // used to ensure only one routine can send/modify a request to a broker
+	metadataMux      sync.RWMutex
 }
 
 type inflightRequest struct {
 	msgCount int
 	req      *producepb.ProduceRequest
 }
+
+const METADATA_TIMEOUT = 100 * time.Millisecond
+
+var errBrkNotAvailable = errors.New("Broker not available")
 
 ///////////////////////////////////
 // 		      Public Methods		   //
@@ -48,36 +54,34 @@ func InitProducer(id int, topic string, brokerAddr string) *Producer {
 		rr:               InitRoundRobin(),
 		inflightRequests: make(map[int]*inflightRequest),
 		timers:           make(map[int]*time.Timer),
+		grpcConn:         make(map[int]*grpc.ClientConn),
+		brokerCon:        make(map[int]clientpb.ClientService_ProduceClient),
 	}
 
 	// get metadata and wait for 500ms
-	err := p.waitOnMetadata(brokerAddr, 100*time.Millisecond)
+	err := p.waitOnMetadata(brokerAddr, METADATA_TIMEOUT)
 	if err != nil {
 		panic(fmt.Sprintf("Unable to get Topic Metadata: %v\n", err))
 	}
 
 	// setup the stream connections to all the required brokers
-	err = p.setupStreamToSendMsg()
-	if err != nil {
-		panic(fmt.Sprintf("Unable to send message to broker: %v\n", err))
-	}
+	p.setupStreamToSendMsg()
+
+	// check if there are partitions available to send
+	p.failIfNoAvailablePartition()
 
 	return p
 }
 
 // Send used to send ProduceRequest to the broker
 func (p *Producer) Send(message string) {
+	p.metadataMux.RLock()
 	// get partition idx for topic
 	partIdx := p.getNextPartition()
 
-	// get broker ID for a partition
-	brkID := p.getBrkIDByPartition(partIdx)
-
-	// try to access another partition if unable to find broker ID for given partition
-	for brkID == -1 {
-		partIdx = p.getNextPartition()
-		brkID = p.getBrkIDByPartition(partIdx)
-	}
+	// get leader ID for a partition
+	brkID := p.getLeaderIDByPartition(partIdx)
+	p.metadataMux.RUnlock()
 
 	// create new record
 	newRcd := recordpb.InitialiseRecordWithMsg(message)
@@ -116,15 +120,15 @@ func (p *Producer) CleanupResources() {
 }
 
 ///////////////////////////////////
-// 		   Private Methods		 //
+// 		    Private Methods		     //
 ///////////////////////////////////
 
 // wait for cluster metadata including partitions for the given topic
 // and partition (if specified, 0 if no preference) to be available
 func (p *Producer) waitOnMetadata(brokerAddr string, maxWaitMs time.Duration) error {
 	// dial one of the broker to get the topic metadata
-	opts := []grpc.DialOption{grpc.WithInsecure(), grpc.WithBlock()}
-	conn, err := grpc.Dial(brokerAddr, opts...)
+	conn, err := grpc.Dial(brokerAddr, grpc.WithInsecure())
+	defer conn.Close()
 	if err != nil {
 		return err
 	}
@@ -138,83 +142,77 @@ func (p *Producer) waitOnMetadata(brokerAddr string, maxWaitMs time.Duration) er
 	}
 
 	// create context with timeout
-	ctx, cancel := context.WithTimeout(context.Background(), maxWaitMs)
+	protoCtx, protoCancel := context.WithTimeout(context.Background(), maxWaitMs)
+	defer protoCancel()
 
 	// send request to get metadata
-	res, err := prdClient.WaitOnMetadata(ctx, req)
+	res, err := prdClient.WaitOnMetadata(protoCtx, req)
 	if err != nil {
 		statusErr, ok := status.FromError(err)
 		if ok {
 			if statusErr.Code() == codes.DeadlineExceeded {
 				log.Printf("Metadata not received for topic %v after %d ms\n", p.topic, maxWaitMs)
 			} else {
-				log.Printf("Unexpected error: %v\n", statusErr)
+				log.Printf("Unexpected error: %v\n", statusErr.Message())
 			}
 		} else {
 			log.Printf("could not get metadata. error: %v\n", err)
 		}
 
-		// close the connection
-		cancel()
-		conn.Close()
 		return err
 	}
 
 	// save the metadata response to the producer
+	p.metadataMux.Lock()
 	p.metadata = res
-
-	// clean up resources
-	cancel()
-	conn.Close()
+	p.metadataMux.Unlock()
 
 	return nil
 }
 
 // setupStreamToSendMsg setup the gRPC stream for sending message batch to the leader broker and attach to the producer instance
-func (p *Producer) setupStreamToSendMsg() error {
-	brkCount := len(p.metadata.GetTopic().GetPartitions())
-	brokersConnections := make(map[int]clientpb.ClientService_ProduceClient)
-
+func (p *Producer) setupStreamToSendMsg() {
 	// create a mapping of brokerID to broker info for easy access later
-	brkMapping := make(map[int32]*metadatapb.Broker)
+	brkMapping := make(map[int]*metadatapb.Broker)
 	for _, brk := range p.metadata.GetBrokers() {
-		brkMapping[brk.GetNodeID()] = brk
+		brkMapping[int(brk.GetNodeID())] = brk
 	}
 
 	for _, part := range p.metadata.GetTopic().GetPartitions() {
-		leaderID := part.GetLeaderID()
-		leader := brkMapping[leaderID]
+		// try to find a broker for the partiton
+		for {
+			leaderID := p.getLeaderIDByPartition(int(part.GetPartitionIndex()))
+			// if no broker available for the current partition move on to the next one
+			if leaderID == -1 {
+				break
+			}
+			leader := brkMapping[leaderID]
 
-		// setup gRPC connection
-		opts := []grpc.DialOption{grpc.WithInsecure(), grpc.WithBlock()}
-		conn, err := grpc.Dial(fmt.Sprintf("%v:%v", leader.GetHost(), leader.GetPort()), opts...)
-		if err != nil {
-			brkCount--
-			// try the next broker
-			continue
+			if _, exist := p.brokerCon[leaderID]; !exist {
+				// setup gRPC connection
+				conn, err := grpc.Dial(fmt.Sprintf("%v:%v", leader.GetHost(), leader.GetPort()), grpc.WithInsecure())
+				if err != nil {
+					p.refreshMetadata()
+					continue
+				}
+				// setup gRPC service
+				prdClient := clientpb.NewClientServiceClient(conn)
+
+				// setup stream
+				stream, err := prdClient.Produce(context.Background())
+				if err != nil {
+					conn.Close()
+					p.refreshMetadata()
+					continue
+				}
+
+				p.grpcConn[leaderID] = conn
+				p.brokerCon[leaderID] = stream
+			}
+
+			break
 		}
-
-		// setup gRPC service
-		prdClient := clientpb.NewClientServiceClient(conn)
-
-		stream, err := prdClient.Produce(context.Background())
-		if err != nil {
-			brkCount--
-			// try the next broker
-			continue
-		}
-		brokersConnections[int(leaderID)] = stream
 	}
-
-	// return error if no brokers available
-	if brkCount == 0 {
-		return errors.New("No brokers available")
-	}
-
-	// attach the broker connections and locks mapping to the Producer instance
-	p.brokerCon = brokersConnections
-
-	return nil
 }
 
 func (p *Producer) doSend(brokerID int) {
@@ -223,11 +221,14 @@ func (p *Producer) doSend(brokerID int) {
 		select {
 		case <-p.timers[brokerID].C:
 			log.Println("Sending request to Broker", brokerID)
-			p.brokerCon[brokerID].Send(p.inflightRequests[brokerID].req)
-
-			// get the response
-			res, err := p.brokerCon[brokerID].Recv()
-			responseHandler(brokerID, res, err)
+			if conn, exist := p.brokerCon[brokerID]; exist {
+				conn.Send(p.inflightRequests[brokerID].req)
+				// get the response
+				_, err := p.brokerCon[brokerID].Recv()
+				p.postDoSendHook(brokerID, err)
+			} else {
+				p.postDoSendHook(brokerID, errBrkNotAvailable)
+			}
 
 			// remove the request
 			delete(p.inflightRequests, brokerID)
@@ -236,11 +237,12 @@ func (p *Producer) doSend(brokerID int) {
 		default:
 			// Send the request if the req has more than 15 messages
 			if p.inflightRequests[brokerID].msgCount > 15 {
+				log.Println("Sending request to Broker", brokerID)
 				p.brokerCon[brokerID].Send(p.inflightRequests[brokerID].req)
 
 				// get the response
-				res, err := p.brokerCon[brokerID].Recv()
-				responseHandler(brokerID, res, err)
+				_, err := p.brokerCon[brokerID].Recv()
+				p.postDoSendHook(brokerID, err)
 
 				// remove the request
 				delete(p.inflightRequests, brokerID)
@@ -252,41 +254,115 @@ func (p *Producer) doSend(brokerID int) {
 	}
 }
 
-func responseHandler(brokerID int, res *producepb.ProduceResponse, err error) {
+// postDoSendHook is used after the doSend operation
+// Used to handle broker failure and print send log
+func (p *Producer) postDoSendHook(brokerID int, err error) {
 	if err != nil {
-		// TODO: Retry sending the request? Remove broker from the connection? Ignore fail request?
-		log.Printf("Error when sending messages to Broker %v\n", err)
+		log.Printf("Detect Broker %v failure, retry to send message to other broker", brokerID)
+		reqData := p.inflightRequests[brokerID].req
+		newBrkID := brokerID
+
+		if err == errBrkNotAvailable {
+			newBrkID = -1
+		}
+
+		// try until the producer can send the message
+		for {
+			// clean up
+			if newBrkID != -1 {
+				p.brokerCon[newBrkID].CloseSend()
+				p.grpcConn[newBrkID].Close()
+				delete(p.brokerCon, newBrkID)
+				delete(p.grpcConn, newBrkID)
+			}
+
+			// reset broker connection
+			p.resetBrokerConnection()
+
+			// get partition idx for topic
+			partIdx := p.getNextPartition()
+
+			// get leader ID for a partition
+			newBrkID = p.getLeaderIDByPartition(partIdx)
+
+			// send request
+			err := p.brokerCon[newBrkID].Send(reqData)
+			if err != nil {
+				continue
+			}
+
+			// check response
+			_, err = p.brokerCon[newBrkID].Recv()
+			if err != nil {
+				continue
+			}
+
+			break
+		}
+		log.Printf("Successfully send the request to Broker %v\n", newBrkID)
 	} else {
 		log.Printf("Successfully send the request to Broker %v\n", brokerID)
 	}
 }
 
-// getAvailablePartition get all the available partition based on the alive brokers
-func (p *Producer) getAvailablePartition() []*metadatapb.Partition {
-	availablePartition := []*metadatapb.Partition{}
+// getAvailablePartitionID get all the available partition ID based on the alive brokers
+func (p *Producer) getAvailablePartitionID() []*metadatapb.Partition {
+	availablePartitionIDs := []*metadatapb.Partition{}
 
 	for _, part := range p.metadata.GetTopic().GetPartitions() {
 		leaderID := int(part.GetLeaderID())
-		if _, exist := p.brokerCon[leaderID]; exist {
-			availablePartition = append(availablePartition, part)
+		if leaderID == -1 {
+			continue
+		} else {
+			availablePartitionIDs = append(availablePartitionIDs, part)
 		}
 	}
-	return availablePartition
+	return availablePartitionIDs
 }
 
 // getNextBroker find the next broker to send the message using Round Robin method and return the broker ID
 func (p *Producer) getNextPartition() int {
 	// get the next partition using Round Robin
-	return p.rr.getPartition(p.topic, p.getAvailablePartition())
-
+	return p.rr.getPartition(p.topic, p.getAvailablePartitionID())
 }
 
-func (p *Producer) getBrkIDByPartition(partitionIdx int) int {
+// getLeaderIDByPartition find the leader ID based on the given partition ID
+// return -1 if no broker available for the given partition
+func (p *Producer) getLeaderIDByPartition(partitionIdx int) int {
 	for _, part := range p.metadata.GetTopic().GetPartitions() {
 		if int(part.GetPartitionIndex()) == partitionIdx {
 			return int(part.GetLeaderID())
 		}
 	}
-	log.Println("could not find broker id corresponding to partition", partitionIdx)
 	return -1
+}
+
+// refreshMetadata fetch new metadata and validate it
+// Will fail the Producer if the new metadata does not have any partition available
+func (p *Producer) refreshMetadata() {
+	for _, brk := range p.metadata.GetBrokers() {
+		// refresh the metadata
+		err := p.waitOnMetadata(fmt.Sprintf("%v:%v", brk.GetHost(), brk.GetPort()), METADATA_TIMEOUT)
+		if err != nil {
+			continue
+		}
+		return
+	}
+	log.Fatalln("No brokers available")
+}
+
+// failIfNoAvailablePartition used to terminate the Producer if there is no partition available
+func (p *Producer) failIfNoAvailablePartition() {
+	if len(p.getAvailablePartitionID()) == 0 {
+		log.Fatalln("No partition available")
+	}
+}
+
+// resetBrokerConnection is used to refresh the metadata, setup stream connection and check the partition available
+func (p *Producer) resetBrokerConnection() {
+	p.refreshMetadata()
+
+	p.setupStreamToSendMsg()
+
+	p.failIfNoAvailablePartition()
 }

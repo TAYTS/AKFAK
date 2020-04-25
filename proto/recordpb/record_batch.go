@@ -26,9 +26,7 @@ func InitialiseEmptyRecordBatch() *RecordBatch {
 func InitialiseRecordBatchWithData(records ...*Record) *RecordBatch {
 	rcdBatch := InitialiseEmptyRecordBatch()
 
-	rcdBatch.Records = records
-	rcdBatch.FirstTimestamp = getCurrentTimeinMs()
-	rcdBatch.updateBatchLength()
+	rcdBatch.AppendRecord(records...)
 
 	return rcdBatch
 }
@@ -59,15 +57,22 @@ func (rcdBatch *RecordBatch) AppendRecord(records ...*Record) {
 	rcdBatch.updateBatchLength()
 }
 
+// UpdateBaseOffset update the RecordBatch byte offset in the file
+// Used by FileRecord before write to file
+func (rcdBatch *RecordBatch) UpdateBaseOffset(offset int64) {
+	rcdBatch.BaseOffset = offset
+	rcdBatch.updateBatchLength()
+}
+
 ///////////////////////////////////
 // 		   Private Methods		 //
 ///////////////////////////////////
 
 // writeEmptyHeader setup the default fields (BatchLength: []byte of size 4 and Magic: 2) in the RecordBatch
 func (rcdBatch *RecordBatch) writeEmptyHeader() {
-	// Only update the BatchLength and Magic as the rest are using the default value
-	rcdBatch.BatchLength = make([]byte, 4)
-	rcdBatch.Magic = 2 // Do not change; originally used for handling different Record version
+	rcdBatch.BaseOffset = -1
+	rcdBatch.BatchLength = make([]byte, 4) // fix byte size for retrieve record later
+	rcdBatch.Magic = 2                     // Do not change; originally used for handling different Record version
 }
 
 // updateBatchLength compute and update the BatchLength

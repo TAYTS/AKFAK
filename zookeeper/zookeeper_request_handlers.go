@@ -1,28 +1,17 @@
 package zookeeper
 
 import (
-	"AKFAK/proto/adminclientpb"
-	"AKFAK/proto/adminpb"
 	"AKFAK/proto/commonpb"
 	"AKFAK/proto/zkmessagepb"
+	"AKFAK/proto/zookeeperpb"
 	"context"
 	"errors"
-	"fmt"
 	"log"
-
-	"google.golang.org/grpc"
 )
 
 // GetClusterMetadata return the current cluster state stored in the ZK
 func (zk *Zookeeper) GetClusterMetadata(ctx context.Context, req *zkmessagepb.GetClusterMetadataRequest) (*zkmessagepb.GetClusterMetadataResponse, error) {
 	zk.mux.Lock()
-	// check if the controller has set
-	controllerSet := zk.clusterMetadata.GetController().GetID() != -1
-	if !controllerSet {
-		// set the requesting broker as the controller
-		zk.clusterMetadata.Controller = req.GetBroker()
-	}
-
 	// add the requesting broker to live brokers
 	exist := false
 	reqBrk := req.GetBroker()
@@ -35,27 +24,20 @@ func (zk *Zookeeper) GetClusterMetadata(ctx context.Context, req *zkmessagepb.Ge
 	if !exist {
 		zk.clusterMetadata.LiveBrokers = append(zk.clusterMetadata.LiveBrokers, reqBrk)
 	}
+
+	// check if the controller has set
+	controllerSet := zk.clusterMetadata.GetController().GetID() != -1
+	if !controllerSet {
+		// set the requesting broker as the controller
+		zk.clusterMetadata.UpdateController(req.GetBroker())
+		go zk.sendControllerElection()
+	}
 	zk.mux.Unlock()
 
 	if controllerSet {
 		// update controller
-		go func() {
-			log.Printf("ZK update controller for new Broker %v\n", reqBrk.GetID())
-			ctrl := zk.clusterMetadata.GetController()
-			ctrlConn, err := grpc.Dial(fmt.Sprintf("%v:%v", ctrl.GetHost(), ctrl.GetPort()), grpc.WithInsecure())
-			if err != nil {
-				log.Fatalf("Fail to connect to controller: %v\n", err)
-			}
-			ctrlClient := adminpb.NewAdminServiceClient(ctrlConn)
-			_, err = ctrlClient.UpdateMetadata(context.Background(), &adminclientpb.UpdateMetadataRequest{
-				NewClusterInfo: zk.clusterMetadata.MetadataCluster,
-			})
-			if err != nil {
-				log.Println("ZK failed to update controller")
-				// TODO: select new controller
-			}
-			log.Println("ZK to controller cluster update successfull")
-		}()
+		log.Printf("ZK update controller for new Broker %v\n", reqBrk.GetID())
+		go zk.updateControllerMetadata()
 	}
 
 	// return response
@@ -78,6 +60,22 @@ func (zk *Zookeeper) UpdateClusterMetadata(ctx context.Context, req *zkmessagepb
 	zk.clusterMetadata.UpdateClusterMetadata(newClsInfo)
 
 	return &zkmessagepb.UpdateClusterMetadataResponse{Response: &commonpb.Response{Status: commonpb.ResponseStatus_SUCCESS, Message: "Successfully updated the cluster metadata to ZK"}}, nil
+}
+
+// Heartbeats used to receive the heartbeasts from the controller
+func (zk *Zookeeper) Heartbeats(stream zookeeperpb.ZookeeperService_HeartbeatsServer) error {
+	zk.mux.RLock()
+	// controller called => controller ready
+	zk.waitCtrl.Done()
+	zk.mux.RUnlock()
+	for {
+		_, err := stream.Recv()
+		log.Println("ZK receive heartbeats request from controller")
+		if err != nil {
+			zk.handleControllerFailure()
+			return err
+		}
+	}
 }
 
 // GetConsumerMetadata return the current consumer state stored in the ZK
