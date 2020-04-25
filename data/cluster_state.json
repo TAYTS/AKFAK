@@ -14,6 +14,11 @@
       "ID": 3,
       "host": "broker-3",
       "port": 5000
+    },
+    {
+      "ID": 4,
+      "host": "broker-4",
+      "port": 5000
     }
   ],
   "topicStates": []

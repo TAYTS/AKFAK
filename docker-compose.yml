@@ -35,10 +35,20 @@ services:
       - broker3-volume:/go/src/AKFAK
     command: broker -server-config ./config/broker_config_3.json
 
+  broker-4:
+    image: akfak:latest
+    container_name: broker-4
+    depends_on:
+      - zookeeper
+    volumes:
+      - broker4-volume:/go/src/AKFAK
+    command: broker -server-config ./config/broker_config_4.json
+
 volumes:
   broker1-volume:
   broker2-volume:
   broker3-volume:
+  broker4-volume:
 
 networks:
   default:
