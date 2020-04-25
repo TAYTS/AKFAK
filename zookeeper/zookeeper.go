@@ -19,8 +19,9 @@ type Zookeeper struct {
 	Port             int
 	clusterMetadata  *cluster.Cluster
 	consumerMetadata *consumermetadata.ConsumerMetadata
-	mux              sync.Mutex
+	mux              sync.RWMutex
 	config           config.ZKConfig
+	waitCtrl         sync.WaitGroup
 }
 
 // InitZookeeper create the Zookeeper instance and load the cluster state data

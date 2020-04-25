@@ -13,6 +13,8 @@ services:
     container_name: broker-1
     depends_on:
       - zookeeper
+    volumes:
+      - broker1-volume:/go/src/AKFAK
     command: broker -server-config ./config/broker_config_1.json
 
   broker-2:
@@ -20,6 +22,8 @@ services:
     container_name: broker-2
     depends_on:
       - zookeeper
+    volumes:
+      - broker2-volume:/go/src/AKFAK
     command: broker -server-config ./config/broker_config_2.json
 
   broker-3:
@@ -27,7 +31,14 @@ services:
     container_name: broker-3
     depends_on:
       - zookeeper
+    volumes:
+      - broker3-volume:/go/src/AKFAK
     command: broker -server-config ./config/broker_config_3.json
+
+volumes:
+  broker1-volume:
+  broker2-volume:
+  broker3-volume:
 
 networks:
   default:
