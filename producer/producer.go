@@ -2,6 +2,7 @@ package producer
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"sync"
@@ -37,6 +38,8 @@ type inflightRequest struct {
 }
 
 const METADATA_TIMEOUT = 100 * time.Millisecond
+
+var errBrkNotAvailable = errors.New("Broker not available")
 
 ///////////////////////////////////
 // 		      Public Methods		   //
@@ -218,11 +221,14 @@ func (p *Producer) doSend(brokerID int) {
 		select {
 		case <-p.timers[brokerID].C:
 			log.Println("Sending request to Broker", brokerID)
-			p.brokerCon[brokerID].Send(p.inflightRequests[brokerID].req)
-
-			// get the response
-			res, err := p.brokerCon[brokerID].Recv()
-			p.responseHandler(brokerID, res, err)
+			if conn, exist := p.brokerCon[brokerID]; exist {
+				conn.Send(p.inflightRequests[brokerID].req)
+				// get the response
+				_, err := p.brokerCon[brokerID].Recv()
+				p.postDoSendHook(brokerID, err)
+			} else {
+				p.postDoSendHook(brokerID, errBrkNotAvailable)
+			}
 
 			// remove the request
 			delete(p.inflightRequests, brokerID)
@@ -235,8 +241,8 @@ func (p *Producer) doSend(brokerID int) {
 				p.brokerCon[brokerID].Send(p.inflightRequests[brokerID].req)
 
 				// get the response
-				res, err := p.brokerCon[brokerID].Recv()
-				p.responseHandler(brokerID, res, err)
+				_, err := p.brokerCon[brokerID].Recv()
+				p.postDoSendHook(brokerID, err)
 
 				// remove the request
 				delete(p.inflightRequests, brokerID)
@@ -248,20 +254,27 @@ func (p *Producer) doSend(brokerID int) {
 	}
 }
 
-// responseHandler used to handle the response
-func (p *Producer) responseHandler(brokerID int, res *producepb.ProduceResponse, err error) {
+// postDoSendHook is used after the doSend operation
+// Used to handle broker failure and print send log
+func (p *Producer) postDoSendHook(brokerID int, err error) {
 	if err != nil {
 		log.Printf("Detect Broker %v failure, retry to send message to other broker", brokerID)
 		reqData := p.inflightRequests[brokerID].req
 		newBrkID := brokerID
 
+		if err == errBrkNotAvailable {
+			newBrkID = -1
+		}
+
 		// try until the producer can send the message
 		for {
 			// clean up
-			p.brokerCon[newBrkID].CloseSend()
-			p.grpcConn[newBrkID].Close()
-			delete(p.brokerCon, newBrkID)
-			delete(p.grpcConn, newBrkID)
+			if newBrkID != -1 {
+				p.brokerCon[newBrkID].CloseSend()
+				p.grpcConn[newBrkID].Close()
+				delete(p.brokerCon, newBrkID)
+				delete(p.grpcConn, newBrkID)
+			}
 
 			// reset broker connection
 			p.resetBrokerConnection()
@@ -300,8 +313,7 @@ func (p *Producer) getAvailablePartitionID() []*metadatapb.Partition {
 		leaderID := int(part.GetLeaderID())
 		if leaderID == -1 {
 			continue
-		}
-		if _, exist := p.brokerCon[leaderID]; exist {
+		} else {
 			availablePartitionIDs = append(availablePartitionIDs, part)
 		}
 	}
