@@ -5,7 +5,6 @@ import (
 	"AKFAK/proto/recordpb"
 	"context"
 	"fmt"
-	"io"
 	"log"
 	"sync"
 	"time"
@@ -105,32 +104,20 @@ func (c *Consumer) Consume() {
 		// send the consume request
 		err := c.brokerCon.Send(req)
 		if err != nil {
-			// log.Println("err:", err)
 			// reset the connection and try again
 			c.resetBrokerConnection()
 			continue
 		}
-
 		// get the consume response
 		resp, err := c.brokerCon.Recv()
-		if err == io.EOF {
-			// reset the connection and try again
+		if len(resp.GetRecordSet()) == 0 {
+			// if no record available sleep for 500 milliseconds
+			time.Sleep(300 * time.Millisecond)
+			continue
+		}
+		if err != nil {
 			c.resetBrokerConnection()
 			continue
-		} else {
-			statusErr, ok := status.FromError(err)
-			if ok {
-				if statusErr.Message() == recordpb.ErrNoRecord.Error() {
-					// if no record available sleep for 500 milliseconds
-					time.Sleep(50 * time.Millisecond)
-					// move to the next iteration
-					continue
-				} else {
-					c.resetBrokerConnection()
-				}
-			} else {
-				c.resetBrokerConnection()
-			}
 		}
 
 		// print out all the record

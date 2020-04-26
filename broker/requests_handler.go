@@ -234,25 +234,13 @@ func (n *Node) Consume(stream clientpb.ClientService_ConsumeServer) error {
 			doneFileSetup = true
 		}
 		batchData := []*recordpb.RecordBatch{}
-		var readErr error
 
 		for i := 0; i < MAX_RECORD_BATCH; i++ {
 			rcdBatch, err := fileRecordHandler.ReadNextRecordBatch()
 			if err == recordpb.ErrNoRecord {
-				readErr = err
-				break
-			} else if err != nil {
-				log.Printf("Broker %v unable to read logs for Topic: %v, Partition: %v\n", n.ID, topicName, partIdx)
 				break
 			}
-			readErr = err
 			batchData = append(batchData, rcdBatch)
-		}
-		if len(batchData) == 0 {
-			if readErr != nil {
-				return readErr
-			}
-			return recordpb.ErrNoRecord
 		}
 
 		streamErr := stream.Send(&consumepb.ConsumeResponse{
