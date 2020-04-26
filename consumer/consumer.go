@@ -119,16 +119,6 @@ func (c *Consumer) Consume() {
 
 func (c *Consumer)doConsume(brokerID int, partitionIdx int) {
 	for {
-		//c.mux.Lock()
-		// send to broker for consumereq
-		// get res
-		// if res == nil
-		// sleep
-
-		// refresh new connection
-		// get new metadata
-		// change new connection
-		// if leaderId != -1 // no brokers from that partition.
 		select {
 		case <-c.timers[brokerID].C:
 			log.Println("Sending request to Broker", brokerID)
@@ -138,10 +128,24 @@ func (c *Consumer)doConsume(brokerID int, partitionIdx int) {
 					Partition:            int32(partitionIdx),
 					TopicName:            c.topic,
 				}
-				conn.Send(&req)
+				_ = conn.Send(&req)
 				res, err := conn.Recv()
-				// get the response
-				c.postDoConsumeHook(brokerID, res, err)
+				if err != nil {
+					log.Printf("Detect Broker %v failure, retry to send message to other broker")
+					delete(c.brokerCon, brokerID)
+
+					if len(c.brokerCon) == 0 {
+						log.Fatalln("No Brokers are available")
+					} else {
+						// Check brokerCon for the next broker with the replica
+						for k, _ := range c.brokerCon {
+							brokerID = k
+						}
+					}
+				} else {
+					// get the response
+					c.postDoConsumeHook(brokerID, res)
+				}
 			} else {
 				log.Fatalln("Broker not available")
 			}
@@ -149,28 +153,14 @@ func (c *Consumer)doConsume(brokerID int, partitionIdx int) {
 	}
 }
 
-func (c *Consumer) postDoConsumeHook(brokerID int, res *consumepb.ConsumeResponse, err error) {
-	if err != nil {
-		log.Printf("Detect Broker %v failure, retry to send message to other broker", brokerID)
-		//newBrkID := brokerID
-		//// get next partition to connect to
-		//if err == errors.New("Broker not available") {
-		//	newBrkID = -1
-		//}
-		//// try until all the partitions are exhausted
-		//for {
-		//	c.refreshMetadata()
-		//}
-
-	} else {
-		// Update offset and read records
-		c.offset = int(res.Offset)
-		records := res.RecordSet.GetRecords()
-		for _, record := range records {
-			bytes := record.GetValue()
-			msg := string(bytes)
-			log.Printf("Consumer %v has received message: %v\n", c.ID, msg)
-		}
+func (c *Consumer) postDoConsumeHook(brokerID int, res *consumepb.ConsumeResponse) {
+	// Update offset and read records
+	c.offset = int(res.Offset)
+	records := res.RecordSet.GetRecords()
+	for _, record := range records {
+		bytes := record.GetValue()
+		msg := string(bytes)
+		log.Printf("Consumer %v has received message: %v\n", c.ID, msg)
 	}
 }
 
@@ -271,4 +261,13 @@ func (c *Consumer) getAvailablePartitionID() []*metadatapb.Partition {
 		}
 	}
 	return availablePartitionIDs
+}
+
+// resetBrokerConnection is used to refresh the metadata, setup stream connection and check the partition available
+func (c *Consumer) resetBrokerConnection() {
+	c.refreshMetadata()
+
+	c.setupStreamToSendMsg()
+
+	c.failIfNoAvailablePartition()
 }
