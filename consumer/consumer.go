@@ -120,25 +120,24 @@ func (c *Consumer) Consume() {
 
 func (c *Consumer)doConsume(brokerID int, partitionIdx int) {
 	for {
-		select {
-		case <-c.timers[brokerID].C:
-			log.Println("Sending request to Broker", brokerID)
-			if conn, exist := c.brokerCon[brokerID]; exist {
-				req := consumepb.ConsumeRequest{
-					ConsumerID:           int32(c.ID),
-					Partition:            int32(partitionIdx),
-					TopicName:            c.topic,
-				}
-				_ = conn.Send(&req)
-				res, err := conn.Recv()
-				c.postDoConsumeHook(brokerID, &req, res, err)
+		time.Sleep(time.Duration(500))
+		log.Println("Sending request to Broker", brokerID)
+		if conn, exist := c.brokerCon[brokerID]; exist {
+			req := consumepb.ConsumeRequest{
+				ConsumerID:           int32(c.ID),
+				Partition:            int32(partitionIdx),
+				TopicName:            c.topic,
+				Offset:				  int64(c.offset),
+			}
+			_ = conn.Send(&req)
+			res, err := conn.Recv()
+			c.postDoConsumeHook(brokerID, &req, res, err)
 				 //else {
 					//// get the response
 					//c.postDoConsumeHook(brokerID, res)
 				//}
-			} else {
-				log.Fatalln("Broker not available")
-			}
+		} else {
+			log.Fatalln("Broker not available")
 		}
 	}
 }
@@ -152,31 +151,39 @@ func (c *Consumer) postDoConsumeHook(brokerID int, req *consumepb.ConsumeRequest
 		}
 		for {
 			// clean up
-			if newBrkID != -1 {
-				c.brokerCon[newBrkID].CloseSend()
-				c.grpcConn[newBrkID].Close()
-				delete(c.brokerCon, newBrkID)
-				delete(c.grpcConn, newBrkID)
-			}
-
 			// reset broker connection
+			fmt.Println("Cleaning up new broker id:", newBrkID)
+
 			c.resetBrokerConnection()
 
 			// get leader ID for a partition
 			newBrkID = c.getLeaderIDByPartition(c.PartitionIdx)
+			fmt.Println("New broker id:", newBrkID)
 
-			// send request
-			err := c.brokerCon[newBrkID].Send(req)
-			if err != nil {
-				continue
+			if newBrkID == -1 {
+				log.Fatalln(errors.New("No brokers holding any replica"))
+			} else {
+				// send request
+				err := c.brokerCon[newBrkID].Send(req)
+				if err != nil {
+					continue
+				}
+				// check response
+				res, err = c.brokerCon[newBrkID].Recv()
+				fmt.Println("New response after first failure:", res)
+				if err != nil {
+					continue
+				}
+				break
 			}
-
-			// check response
-			_, err = c.brokerCon[newBrkID].Recv()
-			if err != nil {
-				continue
-			}
-			break
+		}
+		// Update offset and read records
+		c.offset = int(res.Offset)
+		records := res.RecordSet.GetRecords()
+		for _, record := range records {
+			bytes := record.GetValue()
+			msg := string(bytes)
+			log.Printf("Consumer %v has received message: %v\n", c.ID, msg)
 		}
 	} else {
 		// Update offset and read records
@@ -279,7 +286,7 @@ func (c *Consumer) getAvailablePartitionID() []*metadatapb.Partition {
 	availablePartitionIDs := []*metadatapb.Partition{}
 
 	for _, part := range c.metadata.GetTopic().GetPartitions() {
-		leaderID := int(part.GetLeaderID())
+		leaderID := c.getLeaderIDByPartition(int(part.GetLeaderID()))
 		if leaderID == -1 {
 			continue
 		} else {
