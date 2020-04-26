@@ -9,17 +9,18 @@ import "proto/metadatapb/metadata.proto";
 import "proto/consumepb/consume.proto";
 
 service ClientService {
+  /* Shared RPC */
+  rpc WaitOnMetadata(metadatapb.MetadataRequest)
+      returns (metadatapb.MetadataResponse) {}
+  /* Shared RPC */
+
   /* Producer RPC */
   rpc Produce(stream producepb.ProduceRequest)
       returns (stream producepb.ProduceResponse) {}
-  rpc WaitOnMetadata(metadatapb.MetadataRequest)
-      returns (metadatapb.MetadataResponse) {}
   /* Producer RPC */
 
   /* Consumer RPC */
   rpc Consume(stream consumepb.ConsumeRequest)
       returns (stream consumepb.ConsumeResponse) {}
-  rpc GetAssignment(consumepb.GetAssignmentRequest)
-      returns (consumepb.GetAssignmentResponse) {}
   /* Consumer RPC */
 }
