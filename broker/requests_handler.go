@@ -20,6 +20,77 @@ import (
 	"time"
 )
 
+///////////////////////////////////
+//         Shared Methods        //
+///////////////////////////////////
+
+// WaitOnMetadata get the metadata about the kafka cluster related to the requested topic
+func (n *Node) WaitOnMetadata(ctx context.Context, req *metadatapb.MetadataRequest) (*metadatapb.MetadataResponse, error) {
+	// retrieve the requested topic name
+	topic := req.GetTopicName()
+
+	// get all the partitions of the requested topic from the cluster metadata cache
+	partitions := n.ClusterMetadata.GetAvailablePartitionsByTopic(topic)
+
+	// check if the partitions exist, if not return error
+	if partitions == nil {
+		return nil, errors.New("Topic Not Available")
+	}
+
+	// create partitions in the response
+	resPartitions := make([]*metadatapb.Partition, 0, len(partitions))
+	for _, partStates := range partitions {
+		// get the partition info
+		leader := partStates.GetLeader()
+		partIdx := partStates.GetPartitionIndex()
+
+		// update the partition of the response
+		resPartitions = append(
+			resPartitions,
+			&metadatapb.Partition{
+				PartitionIndex: partIdx,
+				LeaderID:       leader,
+				ReplicaNodes:   partStates.GetReplicas(),
+				IsrNodes:       partStates.GetIsr(),
+			})
+	}
+
+	// create brokers in the response
+	resBrokers := make([]*metadatapb.Broker, 0, len(n.ClusterMetadata.GetBrokers()))
+	for _, brk := range n.ClusterMetadata.GetBrokers() {
+		resBrokers = append(resBrokers, &metadatapb.Broker{
+			NodeID: brk.GetID(),
+			Host:   brk.GetHost(),
+			Port:   brk.GetPort(),
+		})
+	}
+
+	metadataResp := &metadatapb.MetadataResponse{
+		Brokers: resBrokers,
+		Topic: &metadatapb.Topic{
+			Name:       topic,
+			Partitions: resPartitions,
+		},
+	}
+
+	return metadataResp, nil
+}
+
+// GetController gets infomation about the controller
+func (n *Node) GetController(ctx context.Context, req *adminclientpb.GetControllerRequest) (*adminclientpb.GetControllerResponse, error) {
+	controller := n.ClusterMetadata.GetController()
+
+	return &adminclientpb.GetControllerResponse{
+		ControllerID: controller.GetID(),
+		Host:         controller.GetHost(),
+		Port:         controller.GetPort(),
+	}, nil
+}
+
+///////////////////////////////////
+//        Producer Methods       //
+///////////////////////////////////
+
 // Produce used to receive message batch from Producer and forward other brokers in the cluster
 func (n *Node) Produce(stream clientpb.ClientService_ProduceServer) error {
 	// define the mapping for replicaConn & fileHandlers
@@ -127,78 +198,39 @@ func (n *Node) Produce(stream clientpb.ClientService_ProduceServer) error {
 	return nil
 }
 
-// WaitOnMetadata get the metadata about the kafka cluster related to the requested topic
-func (n *Node) WaitOnMetadata(ctx context.Context, req *metadatapb.MetadataRequest) (*metadatapb.MetadataResponse, error) {
-	// retrieve the requested topic name
-	topic := req.GetTopicName()
+///////////////////////////////////
+//        Consumer Methods       //
+///////////////////////////////////
 
-	// get all the partitions of the requested topic from the cluster metadata cache
-	partitions := n.ClusterMetadata.GetAvailablePartitionsByTopic(topic)
-
-	// check if the partitions exist, if not return error
-	if partitions == nil {
-		return nil, errors.New("Topic Not Available")
+// Consume responds to pull request from consumer, sending record batch on topic-X partition-Y
+func (n *Node) Consume(stream clientpb.ClientService_ConsumeServer) error {
+	req, err := stream.Recv()
+	if err != nil {
+		log.Printf("Error while reading client stream: %v", err)
+		return err
 	}
-
-	// create partitions in the response
-	resPartitions := make([]*metadatapb.Partition, 0, len(partitions))
-	for _, partStates := range partitions {
-		// get the partition info
-		leader := partStates.GetLeader()
-		partIdx := partStates.GetPartitionIndex()
-
-		// update the partition of the response
-		resPartitions = append(
-			resPartitions,
-			&metadatapb.Partition{
-				PartitionIndex: partIdx,
-				LeaderID:       leader,
-				ReplicaNodes:   partStates.GetReplicas(),
-				IsrNodes:       partStates.GetIsr(),
-			})
+	recordBatch, newOffset, err := n.ReadRecordBatchFromLocal(req.GetTopicName(), int(req.GetPartition()), req.Offset)
+	if err != nil {
+		log.Printf("Error while reading record batch: %v", err)
+		return err
 	}
+	errorStream := stream.Send(&consumepb.ConsumeResponse{
+		TopicName: req.TopicName,
+		Partition: req.GetPartition(),
+		RecordSet: recordBatch,
+		Offset:    newOffset,
+	})
 
-	// create brokers in the response
-	resBrokers := make([]*metadatapb.Broker, 0, len(n.ClusterMetadata.GetBrokers()))
-	for _, brk := range n.ClusterMetadata.GetBrokers() {
-		resBrokers = append(resBrokers, &metadatapb.Broker{
-			NodeID: brk.GetID(),
-			Host:   brk.GetHost(),
-			Port:   brk.GetPort(),
-		})
+	if errorStream != nil {
+		log.Printf("Error while sending ConsumeResponse to consumer: %v", err)
+		return err
 	}
-
-	metadataResp := &metadatapb.MetadataResponse{
-		Brokers: resBrokers,
-		Topic: &metadatapb.Topic{
-			Name:       topic,
-			Partitions: resPartitions,
-		},
-	}
-
-	return metadataResp, nil
+	return nil
 }
 
-// ControllerElection used by the ZK to inform the broker to start the controller routine
-func (n *Node) ControllerElection(ctx context.Context, req *adminclientpb.ControllerElectionRequest) (*adminclientpb.ControllerElectionResponse, error) {
-	newClsInfo := req.GetNewClusterInfo()
-
-	// get the selected brokerID to be the controller from ZK
-	brokerID := int(newClsInfo.GetController().GetID())
-
-	// if the broker got selected start the controller routine
-	if brokerID == n.ID {
-		log.Printf("Broker %v is the new controller\n", n.ID)
-
-		// update local cluster metadata cache
-		n.ClusterMetadata.UpdateClusterMetadata(newClsInfo)
-
-		// start the controller routine
-		n.initControllerRoutine()
-	}
-
-	return &adminclientpb.ControllerElectionResponse{Response: &commonpb.Response{Status: commonpb.ResponseStatus_SUCCESS}}, nil
-}
+///////////////////////////////////
+//       Controller Methods      //
+///////////////////////////////////
 
 // AdminClientNewTopic create new topic
 func (n *Node) AdminClientNewTopic(ctx context.Context, req *adminclientpb.AdminClientNewTopicRequest) (*adminclientpb.AdminClientNewTopicResponse, error) {
@@ -292,14 +324,25 @@ func (n *Node) AdminClientNewTopic(ctx context.Context, req *adminclientpb.Admin
 		Response: &commonpb.Response{Status: commonpb.ResponseStatus_SUCCESS, Message: "Topic created successfully"}}, nil
 }
 
-// AdminClientNewPartition create new partition
-func (n *Node) AdminClientNewPartition(ctx context.Context, req *adminclientpb.AdminClientNewPartitionRequest) (*adminclientpb.AdminClientNewPartitionResponse, error) {
-	err := n.createLocalPartitionFromReq(req)
-	if err != nil {
-		return &adminclientpb.AdminClientNewPartitionResponse{Response: &commonpb.Response{Status: commonpb.ResponseStatus_FAIL}}, err
+// ControllerElection used by the ZK to inform the broker to start the controller routine
+func (n *Node) ControllerElection(ctx context.Context, req *adminclientpb.ControllerElectionRequest) (*adminclientpb.ControllerElectionResponse, error) {
+	newClsInfo := req.GetNewClusterInfo()
+
+	// get the selected brokerID to be the controller from ZK
+	brokerID := int(newClsInfo.GetController().GetID())
+
+	// if the broker got selected start the controller routine
+	if brokerID == n.ID {
+		log.Printf("Broker %v is the new controller\n", n.ID)
+
+		// update local cluster metadata cache
+		n.ClusterMetadata.UpdateClusterMetadata(newClsInfo)
+
+		// start the controller routine
+		n.initControllerRoutine()
 	}
 
-	return &adminclientpb.AdminClientNewPartitionResponse{Response: &commonpb.Response{Status: commonpb.ResponseStatus_SUCCESS}}, nil
+	return &adminclientpb.ControllerElectionResponse{Response: &commonpb.Response{Status: commonpb.ResponseStatus_SUCCESS}}, nil
 }
 
 // UpdateMetadata update the Metadata state of the broker
@@ -327,15 +370,18 @@ func (n *Node) UpdateMetadata(ctx context.Context, req *adminclientpb.UpdateMeta
 	return &adminclientpb.UpdateMetadataResponse{Response: &commonpb.Response{Status: commonpb.ResponseStatus_SUCCESS}}, nil
 }
 
-// GetController gets infomation about the controller
-func (n *Node) GetController(ctx context.Context, req *adminclientpb.GetControllerRequest) (*adminclientpb.GetControllerResponse, error) {
-	controller := n.ClusterMetadata.GetController()
+///////////////////////////////////
+//        Cluster Methods        //
+///////////////////////////////////
 
-	return &adminclientpb.GetControllerResponse{
-		ControllerID: controller.GetID(),
-		Host:         controller.GetHost(),
-		Port:         controller.GetPort(),
-	}, nil
+// AdminClientNewPartition create new partition
+func (n *Node) AdminClientNewPartition(ctx context.Context, req *adminclientpb.AdminClientNewPartitionRequest) (*adminclientpb.AdminClientNewPartitionResponse, error) {
+	err := n.createLocalPartitionFromReq(req)
+	if err != nil {
+		return &adminclientpb.AdminClientNewPartitionResponse{Response: &commonpb.Response{Status: commonpb.ResponseStatus_FAIL}}, err
+	}
+
+	return &adminclientpb.AdminClientNewPartitionResponse{Response: &commonpb.Response{Status: commonpb.ResponseStatus_SUCCESS}}, nil
 }
 
 // Heartbeats is used by the broker to send heartbeat to the controller every 1 second
@@ -474,180 +520,3 @@ func (n *Node) InSyncPartition(ctx context.Context, req *adminclientpb.InSyncMes
 		},
 	}, nil
 }
-
-// Consume responds to pull request from consumer, sending record batch on topic-X partition-Y
-func (n *Node) Consume(stream clientpb.ClientService_ConsumeServer) error {
-	req, err := stream.Recv()
-	if err != nil {
-		log.Printf("Error while reading client stream: %v", err)
-		return err
-	}
-	recordBatch, newOffset, err := n.ReadRecordBatchFromLocal(req.GetTopicName(), int(req.GetPartition()), req.Offset)
-	if err != nil {
-		log.Printf("Error while reading record batch: %v", err)
-		return err
-	}
-	errorStream := stream.Send(&consumepb.ConsumeResponse{
-		TopicName:            req.TopicName,
-		Partition:            req.GetPartition(),
-		RecordSet:            recordBatch,
-		Offset:				  newOffset,
-	})
-
-	if errorStream != nil {
-		log.Printf("Error while sending ConsumeResponse to consumer: %v", err)
-		return err
-	}
-	return nil
-}
-
-// not used, here so we don't have to remove all the getassignment-related things
-func (n *Node) GetAssignment(ctx context.Context, req *consumepb.GetAssignmentRequest) (*consumepb.GetAssignmentResponse, error) {
-	return &consumepb.GetAssignmentResponse{Assignments: []*consumepb.MetadataAssignment{} }, nil
-}
-////// TO BE WORKED
-////// Consume responds to pull request from consumer, sending record batch on topic-X partition-Y
-////func (n *Node) Consume(stream clientpb.ClientService_ConsumeServer) error {
-////	req, err := stream.Recv()
-////	if err != nil {
-////		log.Printf("Error while reading client stream: %v", err)
-////		return err
-////	}
-////	// Check if consumer group has an existing assignment to this broker
-////	assignment, assignmentErr := n.checkAndGetAssignment(req)
-////	if assignmentErr != nil {
-////		return assignmentErr
-////	}
-////	offset := int32(0)
-////	// When there is no assignment:
-////	if assignment == nil {
-////		// Call ZK and init cache again to make sure most updated information in cache
-////		n.initConsumerMetadataCache()
-////		offset = n.ConsumerMetadata.GetOffset(assignment, req.GetGroupID())
-////		// update the metadata in node's own metadatacache
-////		for _, group := range n.ConsumerMetadata.GetConsumerGroups() {
-////			if group.GetID() == req.GetGroupID() {
-////				for _, assignment := range group.GetAssignments() {
-////					assignment.Broker = int32(n.ID)
-////				}
-////			}
-////		}
-////	} else {
-////		offset = n.ConsumerMetadata.GetOffset(assignment, req.GetGroupID())
-////	}
-////	log.Println("Offset:", offset)
-////
-////	// Retrieve and send batch record to consumer
-////	recordBatch, fileErr := n.ReadRecordBatchFromLocal(req.GetTopicName(), int(req.GetPartition()), int64(offset))
-////	if fileErr != nil {
-////		log.Println("error when reading from file:", fileErr)
-////		return fileErr
-////	}
-////	stream.Send(&consumepb.ConsumeResponse{
-////		TopicName: req.GetTopicName(),
-////		Partition: req.GetPartition(),
-////		RecordSet: recordBatch,
-////	})
-////	// Update offset in ConsumerMetadata
-////	n.ConsumerMetadata.UpdateOffset(assignment, req.GetGroupID())
-////
-////	// Send latest ConsumerMetadata to ZK
-////	newConsumerMetadataState := &consumermetadatapb.MetadataConsumerState{
-////		ConsumerGroups: n.ConsumerMetadata.GetConsumerGroups(),
-////	}
-////
-////	// update zookeeper on new assignment
-////	_, zkErr := n.zkClient.UpdateConsumerMetadata(context.Background(), &zkmessagepb.UpdateConsumerMetadataRequest{
-////		NewState: newConsumerMetadataState,
-////	})
-////	if zkErr != nil {
-////		return errors.New("Could not update zookeeper")
-////	}
-////	return nil
-////}
-//
-//// GetAssignment assigns replicas for partitions of a topic
-//func (n *Node) GetAssignment(ctx context.Context, req *consumepb.GetAssignmentRequest) (*consumepb.GetAssignmentResponse, error) {
-//
-//	cg := req.GetGroupID()
-//	topicName := req.GetTopicName()
-//	assignments := []*consumepb.MetadataAssignment{}
-//
-//	// Replica will always be Assigned
-//	// check if replicas already assigned to consumer group for that topic
-//	//for _, grp := range n.ConsumerMetadata.GetConsumerGroups() {
-//	//	if grp.GetID() == cg {
-//	//		for i, assignment := range grp.GetAssignments() {
-//	//			if assignment.GetTopicName() == topicName {
-//	//				//fmt.Println("Inserting ISR Brokers to Assignment", assignment.GetIsrBrokers())
-//	//				assignments = append(assignments, assignment)
-//	//			}
-//	//			if i == (len(grp.GetAssignments())-1) && len(assignments) != 0 {
-//	//				return &consumepb.GetAssignmentResponse{Assignments: assignments}, nil
-//	//				// decide not to throw error so that consumer can get assignments again
-//	//				// return &consumepb.GetAssignmentResponse{Assignments: assignments}, errors.New("You already have an assignment for this topic!")
-//	//			}
-//	//		}
-//	//	}
-//	//}
-//
-//	// if no available partition for that topic
-//	partitions := n.ClusterMetadata.GetAvailablePartitionsByTopic(topicName)
-//	if partitions == nil {
-//		return nil, errors.New("Topic not available")
-//	}
-//	fmt.Println("Partitions:", partitions)
-//	// loop through partitions and add an assignment for every partition
-//	for _, partState := range partitions {
-//		isrBrokers := []*clustermetadatapb.MetadataBroker{}
-//		brokerIDs := partState.GetReplicas()
-//		if len(brokerIDs) == 0 {
-//			return nil, errors.New("No broker is storing data on this topic")
-//		}
-//		for _, i := range brokerIDs {
-//			isrBrokers = append(isrBrokers, n.ClusterMetadata.GetNodesByID(int(i)))
-//		}
-//		replica := &consumepb.MetadataAssignment{
-//			TopicName:      topicName,
-//			PartitionIndex: int32(partState.GetPartitionIndex()),
-//			//assign the first broker to be the one the consumer should contact
-//			Broker:     int32(brokerIDs[0]),
-//			IsrBrokers: isrBrokers,
-//		}
-//		assignments = append(assignments, replica)
-//	}
-//
-//	// if no consumergroups available in metadata
-//	if len(n.ConsumerMetadata.GetConsumerGroups()) == 0 {
-//		// add this consumer group
-//		n.ConsumerMetadata.AddAssignments(int(cg), assignments)
-//	}
-//
-//	// update consumer group metadata
-//	for i, grp := range n.ConsumerMetadata.GetConsumerGroups() {
-//		if grp.GetID() == cg {
-//			n.ConsumerMetadata.UpdateAssignments(int(cg), assignments)
-//			break
-//		} else if i == len(n.ConsumerMetadata.GetConsumerGroups())-1 {
-//			// consumergroup not in metadata yet
-//			n.ConsumerMetadata.AddAssignments(int(cg), assignments)
-//		}
-//	}
-//
-//	newConsumerMetadataState := &consumermetadatapb.MetadataConsumerState{
-//		ConsumerGroups: n.ConsumerMetadata.GetConsumerGroups(),
-//	}
-//
-//	// update zookeeper
-//	_, err := n.zkClient.UpdateConsumerMetadata(
-//		context.Background(),
-//		&zkmessagepb.UpdateConsumerMetadataRequest{
-//			NewState: newConsumerMetadataState,
-//		})
-//
-//	if err != nil {
-//		return nil, errors.New("Could not update zookeeper")
-//	}
-//	fmt.Println("GetAssignmentResponse from Broker:", &consumepb.GetAssignmentResponse{Assignments: assignments})
-//	return &consumepb.GetAssignmentResponse{Assignments: assignments}, nil
-//}

@@ -18,8 +18,6 @@ import (
 	"google.golang.org/grpc"
 )
 
-type partitionLeader map[int]int
-
 // ReadRecordBatchFromLocal is a helper function for Consume request handler to read the Record from local log file
 func (n *Node) ReadRecordBatchFromLocal(topicName string, partitionID int, offset int64) (*recordpb.RecordBatch, int64, error) {
 	filePath := fmt.Sprintf("%v/%v/%v", n.config.LogDir, partition.ConstructPartitionDirName(topicName, partitionID), partition.ContructPartitionLogName(topicName))
@@ -35,8 +33,8 @@ func (n *Node) ReadRecordBatchFromLocal(topicName string, partitionID int, offse
 	if err != nil {
 		return nil, -1, err
 	}
-	//
-	newOffset := fileRecordHandler.GetOffset() // gets current offset
+
+	newOffset := fileRecordHandler.GetCurrentReadOffset() // gets current offset
 	return recordBatch, newOffset, nil
 }
 
@@ -56,6 +54,8 @@ func cleanupProducerResource(replicaConn map[int]clientpb.ClientService_ProduceC
 		}
 	}
 }
+
+type partitionLeader map[int]int
 
 // generateNewPartitionRequestData create a mapping of the brokerID and the create new partition RPC request
 func (n *Node) generateNewPartitionRequestData(topicName string, numPartitions int, replicaFactor int) (map[int]*adminclientpb.AdminClientNewPartitionRequest, partitionLeader, error) {
@@ -486,6 +486,7 @@ func (n *Node) syncLocalPartition() {
 	}
 }
 
+// updateCtrlForISR used to send the InSyncPartition request to the controller about the change in ISR
 func (n *Node) updateCtrlForISR(brkID int, topicName string, partitionIdx int) {
 	log.Printf("Broker %v update controller about new ISR\n", n.ID)
 
@@ -521,21 +522,4 @@ func (n *Node) updateCtrlForISR(brkID int, topicName string, partitionIdx int) {
 		break
 	}
 	log.Printf("Broker %v done update controller about new ISR\n", n.ID)
-}
-
-func (n *Node) checkAndGetAssignment(req *consumepb.ConsumeRequest) (*consumepb.MetadataAssignment, error) {
-	for _, group := range n.ConsumerMetadata.GetConsumerGroups() {
-		// check for assignments in the consumer group id
-		if group.GetID() == req.GetGroupID() {
-			assignments := group.GetAssignments()
-			// if assignment broker id matches with its own id, return true
-			for _, assignment := range assignments {
-				if int(assignment.GetBroker()) == n.ID {
-					return assignment, nil
-				}
-			}
-			return nil, nil
-		}
-	}
-	return nil, errors.New("No matching consumer group id found in consumer metadata")
 }
