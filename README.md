@@ -20,7 +20,7 @@ As there are 4 brokers, in the commands below, `X` in `<broker-X:port>` can be s
 | --------------     | ----------------        |
 |`docker container run --rm  -it --network=kafka-net akfak bash`| This runs a bash terminal in a container in the network that is set up. |
 | `admin-topic -kafka-server <broker-X:port> create -topic <topic_name> -partitions <num_partitions> -replica-factor <num_replicas>` | Creates a topic with `<topic_name>` with `<num_partitions>` partitions and `<num_replicas>` replicas. <br>**Example**: `admin-topic -kafka-server broker-1:5000 create -topic topic1 -partitions 3 -replica-factor 3` |
-|`producer --kafka-server broker-X:port --topic <topic_name>` | This instantiates a producer. The producer will call the given broker address to retrieve partition information on the topic it is producing.<br>**Example**: `producer --kafka-server broker-X:port --topic <topic_name>`|
+|`producer --kafka-server broker-X:port --topic <topic_name>` | This instantiates a producer. The producer will call the given broker address to retrieve partition information on the topic it is producing.<br>**Example**: `producer --kafka-server broker-1:5000 --topic topic1`|
 
 #### On the third terminal, we will create a consumer instance and pull data from a specified topic and partition.
 | Command            | Explanation             |
