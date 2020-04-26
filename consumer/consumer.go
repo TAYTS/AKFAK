@@ -8,6 +8,7 @@ import (
 	"log"
 	"sync"
 	"time"
+	"io"
 
 	"AKFAK/proto/clientpb"
 	"AKFAK/proto/consumepb"
@@ -120,7 +121,7 @@ func (c *Consumer) Consume() {
 
 func (c *Consumer)doConsume(brokerID int, partitionIdx int) {
 	for {
-		time.Sleep(time.Duration(500))
+		time.Sleep(time.Millisecond * 500)
 		log.Println("Sending request to Broker", brokerID)
 		if conn, exist := c.brokerCon[brokerID]; exist {
 			req := consumepb.ConsumeRequest{
@@ -143,8 +144,13 @@ func (c *Consumer)doConsume(brokerID int, partitionIdx int) {
 }
 
 func (c *Consumer) postDoConsumeHook(brokerID int, req *consumepb.ConsumeRequest, res *consumepb.ConsumeResponse, err error) {
-	if err != nil {
+	if err == io.EOF || err == errors.New("EOF"){
+		time.Sleep(500*time.Millisecond)
+		log.Printf("No recordbatch to consume yet: %v", err)
+	} else if err != nil {
+		log.Printf("Error in consume:%v\n", err)
 		log.Printf("Detect Broker %v failure, retry to send message to other broker", brokerID)
+		
 		newBrkID := brokerID
 		if err == errors.New("Broker not available") {
 			newBrkID = -1
@@ -152,13 +158,11 @@ func (c *Consumer) postDoConsumeHook(brokerID int, req *consumepb.ConsumeRequest
 		for {
 			// clean up
 			// reset broker connection
-			fmt.Println("Cleaning up new broker id:", newBrkID)
-
 			c.resetBrokerConnection()
 
 			// get leader ID for a partition
 			newBrkID = c.getLeaderIDByPartition(c.PartitionIdx)
-			fmt.Println("New broker id:", newBrkID)
+			// fmt.Println("New broker id:", newBrkID)
 
 			if newBrkID == -1 {
 				log.Fatalln(errors.New("No brokers holding any replica"))
