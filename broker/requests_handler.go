@@ -479,6 +479,10 @@ func (n *Node) Consume(stream clientpb.ClientService_ConsumeServer) error {
 	return nil
 }
 
+// not used, here so we don't have to remove all the getassignment-related things
+func (n *Node) GetAssignment(ctx context.Context, req *consumepb.GetAssignmentRequest) (*consumepb.GetAssignmentResponse, error) {
+	return &consumepb.GetAssignmentResponse{Assignments: []*consumepb.MetadataAssignment{} }, nil
+}
 ////// TO BE WORKED
 ////// Consume responds to pull request from consumer, sending record batch on topic-X partition-Y
 ////func (n *Node) Consume(stream clientpb.ClientService_ConsumeServer) error {

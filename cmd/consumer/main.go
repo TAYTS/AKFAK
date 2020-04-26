@@ -22,11 +22,6 @@ func main() {
 		"kafka-server",
 		"",
 		"Kafka server IP address and port number (e.g. 127.0.0.1:9092)")
-	partitionNum := flag.Int(
-		"partition",
-		0,
-		"Partition Num (e.g. 1)"
-	)
 	topicPtr := flag.String(
 		"topic",
 		"",
@@ -42,15 +37,15 @@ func main() {
 
 	// initialise the Consumer
 	log.Println("Initialising the Consumer...")
-	c, numPartitions := consumer.InitConsumer(*cID, *topic, *contactServer)
+	c, numPartitions := consumer.InitConsumer(*cID, *topicPtr, *contactServer)
 
 	// choose partition
 	var partition int
 	fmt.Printf("Which partition do you want to pull from?\nPartitions available: %v\n", numPartitions)
 	fmt.Scanln(&partition) // get partition chosen
-	c.PartitionIdx = &partition
+	c.PartitionIdx = partition
 
-	log.Printf("Set up consumer to start pulling from topic %v partition %v\n", *topic, &partition)
+	log.Printf("Set up consumer to start pulling from topic %v partition %v\n", *topicPtr, &partition)
 	
 	// Wait for Ctrl-C to exit
 	ch := make(chan os.Signal, 1)

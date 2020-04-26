@@ -3,7 +3,6 @@ package consumer
 import (
 	"AKFAK/proto/metadatapb"
 	"context"
-	"errors"
 	"fmt"
 	"log"
 	"sync"

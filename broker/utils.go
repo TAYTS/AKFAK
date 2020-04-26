@@ -5,7 +5,6 @@ import (
 	"AKFAK/proto/adminclientpb"
 	"AKFAK/proto/adminpb"
 	"AKFAK/proto/clientpb"
-	"AKFAK/proto/consumepb"
 	"AKFAK/proto/heartbeatspb"
 	"AKFAK/proto/recordpb"
 	"AKFAK/proto/zkmessagepb"
@@ -481,19 +480,20 @@ func (n *Node) syncLocalPartition() {
 	}
 }
 
-func (n *Node) checkAndGetAssignment(req *consumepb.ConsumeRequest) (*consumepb.MetadataAssignment, error) {
-	for _, group := range n.ConsumerMetadata.GetConsumerGroups() {
-		// check for assignments in the consumer group id
-		if group.GetID() == req.GetGroupID() {
-			assignments := group.GetAssignments()
-			// if assignment broker id matches with its own id, return true
-			for _, assignment := range assignments {
-				if int(assignment.GetBroker()) == n.ID {
-					return assignment, nil
-				}
-			}
-			return nil, nil
-		}
-	}
-	return nil, errors.New("No matching consumer group id found in consumer metadata")
-}
+// Not used anymore, used to be used in when getassignments was implemented
+// func (n *Node) checkAndGetAssignment(req *consumepb.ConsumeRequest) (*consumepb.MetadataAssignment, error) {
+// 	for _, group := range n.ConsumerMetadata.GetConsumerGroups() {
+// 		// check for assignments in the consumer group id
+// 		if group.GetID() == req.GetGroupID() {
+// 			assignments := group.GetAssignments()
+// 			// if assignment broker id matches with its own id, return true
+// 			for _, assignment := range assignments {
+// 				if int(assignment.GetBroker()) == n.ID {
+// 					return assignment, nil
+// 				}
+// 			}
+// 			return nil, nil
+// 		}
+// 	}
+// 	return nil, errors.New("No matching consumer group id found in consumer metadata")
+// }
