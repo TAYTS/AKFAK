@@ -4,7 +4,7 @@ import (
 	"AKFAK/utils"
 	"bufio"
 	"errors"
-	fmt "fmt"
+	"fmt"
 	"log"
 	"os"
 	fpath "path/filepath"
@@ -12,6 +12,9 @@ import (
 
 	"github.com/golang/protobuf/proto"
 )
+
+// ErrNoRecord is used for no more record batch
+var ErrNoRecord = errors.New("No record")
 
 // FileRecord is the used for handling/interact with the RecordBatch stored in the local file
 type FileRecord struct {
@@ -58,12 +61,13 @@ func InitialiseFileRecordFromFilepath(filepath string) (*FileRecord, error) {
 	return fileRecord, nil
 }
 
-// SetOffset allows the filerecord offset to be set 
+// SetOffset allows the filerecord offset to be set
 func (fileRcd *FileRecord) SetOffset(offset int64) {
 	fileRcd.currentOffset = offset
 }
 
-func (fileRcd *FileRecord) GetOffset() int64 {
+// GetCurrentReadOffset get the current read pointer
+func (fileRcd *FileRecord) GetCurrentReadOffset() int64 {
 	return fileRcd.currentOffset
 }
 
@@ -71,7 +75,7 @@ func (fileRcd *FileRecord) GetOffset() int64 {
 func (fileRcd *FileRecord) ReadNextRecordBatch() (*RecordBatch, error) {
 	// Check if the are still remaining bytes
 	if !fileRcd.hasRemaining() {
-		return nil, errors.New("EOF")
+		return nil, ErrNoRecord
 	}
 
 	// Get the next RecordBatch batch length
