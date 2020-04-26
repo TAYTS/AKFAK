@@ -184,11 +184,8 @@ func (fileRcd *FileRecord) getNextBatchLength() (int, error) {
 
 // hasRemaining check if there are any more bytes to read from the reader buffer
 func (fileRcd *FileRecord) hasRemaining() bool {
-	// Get the current file byte size
-	lastLogOffset := fileRcd.GetLastEndOffset()
-
 	// Compare the file size and the current file read position
-	if lastLogOffset > fileRcd.currentOffset {
+	if fileRcd.getFileSize() > fileRcd.currentOffset {
 		return true
 	}
 	return false
