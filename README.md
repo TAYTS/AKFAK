@@ -71,7 +71,12 @@ As there are 4 brokers, in the commands below, `X` in `<broker-X:port>` can be s
 |`docker container run --rm  -it --network=kafka-net akfak bash` | This runs a bash terminal in a container in the network that is set up. |
 |`consumer --id <id> --kafka-server <broker-X:port> --topic <topic_name>` | This instantiates a consumer. The consumer will call the given broker address to retrieve partition information on the topic it is producing. The user will then select one partition the consumer will pull from.<br>**Example**: `consumer --id 1 --kafka-server broker-1:5000 --topic topic1`|
 
-###
+#### Testing fault-tolerance
+To test for fault-tolerance, observe that the producers/consumers will be able to run smoothly as long as one broker is still alive.
+| Command            | Explanation             |
+| --------------     | ----------------        |
+| `docker-compose rm -sf broker-x` | Simulate a broker fault |
+| `docker-compose up -d broker-x ` | Revive a broker that is down |
 
 ---
 #### Glossary
