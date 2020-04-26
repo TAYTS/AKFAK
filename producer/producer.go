@@ -42,7 +42,7 @@ const METADATA_TIMEOUT = 100 * time.Millisecond
 var errBrkNotAvailable = errors.New("Broker not available")
 
 ///////////////////////////////////
-// 		      Public Methods		   //
+//         Public Methods        //
 ///////////////////////////////////
 
 // InitProducer creates a producer and sets up broker connections
@@ -118,7 +118,7 @@ func (p *Producer) CleanupResources() {
 }
 
 ///////////////////////////////////
-// 		    Private Methods		     //
+//         Private Methods       //
 ///////////////////////////////////
 
 // wait for cluster metadata including partitions for the given topic
