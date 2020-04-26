@@ -65,3 +65,16 @@ As there are 4 brokers, in the commands below, `X` in `<broker-X:port>` can be s
 |`docker container run --rm  -it --network=kafka-net akfak bash` | This runs a bash terminal in a container in the network that is set up. |
 |`consumer --id <id> --kafka-server <broker-X:port> --topic <topic_name>` | This instantiates a consumer. The consumer will call the given broker address to retrieve partition information on the topic it is producing. The user will then select one partition the consumer will pull from.<br>**Example**: `consumer --id 1 --kafka-server broker-1:5000 --topic topic1`|
 
+---
+#### Glossary
+|Terminology            | Description|
+|---                    |---|
+| Producer              | Client that pushes data to the Broker |
+| Consumer              | Client that pulls data from the Broker by topic and partition index|
+| Broker                | Server that receives messages from producers and stores them on disk by offset. Consumers can fetch messages from the broker.
+| Zookeeper             | Zookeeper serves the Broker by sending heartbeat. It is responsible for maintaining and distributing the cluster information to the broker.
+| Topic                 | Topic is an identifier for producer or consumer to push or pull data pertaining to it.
+| Partition             | Topics are divided into different partitions. Each partitions allow parallelization of a topic by splitting the data in a particular topic across multiple brokers
+| Controller            | Unique broker that is responsible for updating metadata, reassigning partitions in the event of broker failure, etc.
+| Docker                | Open source software development platform that package applications in containers, allowing them to be portable to any operating system.          |
+----
