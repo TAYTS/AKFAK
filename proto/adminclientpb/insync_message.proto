@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package proto.adminclientpb;
+
+option go_package = "AKFAK/proto/adminclientpb";
+
+import "proto/commonpb/response.proto";
+
+message InSyncMessagesRequest {
+  int32 replicaID = 1; // broker ID of the follower
+  int32 partition = 2; // partition index
+  string topic = 3;    // topic name
+}
+
+message InSyncMessagesResponse { commonpb.Response response = 1; }

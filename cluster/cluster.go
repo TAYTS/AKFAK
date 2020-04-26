@@ -143,7 +143,11 @@ func (cls *Cluster) MoveBrkToOfflineAndElectLeader(brkID int32) {
 	for _, tpState := range cls.GetTopicStates() {
 		for _, partState := range tpState.GetPartitionStates() {
 			// add broker ID to the offline replicas
-			partState.OfflineReplicas = uniqueInsertInt32(brkID, partState.GetOfflineReplicas())
+			for _, replica := range partState.GetReplicas() {
+				if replica == brkID {
+					partState.OfflineReplicas = uniqueInsertInt32(brkID, partState.GetOfflineReplicas())
+				}
+			}
 			// update ISR
 			for idx, isrID := range partState.GetIsr() {
 				if isrID == brkID {

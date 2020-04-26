@@ -18,10 +18,15 @@ import (
 	"google.golang.org/grpc"
 )
 
+type partitionLeader map[int]int
+
 // ReadRecordBatchFromLocal is a helper function for Consume request handler to read the Record from local log file
 func (n *Node) ReadRecordBatchFromLocal(topicName string, partitionID int, offset int64) (*recordpb.RecordBatch, int64, error) {
 	filePath := fmt.Sprintf("%v/%v/%v", n.config.LogDir, partition.ConstructPartitionDirName(topicName, partitionID), partition.ContructPartitionLogName(topicName))
 	fileRecordHandler, err := recordpb.InitialiseFileRecordFromFilepath(filePath)
+	if offset != 0 {
+		fileRecordHandler.SetOffset(offset)
+	}
 	if err != nil {
 		return nil, -1, err
 	}
@@ -53,7 +58,7 @@ func cleanupProducerResource(replicaConn map[int]clientpb.ClientService_ProduceC
 }
 
 // generateNewPartitionRequestData create a mapping of the brokerID and the create new partition RPC request
-func (n *Node) generateNewPartitionRequestData(topicName string, numPartitions int, replicaFactor int) (map[int]*adminclientpb.AdminClientNewPartitionRequest, error) {
+func (n *Node) generateNewPartitionRequestData(topicName string, numPartitions int, replicaFactor int) (map[int]*adminclientpb.AdminClientNewPartitionRequest, partitionLeader, error) {
 	// check if the topic exist
 	topicExist := false
 	if len(n.ClusterMetadata.GetPartitionsByTopic(topicName)) > 0 {
@@ -64,28 +69,29 @@ func (n *Node) generateNewPartitionRequestData(topicName string, numPartitions i
 
 	// check if the current available broker can support replication
 	if numBrokers < replicaFactor {
-		return nil, errors.New("Number of brokers available is less than the replica factor")
+		return nil, nil, errors.New("Number of brokers available is less than the replica factor")
 	}
 
 	if !topicExist {
+		partitionLeaderBuffer := make(partitionLeader)
 		newTopicPartitionRequests := make(map[int]*adminclientpb.AdminClientNewPartitionRequest)
 
 		for partID := 0; partID < numPartitions; partID++ {
 			// distribute the partitions among the brokers
 			brokerID := int(n.ClusterMetadata.GetLiveBrokers()[partID%numBrokers].GetID())
-			leader := brokerID
+
 			for replicaIdx := 0; replicaIdx < replicaFactor; replicaIdx++ {
 				// distribute the replicas among the brokers
 				replicaBrokerIdx := (brokerID + replicaIdx + partID) % numBrokers
 				replicaBrokerID := int(n.ClusterMetadata.GetLiveBrokers()[replicaBrokerIdx].GetID())
 
+				if _, exist := partitionLeaderBuffer[partID]; !exist {
+					partitionLeaderBuffer[partID] = replicaBrokerID
+				}
+
 				request, exist := newTopicPartitionRequests[replicaBrokerID]
 				if exist {
-					if replicaBrokerID == leader {
-						request.PartitionID = append([]int32{int32(partID)}, request.PartitionID...)
-					} else {
-						request.PartitionID = append(request.PartitionID, int32(partID))
-					}
+					request.PartitionID = append(request.PartitionID, int32(partID))
 				} else {
 					request := &adminclientpb.AdminClientNewPartitionRequest{
 						Topic:       topicName,
@@ -97,9 +103,9 @@ func (n *Node) generateNewPartitionRequestData(topicName string, numPartitions i
 			}
 		}
 
-		return newTopicPartitionRequests, nil
+		return newTopicPartitionRequests, partitionLeaderBuffer, nil
 	}
-	return nil, errors.New("Topic already exist")
+	return nil, nil, errors.New("Topic already exist")
 }
 
 // createLocalPartitionFromReq take the create new partition RPC request and create the local partition directory and log file
@@ -336,6 +342,7 @@ func (n *Node) syncLocalPartition() {
 	// get all partitions need to sync
 	offlineTopics := n.ClusterMetadata.GetBrkOfflineTopics(int32(n.ID))
 
+	log.Printf("Broker %v offline topics: %v\n", n.ID, offlineTopics)
 	// if there is no offline topic return
 	if offlineTopics == nil {
 		return
@@ -358,8 +365,7 @@ func (n *Node) syncLocalPartition() {
 
 			if leaderID == -1 {
 				// if there is no leader available at the first place elect itself
-				n.ClusterMetadata.MoveBrkToOnlineByPartition(int32(n.ID), topicName, partIdx)
-				n.handleClusterUpdateReq()
+				n.updateCtrlForISR(n.ID, topicName, int(partIdx))
 				continue
 			} else if int(leaderID) == n.ID {
 				// if the current broker is the leader not need to update
@@ -480,20 +486,56 @@ func (n *Node) syncLocalPartition() {
 	}
 }
 
-// Not used anymore, used to be used in when getassignments was implemented
-// func (n *Node) checkAndGetAssignment(req *consumepb.ConsumeRequest) (*consumepb.MetadataAssignment, error) {
-// 	for _, group := range n.ConsumerMetadata.GetConsumerGroups() {
-// 		// check for assignments in the consumer group id
-// 		if group.GetID() == req.GetGroupID() {
-// 			assignments := group.GetAssignments()
-// 			// if assignment broker id matches with its own id, return true
-// 			for _, assignment := range assignments {
-// 				if int(assignment.GetBroker()) == n.ID {
-// 					return assignment, nil
-// 				}
-// 			}
-// 			return nil, nil
-// 		}
-// 	}
-// 	return nil, errors.New("No matching consumer group id found in consumer metadata")
-// }
+func (n *Node) updateCtrlForISR(brkID int, topicName string, partitionIdx int) {
+	log.Printf("Broker %v update controller about new ISR\n", n.ID)
+
+	for len(n.ClusterMetadata.GetLiveBrokers()) > 1 {
+		ctrlAddr := fmt.Sprintf("%v:%v", n.ClusterMetadata.GetController().GetHost(), n.ClusterMetadata.GetController().GetPort())
+
+		ctrlCon, err := grpc.Dial(ctrlAddr, grpc.WithInsecure())
+		defer ctrlCon.Close()
+		if err != nil {
+			// broker ignore controller failure(none of their business)
+			// try update controller until success
+			log.Printf("Broker %v send update req to controller about new ISR: %v", n.ID, err)
+			time.Sleep(300 * time.Millisecond)
+			continue
+		}
+
+		adminServiceClient := adminpb.NewAdminServiceClient(ctrlCon)
+		// broker ignore controller failure
+		_, err = adminServiceClient.InSyncPartition(context.Background(), &adminclientpb.InSyncMessagesRequest{
+			ReplicaID: int32(brkID),
+			Topic:     topicName,
+			Partition: int32(partitionIdx),
+		})
+		log.Printf("Broker %v send update req to controller about new ISR: %v", n.ID, err)
+
+		if err != nil {
+			// broker ignore controller failure(none of their business)
+			// try update controller until success
+			log.Printf("Broker %v send update req to controller about new cluster state: %v", n.ID, err)
+			time.Sleep(300 * time.Millisecond)
+			continue
+		}
+		break
+	}
+	log.Printf("Broker %v done update controller about new ISR\n", n.ID)
+}
+
+func (n *Node) checkAndGetAssignment(req *consumepb.ConsumeRequest) (*consumepb.MetadataAssignment, error) {
+	for _, group := range n.ConsumerMetadata.GetConsumerGroups() {
+		// check for assignments in the consumer group id
+		if group.GetID() == req.GetGroupID() {
+			assignments := group.GetAssignments()
+			// if assignment broker id matches with its own id, return true
+			for _, assignment := range assignments {
+				if int(assignment.GetBroker()) == n.ID {
+					return assignment, nil
+				}
+			}
+			return nil, nil
+		}
+	}
+	return nil, errors.New("No matching consumer group id found in consumer metadata")
+}

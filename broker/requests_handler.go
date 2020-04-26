@@ -208,7 +208,7 @@ func (n *Node) AdminClientNewTopic(ctx context.Context, req *adminclientpb.Admin
 	replicaFactor := int(req.GetReplicationFactor())
 
 	// handling request
-	newPartitionReqMap, err := n.generateNewPartitionRequestData(topicName, numPartitions, replicaFactor)
+	newPartitionReqMap, partitionLeaders, err := n.generateNewPartitionRequestData(topicName, numPartitions, replicaFactor)
 	if err != nil {
 		// topic existed
 		return &adminclientpb.AdminClientNewTopicResponse{
@@ -221,6 +221,13 @@ func (n *Node) AdminClientNewTopic(ctx context.Context, req *adminclientpb.Admin
 		TopicName:       topicName,
 		PartitionStates: make([]*clustermetadatapb.MetadataPartitionState, numPartitions),
 	}
+
+	// log the leader distribution
+	partitionLeaderStr := ""
+	for partID, leader := range partitionLeaders {
+		partitionLeaderStr += fmt.Sprintf("Partition: %v, Leader: %v;  ", partID, leader)
+	}
+	log.Println(partitionLeaderStr)
 
 	// send request to each broker to create the partition
 	for brokerID, req := range newPartitionReqMap {
@@ -240,7 +247,7 @@ func (n *Node) AdminClientNewTopic(ctx context.Context, req *adminclientpb.Admin
 			}
 		}
 
-		for idx, partID := range req.GetPartitionID() {
+		for _, partID := range req.GetPartitionID() {
 			brokerIDint32 := int32(brokerID)
 
 			partIDInt := int(partID)
@@ -250,25 +257,21 @@ func (n *Node) AdminClientNewTopic(ctx context.Context, req *adminclientpb.Admin
 				replicas = append(replicas, brokerIDint32)
 				isr := make([]int32, 0, replicaFactor-1)
 
-				leader := int32(-1)
-				if idx == 0 {
-					leader = brokerIDint32
-				} else {
+				leader := partitionLeaders[partIDInt]
+				if leader != brokerID {
 					isr = append(isr, brokerIDint32)
 				}
 
 				metaTopicState.GetPartitionStates()[partIDInt] = &clustermetadatapb.MetadataPartitionState{
 					TopicName:       topicName,
 					PartitionIndex:  partID,
-					Leader:          leader,
+					Leader:          int32(leader),
 					Isr:             isr,
 					Replicas:        replicas,
 					OfflineReplicas: []int32{},
 				}
 			} else {
-				if idx == 0 {
-					partitionState.Leader = brokerIDint32
-				} else {
+				if partitionState.Leader != brokerIDint32 {
 					partitionState.Isr = append(partitionState.Isr, brokerIDint32)
 				}
 				partitionState.Replicas = append(partitionState.Replicas, brokerIDint32)
@@ -431,8 +434,7 @@ func (n *Node) SyncMessages(stream adminpb.AdminService_SyncMessagesServer) erro
 				partDirname := partition.ConstructPartitionDirName(topicName, int(forgotPartID))
 				if fileHandler, exist := partDirnameFileHandlerMap[partDirname]; exist {
 					// update local cluster metadata
-					log.Printf("Broker %v update the ISR\n", n.ID)
-					n.ClusterMetadata.MoveBrkToOnlineByPartition(req.GetReplicaID(), topicName, forgotPartID)
+					n.updateCtrlForISR(int(req.GetReplicaID()), topicName, int(forgotPartID))
 
 					// update cluster metadata
 					n.handleClusterUpdateReq()
@@ -454,6 +456,26 @@ func (n *Node) SyncMessages(stream adminpb.AdminService_SyncMessagesServer) erro
 	}
 }
 
+// InSyncPartition used to tell the controller to move a broker to ISR
+func (n *Node) InSyncPartition(ctx context.Context, req *adminclientpb.InSyncMessagesRequest) (*adminclientpb.InSyncMessagesResponse, error) {
+	brkID := req.GetReplicaID()
+	topicName := req.GetTopic()
+	partitionIdx := req.GetPartition()
+
+	// update local cache
+	n.ClusterMetadata.MoveBrkToOnlineByPartition(brkID, topicName, partitionIdx)
+
+	// broadcast the update
+	n.handleClusterUpdateReq()
+
+	return &adminclientpb.InSyncMessagesResponse{
+		Response: &commonpb.Response{
+			Status: commonpb.ResponseStatus_SUCCESS,
+		},
+	}, nil
+}
+
+// Consume responds to pull request from consumer, sending record batch on topic-X partition-Y
 func (n *Node) Consume(stream clientpb.ClientService_ConsumeServer) error {
 	req, err := stream.Recv()
 	if err != nil {
