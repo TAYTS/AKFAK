@@ -3,7 +3,7 @@
 ## Distributed System Course Project
 
 ### How to run
-We use docker to demonstrate how the system will work with multiple machines.
+We use Docker to demonstrate how the system will work with multiple machines.
 1. Download the repository using `git clone https://github.com/TAYTS/AKFAK.git`, extract it.
 2. `docker-compose build` 
 3. After step 2 is complete, open 3 terminals.
