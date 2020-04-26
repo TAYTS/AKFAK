@@ -63,6 +63,10 @@ func (fileRcd *FileRecord) SetOffset(offset int64) {
 	fileRcd.currentOffset = offset
 }
 
+func (fileRcd *FileRecord) GetOffset() int64 {
+	return fileRcd.currentOffset
+}
+
 // ReadNextRecordBatch retrieve the next RecordBatch in the file buffer else return EOF error
 func (fileRcd *FileRecord) ReadNextRecordBatch() (*RecordBatch, error) {
 	// Check if the are still remaining bytes

@@ -20,18 +20,20 @@ import (
 )
 
 // ReadRecordBatchFromLocal is a helper function for Consume request handler to read the Record from local log file
-func (n *Node) ReadRecordBatchFromLocal(topicName string, partitionID int, offset int64) (*recordpb.RecordBatch, error) {
+func (n *Node) ReadRecordBatchFromLocal(topicName string, partitionID int, offset int64) (*recordpb.RecordBatch, int64, error) {
 	filePath := fmt.Sprintf("%v/%v/%v", n.config.LogDir, partition.ConstructPartitionDirName(topicName, partitionID), partition.ContructPartitionLogName(topicName))
 	fileRecordHandler, err := recordpb.InitialiseFileRecordFromFilepath(filePath)
 	if err != nil {
-		return nil, err
+		return nil, -1, err
 	}
 	fileRecordHandler.SetOffset(offset)
 	recordBatch, err := fileRecordHandler.ReadNextRecordBatch()
 	if err != nil {
-		return nil, err
+		return nil, -1, err
 	}
-	return recordBatch, nil
+	//
+	newOffset := fileRecordHandler.GetOffset() // gets current offset
+	return recordBatch, newOffset, nil
 }
 
 // cleanupProducerResource help to clean up the Producer resources

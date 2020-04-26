@@ -16,6 +16,6 @@ message ConsumeRequest {
 message ConsumeResponse {
     string topicName = 1;
     int32 partition = 2;
-    int32 offset = 3;
+    int64 offset = 3;
     recordpb.RecordBatch recordSet = 4;
 }

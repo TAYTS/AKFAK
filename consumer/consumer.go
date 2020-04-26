@@ -37,7 +37,7 @@ type Consumer struct {
 }
 
 // InitConsumerGroup creates a consumergroup and sets up broker connections
-func InitConsumer(id int, topic string, brokerAddr string) *Consumer {
+func InitConsumer(id int, topic string, brokerAddr string) (*Consumer, []*metadatapb.Partition) {
 
 	// Dial to broker to get metadata
 	c := &Consumer{
@@ -126,6 +126,7 @@ func (c *Consumer)doConsume(brokerID int, partitionIdx int) {
 		// sleep
 
 		// refresh new connection
+		// get new metadata
 		// change new connection
 		// if leaderId != -1 // no brokers from that partition.
 		select {

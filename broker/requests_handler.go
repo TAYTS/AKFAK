@@ -8,12 +8,10 @@ import (
 	"AKFAK/proto/clustermetadatapb"
 	"AKFAK/proto/commonpb"
 	"AKFAK/proto/consumepb"
-	"AKFAK/proto/consumermetadatapb"
 	"AKFAK/proto/heartbeatspb"
 	"AKFAK/proto/metadatapb"
 	"AKFAK/proto/producepb"
 	"AKFAK/proto/recordpb"
-	"AKFAK/proto/zkmessagepb"
 	"context"
 	"errors"
 	"fmt"
@@ -462,7 +460,23 @@ func (n *Node) Consume(stream clientpb.ClientService_ConsumeServer) error {
 		log.Printf("Error while reading client stream: %v", err)
 		return err
 	}
-	n.ReadRecordBatchFromLocal(req.GetTopicName(), int(req.GetPartition()), int64(req.Offset))
+	recordBatch, newOffset, err := n.ReadRecordBatchFromLocal(req.GetTopicName(), int(req.GetPartition()), req.Offset)
+	if err != nil {
+		log.Printf("Error while reading record batch: %v", err)
+		return err
+	}
+	errorStream := stream.Send(&consumepb.ConsumeResponse{
+		TopicName:            req.TopicName,
+		Partition:            req.GetPartition(),
+		RecordSet:            recordBatch,
+		Offset:				  newOffset,
+	})
+
+	if errorStream != nil {
+		log.Printf("Error while sending ConsumeResponse to consumer: %v", err)
+		return err
+	}
+	return nil
 }
 
 ////// TO BE WORKED
