@@ -4,7 +4,6 @@ package proto.recordpb;
 
 option go_package = "AKFAK/proto/recordpb";
 
-
 message Record {
   int32 length = 1;     // varint in original implementation
   int32 attributes = 2; // int8 in original implementation
@@ -13,16 +12,17 @@ message Record {
   */
   int32 timestampDelta = 3;
   int32 offsetDelta = 4; // varint in original implementation
-  int32 valueLen = 5; // varint in original implementation
-  bytes value = 6; // message contents
+  int32 valueLen = 5;    // varint in original implementation
+  string value = 6;      // message contents
 }
 
 message RecordBatch {
-  int64 baseOffset = 1; // used in log compression
+  int64 baseOffset = 1;  // used in log compression
   bytes batchLength = 2; // int32; equivalent to []byte with size 4
   int32 partitionLeaderEpoch = 3;
-  int32 magic = 4; // int8 in original implementation (for kafka version check, current magic value is 2)
-  int32 crc = 5;  // to make sure msg not corrupted
+  int32 magic = 4; // int8 in original implementation (for kafka version check,
+                   // current magic value is 2)
+  int32 crc = 5;   // to make sure msg not corrupted
   int32 attributes = 6; // int16 in original implementation
   /* attributes
       bit 0~2:
@@ -36,8 +36,8 @@ message RecordBatch {
       bit 5: isControlBatch (0 means not a control batch)
       bit 6~15: unused
   */
-  int32 lastOffsetDelta = 7;   // last offset delta of record
-  int64 firstTimestamp = 8;    // time when record batch is first instantiated
-  int64 maxTimestamp = 9;      // time when last record is added
+  int32 lastOffsetDelta = 7;    // last offset delta of record
+  int64 firstTimestamp = 8;     // time when record batch is first instantiated
+  int64 maxTimestamp = 9;       // time when last record is added
   repeated Record records = 13; //
 }

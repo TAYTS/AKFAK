@@ -61,11 +61,6 @@ func InitialiseFileRecordFromFilepath(filepath string) (*FileRecord, error) {
 	return fileRecord, nil
 }
 
-// SetOffset allows the filerecord offset to be set
-func (fileRcd *FileRecord) SetOffset(offset int64) {
-	fileRcd.currentOffset = offset
-}
-
 // GetCurrentReadOffset get the current read pointer
 func (fileRcd *FileRecord) GetCurrentReadOffset() int64 {
 	return fileRcd.currentOffset
