@@ -25,36 +25,38 @@ func main() {
 	partitionNum := flag.Int(
 		"partition",
 		0,
-		"Partition Num (eg. 1)")
+		"Partition Num (e.g. 1)"
+	)
 	topicPtr := flag.String(
 		"topic",
 		"",
 		"Topic to pull the message from")
 
-	// print usage if not all fields provided
-	if len(os.Args) < 4 {
-		fmt.Println("usage: consumer -id <consumer_id> -kafka-server <server_address:port> -topic <topic_name> -part <partition>")
+
+	// print usage if not all fields for first round of qns provided
+	if len(os.Args) < 3 {
+		fmt.Println("usage: consumer -id <consumer_id> -kafka-server <server_address:port> -topic <topic_name>")
 		os.Exit(2)
 	}
 	flag.Parse()
 
-	log.Println("Initialising the Consumer...")
-
 	// initialise the Consumer
-	c := consumer.InitConsumer(*cID, *topicPtr, *partitionNum, *contactServer)
+	log.Println("Initialising the Consumer...")
+	c, partitions := consumer.InitConsumer(*cID, *topic, *contactServer)
 
+	// choose partition
+	var partition int
+	fmt.Printf("Which partition do you want to pull from?\nPartitions available: %v\n", partitions)
+	fmt.Scanln(&partition) // get partition chosen
+	c.PartitionIdx = &partition
+
+	log.Printf("Set up consumer to start pulling from topic %v partition %v\n", *topic, &partition)
+	
 	// Wait for Ctrl-C to exit
 	ch := make(chan os.Signal, 1)
 	signal.Notify(ch, os.Interrupt)
 
-	// routine to pass user input to the Consumer
-	go func(c *consumer.Consumer) {
-		var inputStr string
-		for {
-			fmt.Println("Press enter to pull message")
-			fmt.Scanln(&inputStr) // wait for something to be entered
-			go c.Consume(inputStr)
-		}
-	}(cg)
+	c.Consume()
+
 	<-ch
 }

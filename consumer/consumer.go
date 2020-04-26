@@ -19,7 +19,7 @@ import (
 
 const METADATA_TIMEOUT = 100 * time.Millisecond
 
-// Consumer is a member of a consumer group
+// Consumer is a Kafka consumer
 type Consumer struct {
 	ID int
 	// assignments are given an idx (key)
@@ -32,12 +32,12 @@ type Consumer struct {
 	timers        map[int]*time.Timer
 	mux           sync.RWMutex // used to ensure only one routine can send/modify a request to a broker
 	metadataMux   sync.RWMutex
-	partitionIdx  int
+	PartitionIdx  int
 	offset        int // it will not remember if it switches to read a new topic and read back the old topic
 }
 
 // InitConsumerGroup creates a consumergroup and sets up broker connections
-func InitConsumer(id int, topic string, partitionIdx int, brokerAddr string) *Consumer {
+func InitConsumer(id int, topic string, brokerAddr string) *Consumer {
 
 	// Dial to broker to get metadata
 	c := &Consumer{
@@ -45,21 +45,13 @@ func InitConsumer(id int, topic string, partitionIdx int, brokerAddr string) *Co
 		topic: topic,
 		brokerCon: make(map[int]clientpb.ClientService_ConsumeClient),
 		grpcConn:	make(map[int]*grpc.ClientConn),
-		partitionIdx: partitionIdx,
 	}
 	// get metadata and wait for 500ms
 	err := c.waitOnMetadata(brokerAddr, METADATA_TIMEOUT)
 	if err != nil {
 		panic(fmt.Sprintf("Unable to get Topic Metadata: %v\n", err))
 	}
-
-	// setup the stream connections to all the required brokers
-	c.setupStreamToSendMsg()
-
-	// check if there are partitions available to consume
-	c.failIfNoAvailablePartition()
-
-	return c
+	return c, c.metadata.GetTopic().GetPartitions()
 }
 
 func (c *Consumer) waitOnMetadata(brokerAddr string, maxWaitMs time.Duration) error {
@@ -106,16 +98,22 @@ func (c *Consumer) waitOnMetadata(brokerAddr string, maxWaitMs time.Duration) er
 }
 
 func (c *Consumer) Consume() {
+	// setup the stream connections to all the required brokers
+	c.setupStreamToSendMsg()
+
+	// check if there are partitions available to consume
+	c.failIfNoAvailablePartition()
+
 	c.metadataMux.RLock()
 	// get partition idx for topic
-	brkID := c.getLeaderIDByPartition(c.partitionIdx)
+	brkID := c.getLeaderIDByPartition(c.PartitionIdx)
 	c.metadataMux.RUnlock()
 
 	c.mux.Lock()
 	c.timers[brkID] = time.NewTimer(500 * time.Millisecond)
 	c.mux.Unlock()
 
-	go c.doConsume(brkID, c.partitionIdx)
+	go c.doConsume(brkID, c.PartitionIdx)
 
 }
 
