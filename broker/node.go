@@ -3,7 +3,6 @@ package broker
 import (
 	"AKFAK/cluster"
 	"AKFAK/config"
-	"AKFAK/consumermetadata"
 	"AKFAK/proto/adminpb"
 	"AKFAK/proto/clientpb"
 	"AKFAK/proto/clustermetadatapb"
@@ -23,7 +22,6 @@ type Node struct {
 	Host                string
 	Port                int
 	ClusterMetadata     *cluster.Cluster
-	ConsumerMetadata    *consumermetadata.ConsumerMetadata
 	adminServiceClient  map[int]adminpb.AdminServiceClient
 	clientServiceClient map[int]clientpb.ClientServiceClient
 	zkClient            zookeeperpb.ZookeeperServiceClient
@@ -58,7 +56,6 @@ func (n *Node) InitAdminListener() {
 
 	// setup the cluster metadata cache
 	n.initClusterMetadataCache()
-	go n.initConsumerMetadataCache()
 
 	if !n.ClusterMetadata.CheckBrokerInSync(int32(n.ID)) {
 		log.Printf("Broker %v is not insync with other replicas\n", n.ID)
@@ -74,7 +71,7 @@ func (n *Node) InitAdminListener() {
 	}
 }
 
-// InitControllerRoutine start the controller routine
+// initControllerRoutine start the controller routine
 func (n *Node) initControllerRoutine() {
 	log.Printf("Broker %v start controller routine\n", n.ID)
 
@@ -97,7 +94,7 @@ func (n *Node) initControllerRoutine() {
 	go n.setupZKHeartbeatsRequest()
 }
 
-// InitClusterMetadataCache call the ZK to get the Cluster Metadata
+// initClusterMetadataCache call the ZK to get the Cluster Metadata
 func (n *Node) initClusterMetadataCache() {
 	// connect to ZK
 	zkClient := getZKClient(n.config.ZKConn)
@@ -121,30 +118,7 @@ func (n *Node) initClusterMetadataCache() {
 	n.ClusterMetadata = cluster.InitCluster(res.GetClusterInfo())
 }
 
-// InitConsumerMetadataCache call the ZK to get the Consumer Metadata
-func (n *Node) initConsumerMetadataCache() {
-	// connect to ZK
-	zkClient := getZKClient(n.config.ZKConn)
-
-	// create request with the current broker info
-	req := &zkmessagepb.GetConsumerMetadataRequest{
-		Broker: &clustermetadatapb.MetadataBroker{
-			ID:   int32(n.ID),
-			Host: n.Host,
-			Port: int32(n.Port),
-		},
-	}
-
-	// send the GetClusterMetadata request
-	res, err := zkClient.GetConsumerMetadata(context.Background(), req)
-	if err != nil {
-		log.Fatalf("Fail to get the cluster metada from Zk")
-	}
-
-	// store the cluster metadata to cache
-	n.ConsumerMetadata = consumermetadata.InitConsumerMetadata(res.GetConsumerMetadata())
-}
-
+// getZKClient return the ZK grpc connection
 func getZKClient(zkAddress string) zookeeperpb.ZookeeperServiceClient {
 	// set up grpc dial
 	opts := grpc.WithInsecure()

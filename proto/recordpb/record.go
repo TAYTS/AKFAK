@@ -11,24 +11,13 @@ func InitialiseEmptyRecord() *Record {
 
 // InitialiseRecordWithMsg return a Record pointer type with message
 func InitialiseRecordWithMsg(message string) *Record {
-	msgLen, msg := convertStringToBytes(message)
+	// msgLen, msg := convertStringToBytes(message)
 	return &Record{
-		ValueLen: int32(msgLen),
-		Value:    msg,
+		Value: message,
 	}
 }
 
 // UpdateMessage update the message inside the Record
 func (rcd *Record) UpdateMessage(message string) {
-	msgLen, msg := convertStringToBytes(message)
-
-	rcd.ValueLen = int32(msgLen)
-	rcd.Value = msg
-}
-
-func convertStringToBytes(message string) (int, []byte) {
-	msgByte := []byte(message)
-	msgLen := len(msgByte)
-
-	return msgLen, msgByte
+	rcd.Value = message
 }

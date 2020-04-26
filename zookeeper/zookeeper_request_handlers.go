@@ -77,26 +77,3 @@ func (zk *Zookeeper) Heartbeats(stream zookeeperpb.ZookeeperService_HeartbeatsSe
 		}
 	}
 }
-
-// GetConsumerMetadata return the current consumer state stored in the ZK
-func (zk *Zookeeper) GetConsumerMetadata(ctx context.Context, req *zkmessagepb.GetConsumerMetadataRequest) (*zkmessagepb.GetConsumerMetadataResponse, error) {
-	return &zkmessagepb.GetConsumerMetadataResponse{
-		ConsumerMetadata: zk.consumerMetadata.MetadataConsumerState,
-	}, nil
-}
-
-// UpdateConsumerMetadata update the ZK local cache and flush to disk to persist the state
-func (zk *Zookeeper) UpdateConsumerMetadata(ctx context.Context, req *zkmessagepb.UpdateConsumerMetadataRequest) (*zkmessagepb.UpdateConsumerMetadataResponse, error) {
-	newState := req.GetNewState()
-
-	// flush new consumer metadata info into disk
-	err := WriteConsumerStateToFile(zk.config.ConsumerDataDir, *newState)
-	if err != nil {
-		return &zkmessagepb.UpdateConsumerMetadataResponse{Response: &commonpb.Response{Status: commonpb.ResponseStatus_FAIL}}, errors.New("Fail to flush data to disk")
-	}
-
-	// update local consumer metadata cache
-	zk.consumerMetadata.UpdateConsumerMetadata(newState)
-
-	return &zkmessagepb.UpdateConsumerMetadataResponse{Response: &commonpb.Response{Status: commonpb.ResponseStatus_SUCCESS, Message: "Successfully updated the consumer metadata to ZK"}}, nil
-}

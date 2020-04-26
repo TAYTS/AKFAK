@@ -5,39 +5,16 @@ package proto.consumepb;
 option go_package = "AKFAK/proto/consumepb";
 
 import "proto/recordpb/record.proto";
-import "proto/clustermetadatapb/cluster_metadata.proto";
 
 message ConsumeRequest {
-    int32 groupID = 1;
-    int32 consumerID = 2;
-    int32 partition = 3;
-    string topicName = 4;
+  string topicName = 2;
+  int32 partition = 3;
+  int64 offset = 4;
 }
 
 message ConsumeResponse {
-    string topicName = 1;
-    int32 partition = 2;
-    recordpb.RecordBatch recordSet = 3;
-}
-
-message GetAssignmentRequest {
-    int32 groupID = 1;
-    string topicName = 2;
-}
-
-message MetadataAssignment {
-    string topicName = 1;
-    int32 partitionIndex = 2;
-    int32 offset = 3;
-    // brokerid for broker holding replica that is assigned to consumer 
-    // for that partition
-    int32 broker = 4;
-    // list of brokers holding isr for partition (excludes broker with assigned replica)
-    // contacted when an assigned replica fails to respond 
-    repeated clustermetadatapb.MetadataBroker isrBrokers = 5;
-}
-
-message GetAssignmentResponse {
-    // assigned Assignment. len(Assignment) == len(partitions)
-    repeated MetadataAssignment assignments = 1;
+  string topicName = 1;
+  int32 partition = 2;
+  int64 offset = 3;
+  repeated recordpb.RecordBatch recordSet = 4;
 }

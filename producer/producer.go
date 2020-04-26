@@ -42,7 +42,7 @@ const METADATA_TIMEOUT = 100 * time.Millisecond
 var errBrkNotAvailable = errors.New("Broker not available")
 
 ///////////////////////////////////
-// 		      Public Methods		   //
+//         Public Methods        //
 ///////////////////////////////////
 
 // InitProducer creates a producer and sets up broker connections
@@ -118,7 +118,7 @@ func (p *Producer) CleanupResources() {
 }
 
 ///////////////////////////////////
-// 		    Private Methods		     //
+//         Private Methods       //
 ///////////////////////////////////
 
 // wait for cluster metadata including partitions for the given topic
@@ -219,7 +219,7 @@ func (p *Producer) doSend(partIdx int) {
 		select {
 		case <-p.timers[partIdx].C:
 			brkID := p.getLeaderIDByPartition(partIdx)
-			log.Println("Sending request to Broker", brkID)
+			// log.Printf("Sending request to Broker %v for Partition %v\n", brkID, partIdx)
 			if conn, exist := p.brokerCon[brkID]; exist {
 				conn.Send(p.inflightRequests[partIdx].req)
 				// get the response
@@ -237,7 +237,7 @@ func (p *Producer) doSend(partIdx int) {
 			// Send the request if the req has more than 15 messages
 			if p.inflightRequests[partIdx].msgCount > 15 {
 				brkID := p.getLeaderIDByPartition(partIdx)
-				log.Println("Sending request to Broker", brkID)
+				// log.Printf("Sending request to Broker %v for Partition %v\n", brkID, partIdx)
 				p.brokerCon[brkID].Send(p.inflightRequests[partIdx].req)
 
 				// get the response
@@ -306,9 +306,9 @@ func (p *Producer) postDoSendHook(partIdx int, brokerID int, err error) {
 
 			break
 		}
-		log.Printf("Successfully send the request to Broker %v\n", newBrkID)
+		log.Printf("Successfully send the request to Broker %v for Partition %v\n", newBrkID, partIdx)
 	} else {
-		log.Printf("Successfully send the request to Broker %v\n", brokerID)
+		log.Printf("Successfully send the request to Broker %v for Partition %v\n", brokerID, partIdx)
 	}
 }
 
