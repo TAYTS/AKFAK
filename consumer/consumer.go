@@ -2,13 +2,13 @@ package consumer
 
 import (
 	"AKFAK/proto/metadatapb"
+	"AKFAK/proto/recordpb"
 	"context"
-	"errors"
 	"fmt"
+	"io"
 	"log"
 	"sync"
 	"time"
-	"io"
 
 	"AKFAK/proto/clientpb"
 	"AKFAK/proto/consumepb"
@@ -26,38 +26,123 @@ type Consumer struct {
 	// assignments are given an idx (key)
 	//brokerAddr    string
 	topic         string
-	brokerAddrMap map[int]string
+	brokerAddrMap map[int32]string
 	metadata      *metadatapb.MetadataResponse
-	brokerCon     map[int]clientpb.ClientService_ConsumeClient
-	grpcConn      map[int]*grpc.ClientConn
-	timers        map[int]*time.Timer
-	mux           sync.RWMutex // used to ensure only one routine can send/modify a request to a broker
+	brokerCon     clientpb.ClientService_ConsumeClient
+	grpcConn      *grpc.ClientConn
 	metadataMux   sync.RWMutex
-	PartitionIdx  int
-	offset        int // it will not remember if it switches to read a new topic and read back the old topic
+	partitionIdx  int32 // partition index of the topic to consume
+	readOffset    int64 // used to store the consumer current read offset
 }
 
-// InitConsumerGroup creates a consumergroup and sets up broker connections
-func InitConsumer(id int, topic string, brokerAddr string) (*Consumer, int) {
+///////////////////////////////////
+//         Public Methods        //
+///////////////////////////////////
 
+// InitConsumer will fetch the metadata for the topic requested and return the consumer instance and all the available partitions index
+func InitConsumer(topic string, brokerAddr string) (*Consumer, []int32) {
 	// Dial to broker to get metadata
 	c := &Consumer{
-		ID: id,
-		topic: topic,
-		brokerCon: make(map[int]clientpb.ClientService_ConsumeClient),
-		grpcConn:	make(map[int]*grpc.ClientConn),
+		topic:      topic,
+		readOffset: 0,
 	}
 	// get metadata and wait for 500ms
 	err := c.waitOnMetadata(brokerAddr, METADATA_TIMEOUT)
 	if err != nil {
-		panic(fmt.Sprintf("Unable to get Topic Metadata: %v\n", err))
+		log.Fatalf("Unable to get Topic Metadata: %v\n", err)
 	}
-	return c, len(c.metadata.GetTopic().GetPartitions())
+
+	// create and store the mapping of brokerID to broker connection
+	// address for easy access later
+	brkAddrMapping := make(map[int32]string)
+	for _, brk := range c.metadata.GetBrokers() {
+		brkAddrMapping[brk.GetNodeID()] = fmt.Sprintf("%v:%v", brk.GetHost(), brk.GetPort())
+	}
+	c.brokerAddrMap = brkAddrMapping
+
+	// get all the available partition index
+	partitions := c.metadata.GetTopic().GetPartitions()
+	partitionIdx := make([]int32, 0, len(partitions))
+	for _, part := range partitions {
+		partitionIdx = append(partitionIdx, part.GetPartitionIndex())
+	}
+
+	return c, partitionIdx
 }
 
-func (c *Consumer) waitOnMetadata(brokerAddr string, maxWaitMs time.Duration) error {
-	// find a broker to get metadata
+// SetPartitionIdx is used set the partition index that the consumer need to pull from
+func (c *Consumer) SetPartitionIdx(partIdx int) {
+	partitionExist := false
+	partIdxInt32 := int32(partIdx)
 
+	for _, part := range c.metadata.GetTopic().GetPartitions() {
+		if part.GetPartitionIndex() == partIdxInt32 {
+			c.partitionIdx = partIdxInt32
+			partitionExist = true
+			break
+		}
+	}
+
+	// fail the consumer if invalid partition index is given
+	if !partitionExist {
+		log.Fatalln("Invalid partition index")
+	}
+}
+
+// Consume is used to start the messages pulling
+func (c *Consumer) Consume() {
+	// setup the stream connections to all the required brokers
+	c.setupStreamToConsumeMsg()
+
+	for {
+		// setup the request
+		req := &consumepb.ConsumeRequest{
+			Partition: c.partitionIdx,
+			TopicName: c.topic,
+			Offset:    c.readOffset,
+		}
+
+		// send the consume request
+		err := c.brokerCon.Send(req)
+		if err != nil {
+			// reset the connection and try again
+			c.resetBrokerConnection()
+			continue
+		}
+
+		// get the consume response
+		resp, err := c.brokerCon.Recv()
+		if err == io.EOF {
+			// reset the connection and try again
+			c.resetBrokerConnection()
+			continue
+		} else if err == recordpb.ErrNoRecord {
+			// if no record available sleep for 500 milliseconds
+			time.Sleep(500 * time.Millisecond)
+			// move to the next iteration
+			continue
+		}
+
+		// print out all the record
+		printRecordBatchMsg(resp.GetRecordSet())
+
+		// update the consumer read offset
+		c.updateReadOffset(resp.GetOffset())
+	}
+}
+
+// CleanupResources used to cleanup the Consumer resources
+func (c *Consumer) CleanupResources() {
+	c.brokerCon.CloseSend()
+	c.grpcConn.Close()
+}
+
+///////////////////////////////////
+//         Private Methods       //
+///////////////////////////////////
+
+// waitOnMetadata used to fetch the metadata for the requested topic
+func (c *Consumer) waitOnMetadata(brokerAddr string, maxWaitMs time.Duration) error {
 	conn, err := grpc.Dial(brokerAddr, grpc.WithInsecure())
 	if err != nil {
 		return err
@@ -98,177 +183,57 @@ func (c *Consumer) waitOnMetadata(brokerAddr string, maxWaitMs time.Duration) er
 	return nil
 }
 
-func (c *Consumer) Consume() {
-	// setup the stream connections to all the required brokers
-	c.setupStreamToSendMsg()
+// setupStreamToConsumeMsg setup the gRPC stream for pulling message
+// it will stop the consumer program if there is no broker available for the partition
+func (c *Consumer) setupStreamToConsumeMsg() {
 
-	// check if there are partitions available to consume
-	c.failIfNoAvailablePartition()
-
-	c.metadataMux.RLock()
-	// get partition idx for topic
-	brkID := c.getLeaderIDByPartition(c.PartitionIdx)
-	c.metadataMux.RUnlock()
-
-	c.timers = make(map[int]*time.Timer)
-	c.mux.Lock()
-	c.timers[brkID] = time.NewTimer(500 * time.Millisecond)
-	c.mux.Unlock()
-	fmt.Println("BrokerCons:", c.brokerCon)
-	go c.doConsume(brkID, c.PartitionIdx)
-
-}
-
-func (c *Consumer)doConsume(brokerID int, partitionIdx int) {
+	// setup the consume stream connection
 	for {
-		time.Sleep(time.Millisecond * 500)
-		log.Println("Sending request to Broker", brokerID)
-		if conn, exist := c.brokerCon[brokerID]; exist {
-			req := consumepb.ConsumeRequest{
-				ConsumerID:           int32(c.ID),
-				Partition:            int32(partitionIdx),
-				TopicName:            c.topic,
-				Offset:				  int64(c.offset),
-			}
-			_ = conn.Send(&req)
-			res, err := conn.Recv()
-			c.postDoConsumeHook(brokerID, &req, res, err)
-				 //else {
-					//// get the response
-					//c.postDoConsumeHook(brokerID, res)
-				//}
-		} else {
-			log.Fatalln("Broker not available")
-		}
-	}
-}
+		leaderID := int32(-1)
 
-func (c *Consumer) postDoConsumeHook(brokerID int, req *consumepb.ConsumeRequest, res *consumepb.ConsumeResponse, err error) {
-	if err == io.EOF || err == errors.New("EOF"){
-		time.Sleep(500*time.Millisecond)
-		log.Printf("No recordbatch to consume yet: %v", err)
-	} else if err != nil {
-		log.Printf("Error in consume:%v\n", err)
-		log.Printf("Detect Broker %v failure, retry to send message to other broker", brokerID)
-		
-		newBrkID := brokerID
-		if err == errors.New("Broker not available") {
-			newBrkID = -1
-		}
-		for {
-			// clean up
-			// reset broker connection
-			c.resetBrokerConnection()
-
-			// get leader ID for a partition
-			newBrkID = c.getLeaderIDByPartition(c.PartitionIdx)
-			// fmt.Println("New broker id:", newBrkID)
-
-			if newBrkID == -1 {
-				log.Fatalln(errors.New("No brokers holding any replica"))
-			} else {
-				// send request
-				err := c.brokerCon[newBrkID].Send(req)
-				if err != nil {
-					continue
-				}
-				// check response
-				res, err = c.brokerCon[newBrkID].Recv()
-				fmt.Println("New response after first failure:", res)
-				if err != nil {
-					continue
-				}
-				break
+		// get the leader ID for the partition
+		for _, part := range c.metadata.GetTopic().GetPartitions() {
+			if part.GetPartitionIndex() == c.partitionIdx {
+				leaderID = part.GetLeaderID()
 			}
 		}
-		// Update offset and read records
-		c.offset = int(res.Offset)
-		records := res.RecordSet.GetRecords()
-		for _, record := range records {
-			bytes := record.GetValue()
-			msg := string(bytes)
-			log.Printf("Consumer %v has received message: %v\n", c.ID, msg)
+
+		// if no broker available for the current partition TERMINATE the consumer
+		if leaderID == -1 {
+			log.Fatalf("No brokers available for the current partition(%v)\n", c.partitionIdx)
 		}
-	} else {
-		// Update offset and read records
-		c.offset = int(res.Offset)
-		records := res.RecordSet.GetRecords()
-		for _, record := range records {
-			bytes := record.GetValue()
-			msg := string(bytes)
-			log.Printf("Consumer %v has received message: %v\n", c.ID, msg)
+
+		// setup gRPC connection
+		conn, err := grpc.Dial(c.brokerAddrMap[leaderID], grpc.WithInsecure())
+		if err != nil {
+			c.refreshMetadata()
+			continue
 		}
+		// setup gRPC service
+		conClient := clientpb.NewClientServiceClient(conn)
+
+		// setup stream
+		stream, err := conClient.Consume(context.Background())
+		if err != nil {
+			conn.Close()
+			c.refreshMetadata()
+			continue
+		}
+
+		// store the grpc and stream connection
+		c.grpcConn = conn
+		c.brokerCon = stream
+
+		break
 	}
 }
 
-// CleanupResources used to cleanup the Producer resources
-func (c *Consumer) CleanupResources() {
-	for _, conn := range c.brokerCon {
-		conn.CloseSend()
-	}
-}
-
-// setupStreamToSendMsg setup the gRPC stream for sending message batch to the leader broker and attach to the producer instance
-func (c *Consumer) setupStreamToSendMsg() {
-	// create a mapping of brokerID to broker info for easy access later
-	brkMapping := make(map[int]*metadatapb.Broker)
-	for _, brk := range c.metadata.GetBrokers() {
-		brkMapping[int(brk.GetNodeID())] = brk
-	}
-
-	for _, part := range c.metadata.GetTopic().GetPartitions() {
-		// try to find a broker for the partiton
-		for {
-			leaderID := c.getLeaderIDByPartition(int(part.GetPartitionIndex()))
-			// if no broker available for the current partition move on to the next one
-			if leaderID == -1 {
-				break
-			}
-			leader := brkMapping[leaderID]
-
-			if _, exist := c.brokerCon[leaderID]; !exist {
-				// setup gRPC connection
-				conn, err := grpc.Dial(fmt.Sprintf("%v:%v", leader.GetHost(), leader.GetPort()), grpc.WithInsecure())
-				if err != nil {
-					c.refreshMetadata()
-					continue
-				}
-				// setup gRPC service
-				conClient := clientpb.NewClientServiceClient(conn)
-
-				// setup stream
-				stream, err := conClient.Consume(context.Background())
-				if err != nil {
-					conn.Close()
-					c.refreshMetadata()
-					continue
-				}
-
-				c.grpcConn[leaderID] = conn
-				c.brokerCon[leaderID] = stream
-			}
-			break
-		}
-	}
-}
-
-// getLeaderIDByPartition find the leader ID based on the given partition ID
-// return -1 if no broker available for the given partition
-func (c *Consumer) getLeaderIDByPartition(partitionIdx int) int {
-	for _, part := range c.metadata.GetTopic().GetPartitions() {
-		if int(part.GetPartitionIndex()) == partitionIdx {
-			return int(part.GetLeaderID())
-		}
-	}
-	return -1
-}
-
-// refreshMetadata fetch new metadata and validate it
-// Will fail the Producer if the new metadata does not have any partition available
+// refreshMetadata fetch new metadata and replace the current metadata cache
+// it will fail if there is no broker available to get the topic metadata
 func (c *Consumer) refreshMetadata() {
-	for _, brk := range c.metadata.GetBrokers() {
+	for _, brkAddr := range c.brokerAddrMap {
 		// refresh the metadata
-		err := c.waitOnMetadata(fmt.Sprintf("%v:%v", brk.GetHost(), brk.GetPort()), METADATA_TIMEOUT)
+		err := c.waitOnMetadata(brkAddr, METADATA_TIMEOUT)
 		if err != nil {
 			continue
 		}
@@ -277,34 +242,24 @@ func (c *Consumer) refreshMetadata() {
 	log.Fatalln("No brokers available")
 }
 
-
-// failIfNoAvailablePartition used to terminate the Producer if there is no partition available
-func (c *Consumer) failIfNoAvailablePartition() {
-	if len(c.getAvailablePartitionID()) == 0 {
-		log.Fatalln("No partition available")
-	}
-}
-
-// getAvailablePartitionID get all the available partition ID based on the alive brokers
-func (c *Consumer) getAvailablePartitionID() []*metadatapb.Partition {
-	availablePartitionIDs := []*metadatapb.Partition{}
-
-	for _, part := range c.metadata.GetTopic().GetPartitions() {
-		leaderID := c.getLeaderIDByPartition(int(part.GetLeaderID()))
-		if leaderID == -1 {
-			continue
-		} else {
-			availablePartitionIDs = append(availablePartitionIDs, part)
-		}
-	}
-	return availablePartitionIDs
-}
-
 // resetBrokerConnection is used to refresh the metadata, setup stream connection and check the partition available
 func (c *Consumer) resetBrokerConnection() {
+	// close the current grpc connection
+	c.grpcConn.Close()
+
 	c.refreshMetadata()
 
-	c.setupStreamToSendMsg()
+	c.setupStreamToConsumeMsg()
+}
 
-	c.failIfNoAvailablePartition()
+// printRecordBatchMsg used to print all the Record messages in the RecordBatch
+func printRecordBatchMsg(rcdBatch *recordpb.RecordBatch) {
+	for _, rcd := range rcdBatch.GetRecords() {
+		fmt.Println(rcd.GetValue())
+	}
+}
+
+// updateReadOffset used to update the consumer RecordBatch read offset
+func (c *Consumer) updateReadOffset(offset int64) {
+	c.readOffset = offset
 }
