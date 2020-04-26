@@ -41,7 +41,7 @@ func main() {
 
 	// choose partition
 	var partition int
-	fmt.Printf("Which partition do you want to pull from?\nPartitions available: %v\n", numPartitions)
+	fmt.Printf("Which partition do you want to pull from?\nPartitions available: 0-%v\n", numPartitions-1)
 	fmt.Scanln(&partition) // get partition chosen
 	c.PartitionIdx = partition
 

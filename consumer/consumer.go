@@ -108,6 +108,7 @@ func (c *Consumer) Consume() {
 	brkID := c.getLeaderIDByPartition(c.PartitionIdx)
 	c.metadataMux.RUnlock()
 
+	c.timers = make(map[int]*time.Timer)
 	c.mux.Lock()
 	c.timers[brkID] = time.NewTimer(500 * time.Millisecond)
 	c.mux.Unlock()
