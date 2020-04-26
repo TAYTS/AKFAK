@@ -206,6 +206,7 @@ func (n *Node) Produce(stream clientpb.ClientService_ProduceServer) error {
 func (n *Node) Consume(stream clientpb.ClientService_ConsumeServer) error {
 	doneFileSetup := false
 	var fileRecordHandler *recordpb.FileRecord
+	MAX_RECORD_BATCH := 10
 
 	for {
 		// get the consume request from client
@@ -215,7 +216,6 @@ func (n *Node) Consume(stream clientpb.ClientService_ConsumeServer) error {
 			return nil
 		}
 		if err != nil {
-			log.Printf("Error while reading client stream: %v", err)
 			return err
 		}
 
@@ -233,19 +233,32 @@ func (n *Node) Consume(stream clientpb.ClientService_ConsumeServer) error {
 			fileRecordHandler.ShiftReadOffset(readOffset)
 			doneFileSetup = true
 		}
+		batchData := []*recordpb.RecordBatch{}
+		var readErr error
 
-		rcdBatch, err := fileRecordHandler.ReadNextRecordBatch()
-		if err == recordpb.ErrNoRecord {
+		for i := 0; i < MAX_RECORD_BATCH; i++ {
+			rcdBatch, err := fileRecordHandler.ReadNextRecordBatch()
+			if err == recordpb.ErrNoRecord {
+				readErr = err
+				break
+			} else if err != nil {
+				log.Printf("Broker %v unable to read logs for Topic: %v, Partition: %v\n", n.ID, topicName, partIdx)
+				break
+			}
+			readErr = err
+			batchData = append(batchData, rcdBatch)
+		}
+		if len(batchData) == 0 {
+			if readErr != nil {
+				return readErr
+			}
 			return recordpb.ErrNoRecord
-		} else if err != nil {
-			log.Printf("Broker %v unable to read logs for Topic: %v, Partition: %v\n", n.ID, topicName, partIdx)
-			return err
 		}
 
 		streamErr := stream.Send(&consumepb.ConsumeResponse{
 			TopicName: topicName,
 			Partition: partIdx,
-			RecordSet: rcdBatch,
+			RecordSet: batchData,
 			Offset:    fileRecordHandler.GetCurrentReadOffset(),
 		})
 		if streamErr != nil {

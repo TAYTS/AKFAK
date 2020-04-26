@@ -122,7 +122,7 @@ func (c *Consumer) Consume() {
 			if ok {
 				if statusErr.Message() == recordpb.ErrNoRecord.Error() {
 					// if no record available sleep for 500 milliseconds
-					time.Sleep(500 * time.Millisecond)
+					time.Sleep(50 * time.Millisecond)
 					// move to the next iteration
 					continue
 				} else {
@@ -263,9 +263,11 @@ func (c *Consumer) resetBrokerConnection() {
 }
 
 // printRecordBatchMsg used to print all the Record messages in the RecordBatch
-func printRecordBatchMsg(rcdBatch *recordpb.RecordBatch) {
-	for _, rcd := range rcdBatch.GetRecords() {
-		fmt.Println(rcd.GetValue())
+func printRecordBatchMsg(rcdBatches []*recordpb.RecordBatch) {
+	for _, rcdBatch := range rcdBatches {
+		for _, rcd := range rcdBatch.GetRecords() {
+			fmt.Println(rcd.GetValue())
+		}
 	}
 }
 

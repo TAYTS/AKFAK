@@ -16,5 +16,5 @@ message ConsumeResponse {
   string topicName = 1;
   int32 partition = 2;
   int64 offset = 3;
-  recordpb.RecordBatch recordSet = 4;
+  repeated recordpb.RecordBatch recordSet = 4;
 }
