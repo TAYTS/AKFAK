@@ -3,6 +3,7 @@ package consumer
 import (
 	"AKFAK/proto/metadatapb"
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"sync"
@@ -112,7 +113,7 @@ func (c *Consumer) Consume() {
 	c.mux.Lock()
 	c.timers[brkID] = time.NewTimer(500 * time.Millisecond)
 	c.mux.Unlock()
-
+	fmt.Println("BrokerCons:", c.brokerCon)
 	go c.doConsume(brkID, c.PartitionIdx)
 
 }
@@ -130,22 +131,11 @@ func (c *Consumer)doConsume(brokerID int, partitionIdx int) {
 				}
 				_ = conn.Send(&req)
 				res, err := conn.Recv()
-				if err != nil {
-					log.Printf("Detect Broker %v failure, retry to send message to other broker")
-					delete(c.brokerCon, brokerID)
-
-					if len(c.brokerCon) == 0 {
-						log.Fatalln("No Brokers are available")
-					} else {
-						// Check brokerCon for the next broker with the replica
-						for k, _ := range c.brokerCon {
-							brokerID = k
-						}
-					}
-				} else {
-					// get the response
-					c.postDoConsumeHook(brokerID, res)
-				}
+				c.postDoConsumeHook(brokerID, &req, res, err)
+				 //else {
+					//// get the response
+					//c.postDoConsumeHook(brokerID, res)
+				//}
 			} else {
 				log.Fatalln("Broker not available")
 			}
@@ -153,14 +143,50 @@ func (c *Consumer)doConsume(brokerID int, partitionIdx int) {
 	}
 }
 
-func (c *Consumer) postDoConsumeHook(brokerID int, res *consumepb.ConsumeResponse) {
-	// Update offset and read records
-	c.offset = int(res.Offset)
-	records := res.RecordSet.GetRecords()
-	for _, record := range records {
-		bytes := record.GetValue()
-		msg := string(bytes)
-		log.Printf("Consumer %v has received message: %v\n", c.ID, msg)
+func (c *Consumer) postDoConsumeHook(brokerID int, req *consumepb.ConsumeRequest, res *consumepb.ConsumeResponse, err error) {
+	if err != nil {
+		log.Printf("Detect Broker %v failure, retry to send message to other broker", brokerID)
+		newBrkID := brokerID
+		if err == errors.New("Broker not available") {
+			newBrkID = -1
+		}
+		for {
+			// clean up
+			if newBrkID != -1 {
+				c.brokerCon[newBrkID].CloseSend()
+				c.grpcConn[newBrkID].Close()
+				delete(c.brokerCon, newBrkID)
+				delete(c.grpcConn, newBrkID)
+			}
+
+			// reset broker connection
+			c.resetBrokerConnection()
+
+			// get leader ID for a partition
+			newBrkID = c.getLeaderIDByPartition(c.PartitionIdx)
+
+			// send request
+			err := c.brokerCon[newBrkID].Send(req)
+			if err != nil {
+				continue
+			}
+
+			// check response
+			_, err = c.brokerCon[newBrkID].Recv()
+			if err != nil {
+				continue
+			}
+			break
+		}
+	} else {
+		// Update offset and read records
+		c.offset = int(res.Offset)
+		records := res.RecordSet.GetRecords()
+		for _, record := range records {
+			bytes := record.GetValue()
+			msg := string(bytes)
+			log.Printf("Consumer %v has received message: %v\n", c.ID, msg)
+		}
 	}
 }
 
