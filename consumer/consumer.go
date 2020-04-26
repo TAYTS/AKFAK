@@ -51,7 +51,7 @@ func InitConsumer(id int, topic string, brokerAddr string) (*Consumer, []*metada
 	if err != nil {
 		panic(fmt.Sprintf("Unable to get Topic Metadata: %v\n", err))
 	}
-	return c, c.metadata.GetTopic().GetPartitions()
+	return c, len(c.metadata.GetTopic().GetPartitions())
 }
 
 func (c *Consumer) waitOnMetadata(brokerAddr string, maxWaitMs time.Duration) error {

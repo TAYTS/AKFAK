@@ -42,11 +42,11 @@ func main() {
 
 	// initialise the Consumer
 	log.Println("Initialising the Consumer...")
-	c, partitions := consumer.InitConsumer(*cID, *topic, *contactServer)
+	c, numPartitions := consumer.InitConsumer(*cID, *topic, *contactServer)
 
 	// choose partition
 	var partition int
-	fmt.Printf("Which partition do you want to pull from?\nPartitions available: %v\n", partitions)
+	fmt.Printf("Which partition do you want to pull from?\nPartitions available: %v\n", numPartitions)
 	fmt.Scanln(&partition) // get partition chosen
 	c.PartitionIdx = &partition
 
