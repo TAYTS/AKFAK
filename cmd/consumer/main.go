@@ -25,8 +25,7 @@ func main() {
 	partitionNum := flag.Int(
 		"partition",
 		0,
-		"Partition Num (eg. 1)"
-	)
+		"Partition Num (eg. 1)")
 	topicPtr := flag.String(
 		"topic",
 		"",

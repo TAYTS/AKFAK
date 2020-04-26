@@ -26,6 +26,7 @@ func (n *Node) ReadRecordBatchFromLocal(topicName string, partitionID int, offse
 	if err != nil {
 		return nil, err
 	}
+	fileRecordHandler.SetOffset(offset)
 	recordBatch, err := fileRecordHandler.ReadNextRecordBatch()
 	if err != nil {
 		return nil, err

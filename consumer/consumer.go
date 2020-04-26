@@ -1,12 +1,11 @@
 package consumer
 
 import (
+	"AKFAK/proto/metadatapb"
 	"context"
 	"errors"
 	"fmt"
 	"log"
-	"sort"
-	"strings"
 	"sync"
 	"time"
 
@@ -18,317 +17,253 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// ConsumerGroup holds consumers
-type ConsumerGroup struct {
-	id    			int
-	topics 			[]string
-	consumers   	[]*Consumer
-	assignments 	[]*consumepb.MetadataAssignment
-	// key - topic, value - consumer
-	topicConsumer map[string][]*Consumer
-	mux           sync.RWMutex
-}
+const METADATA_TIMEOUT = 100 * time.Millisecond
 
 // Consumer is a member of a consumer group
 type Consumer struct {
-	id      int
-	groupID int
+	ID int
 	// assignments are given an idx (key)
-	assignments map[int]*consumepb.MetadataAssignment
-	brokerCon   map[int]clientpb.ClientService_ConsumeClient
-	brokersAddr         map[int]string
+	//brokerAddr    string
+	topic         string
+	brokerAddrMap map[int]string
+	metadata      *metadatapb.MetadataResponse
+	brokerCon     map[int]clientpb.ClientService_ConsumeClient
+	grpcConn      map[int]*grpc.ClientConn
+	timers        map[int]*time.Timer
+	mux           sync.RWMutex // used to ensure only one routine can send/modify a request to a broker
+	metadataMux   sync.RWMutex
+	partitionIdx  int
+	offset        int // it will not remember if it switches to read a new topic and read back the old topic
 }
 
 // InitConsumerGroup creates a consumergroup and sets up broker connections
-func InitConsumerGroup(id int, _topics string, brokerAddr string) *ConsumerGroup {
-	topics := strings.Split(_topics, ",")
-	cg := ConsumerGroup{
-		id: id,
-		topics: topics,
-	}
-	fmt.Printf("Group %d initiated\n", id)
-	const numConsumers = 2
-	for i := 1; i <= numConsumers; i++ {
-		cg.consumers = append(cg.consumers, initConsumer(i, id))
-		fmt.Printf("Consumer %d created under Group %d\n", i, id)
-	}
-	fmt.Println("Done initialising group")
-	fmt.Println("Topics:",topics)
+func InitConsumer(id int, topic string, partitionIdx int, brokerAddr string) *Consumer {
 
-	err := cg.getAssignments(brokerAddr, topics, 100*time.Millisecond)
+	// Dial to broker to get metadata
+	c := &Consumer{
+		ID: id,
+		topic: topic,
+		brokerCon: make(map[int]clientpb.ClientService_ConsumeClient),
+		grpcConn:	make(map[int]*grpc.ClientConn),
+		partitionIdx: partitionIdx,
+	}
+	// get metadata and wait for 500ms
+	err := c.waitOnMetadata(brokerAddr, METADATA_TIMEOUT)
 	if err != nil {
-		panic(fmt.Sprintf("Consumer group %d unable to get assignments :%v\n", id, err))
+		panic(fmt.Sprintf("Unable to get Topic Metadata: %v\n", err))
 	}
 
-	// distribute assignments to consumers in a round-robin manner
-	cg.distributeAssignments(numConsumers)
+	// setup the stream connections to all the required brokers
+	c.setupStreamToSendMsg()
 
-	for _, c := range cg.consumers {
-		fmt.Printf("Consumer %v has the following assignments %v\n", c.id, c.assignments)
-		c.createBrokersAddrMap()
-		fmt.Sprintf("Consumer %v has created a broker-address map", c.id)
-	}
+	// check if there are partitions available to consume
+	c.failIfNoAvailablePartition()
 
-
-	for _, c := range cg.consumers {
-		fmt.Printf("BrokerAddrMap for Consumer %v, BrokerAddrMap: %v\n", c, c.brokersAddr)
-		err := c.setupStreamToConsumeMsg()
-		if err != nil {
-			panic(fmt.Sprintf("Unable to set up stream to broker: %v\n", err))
-		}
-		fmt.Sprintf("Consumer %v has set up a broker-connection map\n", c.id)
-	}
-
-	cg.createTopicConsumerMap(_topics)
-	fmt.Sprintf("Consumer Group %v has created a topic-consumers map", cg.id)
-
-	return &cg
+	return c
 }
 
-// initConsumer creates a consumer
-func initConsumer(id int, groupID int) *Consumer {
-	return &Consumer{
-		id:      id,
-		groupID: groupID,
-	}
-}
+func (c *Consumer) waitOnMetadata(brokerAddr string, maxWaitMs time.Duration) error {
+	// find a broker to get metadata
 
-// Consume tries to consume information on the topic
-func (cg *ConsumerGroup) Consume(_topic string) error {
-	fmt.Println("Consuming....")
-	// TODO: Consider the event when there is a fault
-	for i, topic := range cg.topics {
-		if topic == _topic {
-			// topic-consumer takes in a topic as key, and returns an ordered array of consumer, with the
-			// ascending partitionIndex
-			consumers := cg.topicConsumer[_topic]
-			go doConsume(consumers, _topic)
-			break
-		} else if i == len(cg.topics)-1 {
-			// already reached the end
-			fmt.Println("Consumer group not set up to pull from this topic")
-			return errors.New("Consumer group not set up to pull from this topic")
-		}
-	}
-	return nil
-}
-
-func doConsume(sortedConsumers[]*Consumer, topic string) {
-	fmt.Println("Running doConsume...")
-	fmt.Println("Searching for topic", topic)
-	fmt.Println("sortedCusumers", sortedConsumers)
-	for _, c := range sortedConsumers {
-		fmt.Printf("Consumer %v has assignment %v\n", c.id, c.assignments)
-		for _, assignment := range c.assignments {
-			// search for the correct assignment
-			fmt.Printf("\nAssignment %v by Consumer %v\n", assignment, c.id)
-			if assignment.GetTopicName() == topic {
-				fmt.Println("Found topic name in assignment")
-				var connectedBrokenID int
-				stream := c.brokerCon[int(assignment.GetBroker())]
-				err := stream.Send(&consumepb.ConsumeRequest{
-					GroupID:              int32(c.groupID),
-					ConsumerID:           int32(c.id),
-					Partition:            assignment.GetPartitionIndex(),
-					TopicName:            topic,
-				})
-				if err != nil {
-					fmt.Println("Fail to connect. Retrying...")
-					for i := 0; i < len(assignment.GetIsrBrokers()); i ++ {
-						chosenBrokenID := assignment.GetIsrBrokers()[i].ID
-						if chosenBrokenID == assignment.GetBroker(){
-							// main broker is down based on above attempt
-							continue
-						}
-						stream := c.brokerCon[int(chosenBrokenID)]
-						err2 := stream.Send(&consumepb.ConsumeRequest{
-							GroupID:              int32(c.groupID),
-							ConsumerID:           int32(c.id),
-							Partition:            assignment.GetPartitionIndex(),
-							TopicName:            topic,
-						})
-						// When there is an error and it is the last broker it tries to connect
-						if err2 != nil && i == len(assignment.GetIsrBrokers()) - 1 {
-							log.Fatalf("ISRs exhausted. No more brokers to connect to. Error msg: %v\n", err)
-						} else if err2 == nil {
-							connectedBrokenID = int(chosenBrokenID)
-							assignment.Broker = chosenBrokenID
-							fmt.Println("Failed but recovered")
-							fmt.Println("Connecting to Broker:", connectedBrokenID)
-							break
-						}
-					}
-				} else {
-					connectedBrokenID = int(assignment.GetBroker())
-					fmt.Println("Connecting to Broker:", int(assignment.GetBroker()))
-				}
-				fmt.Println("What is ")
-				fmt.Println("BrokerCon Map:", c.brokerCon)
-				fmt.Println("Connecting to BrokerID:", connectedBrokenID)
-				res, err3 := stream.Recv()
-				//fmt.Println("Response:", res)
-				if err3 != nil {
-					log.Fatalf("Error connecting")
-				}
-				responseHandler(int(assignment.GetBroker()), c.id, res, err3)
-				//go func(connectedBrokenID int) {
-				//	res, err3 := c.brokerCon[connectedBrokenID].Recv()
-				//	fmt.Println("Response:", res)
-				//	responseHandler(int(assignment.GetBroker()), c.id, res, err3)
-				//}(connectedBrokenID)
-			}
-		}
-	}
-}
-
-func responseHandler(brokerID int, consumerID int, res *consumepb.ConsumeResponse, err error) {
-	fmt.Println("responseHandling...")
-	if err != nil {
-		log.Printf("Error when receiving messages from Broker %v\n", err)
-	} else {
-		recordSet := res.GetRecordSet()
-		fmt.Println("RecordSet:", recordSet)
-		records := recordSet.GetRecords()
-		fmt.Println("Records:", records)
-		for _, r := range records {
-			bytes := r.GetValue()
-			msg := string(bytes)
-			fmt.Sprintf("Consumer %v has received message: %v\n", consumerID, msg)
-		}
-		log.Printf("Successfully receive the message from Broker %v\n", brokerID)
-	}
-}
-
-func (cg *ConsumerGroup) getAssignments(brokerAddr string, topics []string, maxWaitMs time.Duration) error {
-	fmt.Println("Connecting to", brokerAddr)
-	// connect to a broker
-	opts := []grpc.DialOption{grpc.WithInsecure()}
-	conn, err := grpc.Dial(brokerAddr, opts...)
+	conn, err := grpc.Dial(brokerAddr, grpc.WithInsecure())
 	if err != nil {
 		return err
 	}
-
+	defer conn.Close()
 	// create gRPC client
-	consumerClient := clientpb.NewClientServiceClient(conn)
+	conClient := clientpb.NewClientServiceClient(conn)
+
+	// send get metadata request
+	req := &metadatapb.MetadataRequest{
+		TopicName: c.topic,
+	}
 
 	// create context with timeout
-	ctx, cancel := context.WithTimeout(context.Background(), maxWaitMs)
+	protoCtx, protoCancel := context.WithTimeout(context.Background(), maxWaitMs)
+	defer protoCancel()
 
-	for _, topic := range topics {
-		// create a request for a topic
-		req := &consumepb.GetAssignmentRequest{
-			GroupID:   int32(cg.id),
-			TopicName: topic,
-		}
-		// send request to get assignments
-		res, err := consumerClient.GetAssignment(ctx, req)
-		if err != nil {
-			statusErr, ok := status.FromError(err)
-			if ok {
-				if statusErr.Code() == codes.DeadlineExceeded {
-					fmt.Printf("assignment not received for topic %v after %d ms", topic, maxWaitMs)
-				} else {
-					fmt.Printf("unexpected error: %v", statusErr)
-				}
+	// send request to get metadata
+	res, err := conClient.WaitOnMetadata(protoCtx, req)
+	if err != nil {
+		statusErr, ok := status.FromError(err)
+		if ok {
+			if statusErr.Code() == codes.DeadlineExceeded {
+				log.Printf("Metadata not received for topic %v after %d ms\n", c.topic, maxWaitMs)
 			} else {
-				fmt.Printf("could not get assignment. error: %v", err)
+				log.Printf("Unexpected error: %v\n", statusErr.Message())
 			}
-
-			// close the connection
-			cancel()
-			conn.Close()
-			return err
+		} else {
+			log.Printf("could not get metadata. error: %v\n", err)
 		}
-		// save the assignment to the consumer group
-		cg.assignments = append(cg.assignments, res.GetAssignments()...)
-		// fmt.Println("assignments:", cg.assignments)
+		return err
 	}
-
-	// clean up resources
-	cancel()
-	conn.Close()
+	// save the metadata response to the consumer
+	c.metadataMux.Lock()
+	c.metadata = res
+	c.metadataMux.Unlock()
 
 	return nil
 }
 
-func (c *Consumer) getBrokerIdxAddrForAssignment(assignmentIdx int) (int, string) {
-	brokerID := c.assignments[assignmentIdx].GetBroker()
-	for i, isrbroker := range c.assignments[assignmentIdx].GetIsrBrokers() {
-		if isrbroker.GetID() == brokerID {
-			return i, fmt.Sprintf("%v:%v", isrbroker.GetHost(), isrbroker.GetPort())
-		} else {
-			panic("No matching broker ID in isrbrokers")
-		}
-	}
-	return -1, ""
+func (c *Consumer) Consume() {
+	c.metadataMux.RLock()
+	// get partition idx for topic
+	brkID := c.getLeaderIDByPartition(c.partitionIdx)
+	c.metadataMux.RUnlock()
+
+	c.mux.Lock()
+	c.timers[brkID] = time.NewTimer(500 * time.Millisecond)
+	c.mux.Unlock()
+
+	go c.doConsume(brkID, c.partitionIdx)
+
 }
 
-// distributeAssignments to consumers in a round-robin manner
-func (cg *ConsumerGroup) distributeAssignments(numConsumers int) {
-	for i, assignment := range cg.assignments {
-		idx := i % numConsumers
-		cg.consumers[idx].assignments = make(map[int]*consumepb.MetadataAssignment)
-		cg.consumers[idx].assignments[i/numConsumers] = assignment
-	}
-}
+func (c *Consumer)doConsume(brokerID int, partitionIdx int) {
+	for {
+		//c.mux.Lock()
+		// send to broker for consumereq
+		// get res
+		// if res == nil
+		// sleep
 
-func (cg *ConsumerGroup) createTopicConsumerMap(topic string) {
-	fmt.Println("Input topic:", topic)
-	cg.topicConsumer = make(map[string][]*Consumer)
-	for _, consumer := range cg.consumers {
-		assignments := consumer.assignments
-		for _, assignment := range assignments {
-			if assignment.GetTopicName() == topic {
-				cg.topicConsumer[topic] = append(cg.topicConsumer[assignment.GetTopicName()], consumer)
+		// refresh new connection
+		// change new connection
+		// if leaderId != -1 // no brokers from that partition.
+		select {
+		case <-c.timers[brokerID].C:
+			log.Println("Sending request to Broker", brokerID)
+			if conn, exist := c.brokerCon[brokerID]; exist {
+				req := consumepb.ConsumeRequest{
+					ConsumerID:           int32(c.ID),
+					Partition:            int32(partitionIdx),
+					TopicName:            c.topic,
+				}
+				conn.Send(&req)
+				res, err := conn.Recv()
+				// get the response
+				c.postDoConsumeHook(brokerID, res, err)
+			} else {
+				log.Fatalln("Broker not available")
 			}
 		}
 	}
-	fmt.Println("topicConsumer Map before sort", cg.topicConsumer)
-	sort.Slice(cg.topicConsumer[topic], func(i, j int) bool {
-		if cg.topicConsumer[topic][i].assignments[0].GetPartitionIndex() <= cg.topicConsumer[topic][j].assignments[0].GetPartitionIndex() {
-			return cg.topicConsumer[topic][i].assignments[0].GetPartitionIndex() < cg.topicConsumer[topic][j].assignments[0].GetPartitionIndex()
+}
+
+func (c *Consumer) postDoConsumeHook(brokerID int, res *consumepb.ConsumeResponse, err error) {
+	if err != nil {
+		log.Printf("Detect Broker %v failure, retry to send message to other broker", brokerID)
+		newBrkID := brokerID
+		if err == errors.New("Broker not available") {
+			newBrkID = -1
+		}
+		// try until all the partitions are exhausted
+
+	} else {
+		records := res.RecordSet.GetRecords()
+		for _, record := range records {
+			bytes := record.GetValue()
+			msg := string(bytes)
+			log.Printf("Consumer %v has received message: %v\n", c.ID, msg)
+		}
+	}
+}
+
+// CleanupResources used to cleanup the Producer resources
+func (c *Consumer) CleanupResources() {
+	for _, conn := range c.brokerCon {
+		conn.CloseSend()
+	}
+}
+
+// setupStreamToSendMsg setup the gRPC stream for sending message batch to the leader broker and attach to the producer instance
+func (c *Consumer) setupStreamToSendMsg() {
+	// create a mapping of brokerID to broker info for easy access later
+	brkMapping := make(map[int]*metadatapb.Broker)
+	for _, brk := range c.metadata.GetBrokers() {
+		brkMapping[int(brk.GetNodeID())] = brk
+	}
+
+	for _, part := range c.metadata.GetTopic().GetPartitions() {
+		// try to find a broker for the partiton
+		for {
+			leaderID := c.getLeaderIDByPartition(int(part.GetPartitionIndex()))
+			// if no broker available for the current partition move on to the next one
+			if leaderID == -1 {
+				break
+			}
+			leader := brkMapping[leaderID]
+
+			if _, exist := c.brokerCon[leaderID]; !exist {
+				// setup gRPC connection
+				conn, err := grpc.Dial(fmt.Sprintf("%v:%v", leader.GetHost(), leader.GetPort()), grpc.WithInsecure())
+				if err != nil {
+					c.refreshMetadata()
+					continue
+				}
+				// setup gRPC service
+				conClient := clientpb.NewClientServiceClient(conn)
+
+				// setup stream
+				stream, err := conClient.Consume(context.Background())
+				if err != nil {
+					conn.Close()
+					c.refreshMetadata()
+					continue
+				}
+
+				c.grpcConn[leaderID] = conn
+				c.brokerCon[leaderID] = stream
+			}
+			break
+		}
+	}
+}
+
+// getLeaderIDByPartition find the leader ID based on the given partition ID
+// return -1 if no broker available for the given partition
+func (c *Consumer) getLeaderIDByPartition(partitionIdx int) int {
+	for _, part := range c.metadata.GetTopic().GetPartitions() {
+		if int(part.GetPartitionIndex()) == partitionIdx {
+			return int(part.GetLeaderID())
+		}
+	}
+	return -1
+}
+
+// refreshMetadata fetch new metadata and validate it
+// Will fail the Producer if the new metadata does not have any partition available
+func (c *Consumer) refreshMetadata() {
+	for _, brk := range c.metadata.GetBrokers() {
+		// refresh the metadata
+		err := c.waitOnMetadata(fmt.Sprintf("%v:%v", brk.GetHost(), brk.GetPort()), METADATA_TIMEOUT)
+		if err != nil {
+			continue
+		}
+		return
+	}
+	log.Fatalln("No brokers available")
+}
+
+
+// failIfNoAvailablePartition used to terminate the Producer if there is no partition available
+func (c *Consumer) failIfNoAvailablePartition() {
+	if len(c.getAvailablePartitionID()) == 0 {
+		log.Fatalln("No partition available")
+	}
+}
+
+// getAvailablePartitionID get all the available partition ID based on the alive brokers
+func (c *Consumer) getAvailablePartitionID() []*metadatapb.Partition {
+	availablePartitionIDs := []*metadatapb.Partition{}
+
+	for _, part := range c.metadata.GetTopic().GetPartitions() {
+		leaderID := int(part.GetLeaderID())
+		if leaderID == -1 {
+			continue
 		} else {
-			return cg.topicConsumer[topic][i].assignments[0].GetPartitionIndex() > cg.topicConsumer[topic][j].assignments[0].GetPartitionIndex()
-		}
-	})
-	fmt.Println("topicConsumer Map after sort", cg.topicConsumer)
-
-}
-
-func (c *Consumer) createBrokersAddrMap() {
-	c.brokersAddr = make(map[int]string)
-	for _, assignment := range c.assignments {
-		fmt.Printf("Assigment for Consumer %v is %v\n", c.id, c.assignments)
-		// CANNOT FIND ISR Brokers
-		for _, isr := range assignment.GetIsrBrokers() {
-			c.brokersAddr[int(isr.GetID())] = fmt.Sprintf("%v:%v", isr.GetHost(), isr.GetPort())
+			availablePartitionIDs = append(availablePartitionIDs, part)
 		}
 	}
-	fmt.Println(c.brokersAddr)
-}
-
-func (c *Consumer) setupStreamToConsumeMsg() error {
-	brokerCount := len(c.brokersAddr)
-	brokersConnections := make(map[int]clientpb.ClientService_ConsumeClient)
-	for brokerId, brokerAddr := range c.brokersAddr {
-		opts := []grpc.DialOption{grpc.WithInsecure(), grpc.WithBlock()}
-		conn, err := grpc.Dial(brokerAddr, opts...)
-		if err != nil {
-			brokerCount --
-			continue
-		}
-		consumerClient := clientpb.NewClientServiceClient(conn)
-
-		stream, err := consumerClient.Consume(context.Background())
-		if err != nil {
-			brokerCount --
-			continue
-		}
-		brokersConnections[brokerId] = stream
-	}
-	c.brokerCon = brokersConnections
-	if brokerCount == 0 {
-		return errors.New("No brokers available")
-	}
-	return nil
+	return availablePartitionIDs
 }
