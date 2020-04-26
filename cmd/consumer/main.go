@@ -37,7 +37,7 @@ func main() {
 	// construct the available partition index string
 	availablePartitionsStr := "["
 	for idx, partIdx := range availablePartitions {
-		availablePartitionsStr += string(partIdx)
+		availablePartitionsStr += fmt.Sprint(partIdx)
 		if idx != len(availablePartitions)-1 {
 			availablePartitionsStr += ", "
 		}
@@ -52,14 +52,14 @@ func main() {
 
 	// setup the partition to pull the message
 	c.SetPartitionIdx(partitionIdx)
-	log.Printf("Set up consumer to start pulling from topic %v partition %v\n", *topicPtr, &partitionIdx)
+	log.Printf("Set up consumer to start pulling from topic %v partition %v\n", *topicPtr, partitionIdx)
 
 	// Wait for Ctrl-C to exit
 	ch := make(chan os.Signal, 1)
 	signal.Notify(ch, os.Interrupt)
 
 	// start consume message
-	c.Consume()
+	go c.Consume()
 
 	<-ch
 

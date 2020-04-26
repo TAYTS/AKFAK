@@ -18,26 +18,6 @@ import (
 	"google.golang.org/grpc"
 )
 
-// ReadRecordBatchFromLocal is a helper function for Consume request handler to read the Record from local log file
-func (n *Node) ReadRecordBatchFromLocal(topicName string, partitionID int, offset int64) (*recordpb.RecordBatch, int64, error) {
-	filePath := fmt.Sprintf("%v/%v/%v", n.config.LogDir, partition.ConstructPartitionDirName(topicName, partitionID), partition.ContructPartitionLogName(topicName))
-	fileRecordHandler, err := recordpb.InitialiseFileRecordFromFilepath(filePath)
-	if offset != 0 {
-		fileRecordHandler.SetOffset(offset)
-	}
-	if err != nil {
-		return nil, -1, err
-	}
-	fileRecordHandler.SetOffset(offset)
-	recordBatch, err := fileRecordHandler.ReadNextRecordBatch()
-	if err != nil {
-		return nil, -1, err
-	}
-
-	newOffset := fileRecordHandler.GetCurrentReadOffset() // gets current offset
-	return recordBatch, newOffset, nil
-}
-
 // cleanupProducerResource help to clean up the Producer resources
 func cleanupProducerResource(replicaConn map[int]clientpb.ClientService_ProduceClient, fileHandlerMapping map[int]*recordpb.FileRecord) {
 	for _, rCon := range replicaConn {

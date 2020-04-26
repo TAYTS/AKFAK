@@ -204,28 +204,55 @@ func (n *Node) Produce(stream clientpb.ClientService_ProduceServer) error {
 
 // Consume responds to pull request from consumer, sending record batch on topic-X partition-Y
 func (n *Node) Consume(stream clientpb.ClientService_ConsumeServer) error {
-	req, err := stream.Recv()
-	if err != nil {
-		log.Printf("Error while reading client stream: %v", err)
-		return err
-	}
-	recordBatch, newOffset, err := n.ReadRecordBatchFromLocal(req.GetTopicName(), int(req.GetPartition()), req.Offset)
-	if err != nil {
-		log.Printf("Error while reading record batch: %v", err)
-		return err
-	}
-	errorStream := stream.Send(&consumepb.ConsumeResponse{
-		TopicName: req.TopicName,
-		Partition: req.GetPartition(),
-		RecordSet: recordBatch,
-		Offset:    newOffset,
-	})
+	doneFileSetup := false
+	var fileRecordHandler *recordpb.FileRecord
 
-	if errorStream != nil {
-		log.Printf("Error while sending ConsumeResponse to consumer: %v", err)
-		return err
+	for {
+		// get the consume request from client
+		req, err := stream.Recv()
+		if err == io.EOF {
+			// client terminate the connection
+			return nil
+		}
+		if err != nil {
+			log.Printf("Error while reading client stream: %v", err)
+			return err
+		}
+
+		topicName := req.GetTopicName()
+		partIdx := req.GetPartition()
+
+		// setup the file handler on first request handling
+		if !doneFileSetup {
+			readOffset := req.GetOffset()
+			filePath := fmt.Sprintf("%v/%v/%v",
+				n.config.LogDir,
+				partition.ConstructPartitionDirName(topicName, int(partIdx)),
+				partition.ContructPartitionLogName(topicName))
+			fileRecordHandler, _ = recordpb.InitialiseFileRecordFromFilepath(filePath)
+			fileRecordHandler.ShiftReadOffset(readOffset)
+			doneFileSetup = true
+		}
+
+		rcdBatch, err := fileRecordHandler.ReadNextRecordBatch()
+		if err == recordpb.ErrNoRecord {
+			return recordpb.ErrNoRecord
+		} else if err != nil {
+			log.Printf("Broker %v unable to read logs for Topic: %v, Partition: %v\n", n.ID, topicName, partIdx)
+			return err
+		}
+
+		streamErr := stream.Send(&consumepb.ConsumeResponse{
+			TopicName: topicName,
+			Partition: partIdx,
+			RecordSet: rcdBatch,
+			Offset:    fileRecordHandler.GetCurrentReadOffset(),
+		})
+		if streamErr != nil {
+			log.Printf("Error while send RecordBatch to consumer: %v", streamErr)
+			return streamErr
+		}
 	}
-	return nil
 }
 
 ///////////////////////////////////

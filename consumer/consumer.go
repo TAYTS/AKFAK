@@ -105,6 +105,7 @@ func (c *Consumer) Consume() {
 		// send the consume request
 		err := c.brokerCon.Send(req)
 		if err != nil {
+			// log.Println("err:", err)
 			// reset the connection and try again
 			c.resetBrokerConnection()
 			continue
@@ -116,11 +117,20 @@ func (c *Consumer) Consume() {
 			// reset the connection and try again
 			c.resetBrokerConnection()
 			continue
-		} else if err == recordpb.ErrNoRecord {
-			// if no record available sleep for 500 milliseconds
-			time.Sleep(500 * time.Millisecond)
-			// move to the next iteration
-			continue
+		} else {
+			statusErr, ok := status.FromError(err)
+			if ok {
+				if statusErr.Message() == recordpb.ErrNoRecord.Error() {
+					// if no record available sleep for 500 milliseconds
+					time.Sleep(500 * time.Millisecond)
+					// move to the next iteration
+					continue
+				} else {
+					c.resetBrokerConnection()
+				}
+			} else {
+				c.resetBrokerConnection()
+			}
 		}
 
 		// print out all the record
