@@ -15,30 +15,28 @@ This project showcase the model after Apache Kafka.
 
 #### General flow of the system
 ---
-Producer will produce messages to the Kafka system which comprises of multiple brokers and a zookeeper. And before the producer produce the message, the producer has to create a topic first and it will specify the number of partitions and replicas for those partitions the topic will have. So if a topic with 3 partitions are created, then there will be partition 0, partition 1, partition 2. Then if the replication factor is 3, for every partition there will be 3 replicas.
+Producer will produce messages to the Kafka system which comprises of multiple brokers and a zookeeper. Before the producer produce the message, the producer has to create a topic first and it will specify the number of partitions and replicas for those partitions the topic will have. So if a topic with 3 partitions are created, then there will be partition 0, partition 1, partition 2. Then if the replication factor is 3, for every partition there will be 3 replicas.
 
 ##### Broker Setup
 
 ---
 ![](screens/partitionreplica.png)
 
-After the topic is created, then it can fetch the partition information for the topic and start producing messages. So the producer will round-robin through the partitions, that means the first message batch it sends will be to broker-0, then next message-batch to broker-1, and so on. This allows for load-balancing amongst the brokers in handling of messages.
+After the topic is created, then it can fetch the partition information for the topic and start producing messages. The producer will round-robin through the partitions, that means the first message batch it sends will be to broker-0, then next message-batch to broker-1, and so on. This allows for load-balancing amongst the brokers in handling of messages.
 
 #### Producer Process
 
 ---
 ![](screens/producerbroker.png)
 
-In the implementation there is 4 brokers and 1 zookeeper. The brokers will store the messages from the producer and there’s a controller broker who will manage the assignment of partitions and replicas, including reassigning partition when a broker is down.
-
-The Zookeeper is like a master node that will check on whether the brokers are alive and elect a new controller broker if the controller broker is down. Zookeeper will also handles the persistent storage for broker metadata. 
+In our implementation, we have 4 brokers and 1 zookeeper. The brokers will store the messages from the producer. Out of the brokers, there will be one broker who is the controller. The controller is in-charge of listening for the heartbeat from other brokers and pushing updates of the metadata to the other brokers. If a broker is down, it will reassign the partitions. The zookeeper will listen out for the heartbeat of the controller, and also manage the persistence of metadata information to the disk. If the controller is down, the zookeeper will elect another broker to be the new controller.
 
 #### Zookeeper
 
 ---
 ![](screens/zookeeper1.png)
 
-Lastly, the consumers in consumer group, a consumer group can subscribe to a topic, then it will manage which consumers in its group will pull from which partition on that topic. In our implementation, we will do this manually, so the consumers will specify the topic and the partition they will pull from. The point of the consumer group is so that there is distribution of the pulling of messages, so not just one machine will be responsible for pulling and processing the messages. 
+Lastly, we have consumers in consumer group. A consumer group can be set to subscribe to a topic, and it will assign the consumers in its group different partitions to pull from for that topic. In our implementation, we will do this manually, the user will directly specify the topic and the partition the consumer will pull from. The point of the consumer group is so that there is distribution of the pulling of messages, where more than one machine will be responsible for pulling and processing the messages. 
 
 #### Consumer Process**
 
@@ -72,6 +70,8 @@ As there are 4 brokers, in the commands below, `X` in `<broker-X:port>` can be s
 | --------------     | ----------------        |
 |`docker container run --rm  -it --network=kafka-net akfak bash` | This runs a bash terminal in a container in the network that is set up. |
 |`consumer --id <id> --kafka-server <broker-X:port> --topic <topic_name>` | This instantiates a consumer. The consumer will call the given broker address to retrieve partition information on the topic it is producing. The user will then select one partition the consumer will pull from.<br>**Example**: `consumer --id 1 --kafka-server broker-1:5000 --topic topic1`|
+
+###
 
 ---
 #### Glossary
