@@ -17,7 +17,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-const METADATA_TIMEOUT = 100 * time.Millisecond
+const METADATA_TIMEOUT = 500 * time.Millisecond
 
 // Consumer is a Kafka consumer
 type Consumer struct {
@@ -37,7 +37,7 @@ type Consumer struct {
 }
 
 // InitConsumerGroup creates a consumergroup and sets up broker connections
-func InitConsumer(id int, topic string, brokerAddr string) (*Consumer, []*metadatapb.Partition) {
+func InitConsumer(id int, topic string, brokerAddr string) (*Consumer, int) {
 
 	// Dial to broker to get metadata
 	c := &Consumer{
@@ -152,13 +152,19 @@ func (c *Consumer)doConsume(brokerID int, partitionIdx int) {
 func (c *Consumer) postDoConsumeHook(brokerID int, res *consumepb.ConsumeResponse, err error) {
 	if err != nil {
 		log.Printf("Detect Broker %v failure, retry to send message to other broker", brokerID)
-		newBrkID := brokerID
-		if err == errors.New("Broker not available") {
-			newBrkID = -1
-		}
-		// try until all the partitions are exhausted
+		//newBrkID := brokerID
+		//// get next partition to connect to
+		//if err == errors.New("Broker not available") {
+		//	newBrkID = -1
+		//}
+		//// try until all the partitions are exhausted
+		//for {
+		//	c.refreshMetadata()
+		//}
 
 	} else {
+		// Update offset and read records
+		c.offset = int(res.Offset)
 		records := res.RecordSet.GetRecords()
 		for _, record := range records {
 			bytes := record.GetValue()
