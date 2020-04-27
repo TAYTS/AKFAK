@@ -90,17 +90,24 @@ As there are 4 brokers, in the commands below, `X` in `<broker-X:port>` can be s
   "port": 5000
 }
 ```
-3. Add the new broker information in the `docker-compose.yml` file below the last broker information. Replace `X` with the broker's actual ID.
-```
-  broker-X:
-    image: akfak:latest
-    container_name: broker-X
-    depends_on:
-      - zookeeper
+3. Add the new broker information in the `docker-compose.yml` file.
+    
+    i) First, under `services`, add another broker. Replace `X` with the broker's actual ID.
+    ```
+      broker-X:
+        image: akfak:latest
+        container_name: broker-X
+        depends_on:
+          - zookeeper
+        volumes:
+          - brokerX-volume:/go/src/AKFAK
+        command: broker -server-config ./config/broker_config_X.json
+    ```
+   ii) Next, under the volumes section, add the new broker's volume. Replax `X` with the broker's actual ID.
+    ```
     volumes:
-      - brokerX-volume:/go/src/AKFAK
-    command: broker -server-config ./config/broker_config_X.json
-```
+      broker-X-volume:
+    ```
 
 #### Testing fault-tolerance
 To test for fault-tolerance, observe that the producers/consumers will be able to run smoothly as long as one broker is still alive.
