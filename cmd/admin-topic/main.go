@@ -39,10 +39,10 @@ func main() {
 	case string(topic.CREATE_TOPIC):
 		// create new topic routine
 		topic.CreateNewTopic(ctrlConnectionStr, topicCommandInput)
-	case string(topic.LIST_TOPIC):
-		// list all topic routine
-	case string(topic.DELETE_TOPIC):
-		// delete topic routine
+	// case string(topic.LIST_TOPIC):
+	// list all topic routine
+	// case string(topic.DELETE_TOPIC):
+	// delete topic routine
 	default:
 		os.Exit(2)
 	}

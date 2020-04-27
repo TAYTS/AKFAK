@@ -39,15 +39,15 @@ func ParseTopicCommandInput() CommandInput {
 	// CREATE COMMAND //
 
 	// LIST COMMAND //
-	flag.NewFlagSet(string(LIST_TOPIC), flag.ExitOnError)
+	// flag.NewFlagSet(string(LIST_TOPIC), flag.ExitOnError)
 	// LIST COMMAND //
 
 	// DELETE COMMAND //
-	deleteCommand := flag.NewFlagSet(string(DELETE_TOPIC), flag.ExitOnError)
-	deleteTopicPtr := deleteCommand.String(
-		"topic",
-		"",
-		"Topic to delete")
+	// deleteCommand := flag.NewFlagSet(string(DELETE_TOPIC), flag.ExitOnError)
+	// deleteTopicPtr := deleteCommand.String(
+	// 	"topic",
+	// 	"",
+	// 	"Topic to delete")
 	// DELETE COMMAND //
 
 	// print usage if user does not provide kafka server address and the entry command
@@ -56,9 +56,9 @@ func ParseTopicCommandInput() CommandInput {
 		fmt.Println("Command:")
 		fmt.Println("create       : Create new topic")
 		createCommand.PrintDefaults()
-		fmt.Println("list         : List all topic")
-		fmt.Println("delete       : Delete a topic")
-		deleteCommand.PrintDefaults()
+		// fmt.Println("list         : List all topic")
+		// fmt.Println("delete       : Delete a topic")
+		// deleteCommand.PrintDefaults()
 		os.Exit(2)
 	}
 
@@ -90,17 +90,17 @@ func ParseTopicCommandInput() CommandInput {
 			os.Exit(2)
 		}
 		topic = *createTopicPtr
-	case string(LIST_TOPIC):
-		operation = string(LIST_TOPIC)
-	case string(DELETE_TOPIC):
-		deleteCommand.Parse(os.Args[4:])
-		operation = string(DELETE_TOPIC)
-		if *deleteTopicPtr == "" {
-			printErrorMessage("-topic")
-			deleteCommand.PrintDefaults()
-			os.Exit(2)
-		}
-		topic = *deleteTopicPtr
+	// case string(LIST_TOPIC):
+	// 	operation = string(LIST_TOPIC)
+	// case string(DELETE_TOPIC):
+	// 	deleteCommand.Parse(os.Args[4:])
+	// 	operation = string(DELETE_TOPIC)
+	// 	if *deleteTopicPtr == "" {
+	// 		printErrorMessage("-topic")
+	// 		deleteCommand.PrintDefaults()
+	// 		os.Exit(2)
+	// 	}
+	// 	topic = *deleteTopicPtr
 	default:
 		fmt.Printf("%q is not a valid command.\n", os.Args[3])
 		os.Exit(2)
