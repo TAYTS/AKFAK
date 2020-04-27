@@ -106,7 +106,7 @@ As there are 4 brokers, in the commands below, `X` in `<broker-X:port>` can be s
    ii) Next, under the volumes section, add the new broker's volume. Replax `X` with the broker's actual ID.
     ```
     volumes:
-      broker-X-volume:
+      brokerX-volume:
     ```
 
 #### Testing fault-tolerance
