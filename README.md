@@ -29,7 +29,7 @@ After the topic is created, then it can fetch the partition information for the 
 ---
 ![](screens/producerbroker.png)
 
-In our implementation, we have 4 brokers and 1 zookeeper. The brokers will store the messages from the producer. Out of the brokers, there will be one broker who is the controller. The controller is in-charge of listening for the heartbeat from other brokers and pushing updates of the metadata to the other brokers. If a broker is down, it will reassign the partitions. The zookeeper will listen out for the heartbeat of the controller, and also manage the persistence of metadata information to the disk. If the controller is down, the zookeeper will elect another broker to be the new controller.
+The brokers will store the messages from the producer. Out of the brokers, there will be one broker who is the controller. The controller is in-charge of listening for the heartbeat from other brokers and pushing updates of the metadata to the other brokers. If a broker is down, it will reassign the partitions. The zookeeper will listen out for the heartbeat of the controller, and also manage the persistence of metadata information to the disk. If the controller is down, the zookeeper will elect another broker to be the new controller.
 
 #### Zookeeper
 
@@ -49,7 +49,7 @@ Lastly, we have consumers in consumer group. A consumer group can be set to subs
 We use Docker to demonstrate how the system will work with multiple machines.
 1. Download the repository using `git clone https://github.com/TAYTS/AKFAK.git`, extract it.
 2. `docker-compose build` 
-3. After step 2 is complete, open 3 terminals.
+3. After step 2 is complete, open 3 terminals (for the minimal example of 1 producer, 1 consumer. Repeat the instructions for terminal 2 and 3 to simulate having more producers and consumers.)
 
 #### On the first terminal, we will set up our zookeeper and brokers.
 | Command            | Explanation             |
@@ -58,7 +58,7 @@ We use Docker to demonstrate how the system will work with multiple machines.
 
 As there are 4 brokers, in the commands below, `X` in `<broker-X:port>` can be substituted by any number from \[1-4]. Port is specified in the `broker_X_config.json` files to be `5000`.
 
-#### On the second terminal, we will create a topic and start a producer instance that will produce messages for a specified topic.
+#### On the second terminal, we will create a topic and start a producer instance that will produce messages for a specified topic. 
 | Command            | Explanation             |
 | --------------     | ----------------        |
 |`docker container run --rm  -it --network=kafka-net akfak bash`| This runs a bash terminal in a container in the network that is set up. |
@@ -70,6 +70,37 @@ As there are 4 brokers, in the commands below, `X` in `<broker-X:port>` can be s
 | --------------     | ----------------        |
 |`docker container run --rm  -it --network=kafka-net akfak bash` | This runs a bash terminal in a container in the network that is set up. |
 |`consumer --id <id> --kafka-server <broker-X:port> --topic <topic_name>` | This instantiates a consumer. The consumer will call the given broker address to retrieve partition information on the topic it is producing. The user will then select one partition the consumer will pull from.<br>**Example**: `consumer --id 1 --kafka-server broker-1:5000 --topic topic1`|
+
+#### Adding brokers
+1. Add a new `broker_config_X.json` file in the `config` directory. Example: `config/broker_config_5.json`. Add the following into the json file, replacing `X` with the broker ID number.
+```
+{
+  "ID": X,
+  "host": "broker-X",
+  "port": 5000,
+  "logDir": "./logs",
+  "zookeeperConnection": "zookeeper:2181"
+}
+```
+2. Add the new broker's ID, host and port into the `data/cluster_state.json` file according to the existing conventions. Replace `X` with the broker's actual ID.
+```
+{
+  "ID": X,
+  "host": "broker-X",
+  "port": 5000
+}
+```
+3. Add the new broker information in the `docker-compose.yml` file below the last broker information. Replace `X` with the broker's actual ID.
+```
+  broker-X:
+    image: akfak:latest
+    container_name: broker-X
+    depends_on:
+      - zookeeper
+    volumes:
+      - brokerX-volume:/go/src/AKFAK
+    command: broker -server-config ./config/broker_config_X.json
+```
 
 #### Testing fault-tolerance
 To test for fault-tolerance, observe that the producers/consumers will be able to run smoothly as long as one broker is still alive.
