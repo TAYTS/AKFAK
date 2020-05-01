@@ -43,6 +43,7 @@ The brokers will store the messages from the producer. Out of the brokers, there
 
 Lastly, we have consumers in consumer group. In Kafka, a consumer group can be set to subscribe to a topic, and it will assign the consumers in its group different partitions to pull from for that topic. In our implementation, we will do this manually. The user will directly specify the topic and the partition the consumer will pull from. The point of the consumer group is so that there is distribution of the pulling of messages, so that more than one machine will be responsible for pulling and processing the messages. 
 
+---
 ### How to run
 We use Docker to demonstrate how the system will work with multiple machines.
 1. Download the repository using `git clone https://github.com/TAYTS/AKFAK.git`, extract it.
