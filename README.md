@@ -1,49 +1,47 @@
 # AKFAK using Golang
-
-This project showcase the model after Apache Kafka. 
-
-#### Overview of system architecture
+### System architecture
+#### Overview
 ---
 ![](screens/systemoverview.png)
-
-#### There are 4 main roles in the system.
 ---
+In our project which we model after Apache Kafka, we have 4 main roles in our system.
 1. Zookeeper
 2. Producer
 3. Broker
 4. Consumer
 
-#### General flow of the system
----
-Producer will produce messages to the Kafka system which comprises of multiple brokers and a zookeeper. Before the producer produce the message, the producer has to create a topic first and it will specify the number of partitions and replicas for those partitions the topic will have. So if a topic with 3 partitions are created, then there will be partition 0, partition 1, partition 2. Then if the replication factor is 3, for every partition there will be 3 replicas.
+The producer will produce messages to the Kafka system which comprises of multiple brokers and a zookeeper. The consumers in a consumer group will pull messages for a topic. 
 
-##### Broker Setup
-
+#### Broker Setup
 ---
 ![](screens/partitionreplica.png)
+---
 
-After the topic is created, then it can fetch the partition information for the topic and start producing messages. The producer will round-robin through the partitions, that means the first message batch it sends will be to broker-0, then next message-batch to broker-1, and so on. This allows for load-balancing amongst the brokers in handling of messages.
+A topic has to be created before a producer can start producing messages for that topic. During the creation of a topic, the number of partitions and replicas for those partitions will have to be specified. If a topic with 3 partitions is created, then there will be partition 0, partition 1, partition 2. And if the replication factor is 3, then for every partition there will be 3 replicas. An example of how this will be represented in the brokers is shown in the figure above.
 
-#### Producer Process
 
+#### Producer-Broker
 ---
 ![](screens/producerbroker.png)
+---
+
+After the topic is created, the producer can fetch the partition information for the topic and start producing messages. The producer will round-robin through the partitions. That means the first message batch it sends will be to the leader of partition-0, then next message-batch to partition-1, and so on. In this case, the partition leaders happen to be in broker-0, broker-1 and broker-2 respectively. However, since partition leaders are simply assigned to the broker that first responds to the controller's assignment, this is not always the case. When there is a distribution of leader partitions across the brokers, load-balancing amongst the brokers in handling of messages occurs.
+
+
+#### Broker-Zookeeper
+---
+![](screens/zookeeper1.png)
+---
 
 The brokers will store the messages from the producer. Out of the brokers, there will be one broker who is the controller. The controller is in-charge of listening for the heartbeat from other brokers and pushing updates of the metadata to the other brokers. If a broker is down, it will reassign the partitions. The zookeeper will listen out for the heartbeat of the controller, and also manage the persistence of metadata information to the disk. If the controller is down, the zookeeper will elect another broker to be the new controller.
 
-#### Zookeeper
 
----
-![](screens/zookeeper1.png)
-
-Lastly, we have consumers in consumer group. A consumer group can be set to subscribe to a topic, and it will assign the consumers in its group different partitions to pull from for that topic. In our implementation, we will do this manually, the user will directly specify the topic and the partition the consumer will pull from. The point of the consumer group is so that there is distribution of the pulling of messages, where more than one machine will be responsible for pulling and processing the messages. 
-
-#### Consumer Process**
-
+#### Broker-Consumer 
 ---
 ![](screens/brokerconsumer.png)
-
 ---
+
+Lastly, we have consumers in consumer group. In Kafka, a consumer group can be set to subscribe to a topic, and it will assign the consumers in its group different partitions to pull from for that topic. In our implementation, we will do this manually. The user will directly specify the topic and the partition the consumer will pull from. The point of the consumer group is so that there is distribution of the pulling of messages, so that more than one machine will be responsible for pulling and processing the messages. 
 
 ### How to run
 We use Docker to demonstrate how the system will work with multiple machines.
